@@ -1,5 +1,7 @@
 # Estrutura operacional do ecossistema
 
+Manual de entrada da central: `/documentacao`, gerado pela mesma fonte usada no MCP (`orbita://manual`). O vault continua responsável pelo conhecimento durável da empresa.
+
 Cada produto é uma unidade de negócio. A visão Negócios usa o Registro de Aplicações do vault, PRs da organização e grupos explícitos dos monitores. Próximos vínculos devem ser ids de produto, não inferência por nomes de pessoas: produto → projetos/tarefas internas, oportunidades/clientes do CRM, canais Postiz, workflows n8n e caixas de e-mail. A visão AG LABS consolida o conjunto; a visão de produto filtra a mesma origem.
 
 ## Tarefas

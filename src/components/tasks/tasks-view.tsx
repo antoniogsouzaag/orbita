@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { relativeDay, today } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import type { TaskRow, TaskView } from "@/server/tasks";
+import type { TaskScope } from "@/db/schema";
 import { ParsePreview } from "./parse-preview";
 import { TaskDetail, type TaskDetailData } from "./task-detail";
 import { TaskItem } from "./task-item";
@@ -62,7 +63,7 @@ export function TasksView({
   projectId?: string;
   detail: TaskDetailData | null;
   hideViews?: boolean;
-  scope?: "pessoal" | "empresa" | "todas";
+  scope?: TaskScope;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -73,7 +74,9 @@ export function TasksView({
 
   const href = (patch: Record<string, string | null>) => {
     const p = new URLSearchParams(params.toString());
-    for (const [k, v] of Object.entries(patch)) (v === null ? p.delete(k) : p.set(k, v));
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null) p.delete(k); else p.set(k, v);
+    }
     const s = p.toString();
     return `${pathname}${s ? `?${s}` : ""}`;
   };
@@ -81,13 +84,13 @@ export function TasksView({
   const groups = groupByDate(optimistic, view);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[200px_1fr]">
+    <div className={cn("grid min-w-0 grid-cols-1 gap-6", !hideViews && "lg:grid-cols-[200px_minmax(0,1fr)]")}>
       {!hideViews && (
-        <aside className="space-y-5">
+        <aside className="min-w-0 space-y-5">
           {scope && (
-            <div className="grid grid-cols-3 gap-0.5 rounded-xl border border-border bg-surface-2 p-0.5 text-[12.5px]">
-              {(["pessoal", "empresa", "todas"] as const).map((s) => (
-                <Link key={s} href={href({ escopo: s === "pessoal" ? null : s, task: null, project: null })} className={cn("rounded-[10px] px-2 py-1.5 text-center capitalize transition", scope === s ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>
+            <div className="grid grid-cols-2 gap-0.5 rounded-xl border border-border bg-surface-2 p-0.5 text-[12.5px]">
+              {(["pessoal", "empresa"] as const).map((s) => (
+                <Link key={s} href={href({ escopo: s === "pessoal" ? null : s, task: null, project: null, tag: null })} className={cn("rounded-[10px] px-2 py-1.5 text-center capitalize transition", scope === s ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>
                   {s}
                 </Link>
               ))}
@@ -138,8 +141,10 @@ export function TasksView({
             const v = value;
             setValue("");
             start(async () => {
-              await quickAddTask(view === "hoje" && !/\b(hoje|amanh|segunda|terça|terca|quarta|quinta|sexta|s[áa]bado|domingo|\d{1,2}\/\d{1,2})/i.test(v) ? `${v} hoje` : v, projectId ?? null, scope === "empresa" ? "empresa" : scope === "pessoal" ? "pessoal" : undefined);
-              toast.success("Tarefa criada");
+              try {
+                await quickAddTask(view === "hoje" && !/\b(hoje|amanh|segunda|terça|terca|quarta|quinta|sexta|s[áa]bado|domingo|\d{1,2}\/\d{1,2})/i.test(v) ? `${v} hoje` : v, projectId ?? null, scope ?? "pessoal");
+                toast.success("Tarefa criada");
+              } catch { setValue(v); toast.error("Não foi possível criar a tarefa. Verifique o projeto e tente novamente."); }
             });
           }}
           className="card px-3 py-1.5 transition focus-within:border-accent/40"
@@ -167,7 +172,7 @@ export function TasksView({
                   key={t.id}
                   task={t}
                   showDate={g.key === "all" || g.key === "0-atrasadas"}
-                  showScope={scope === "todas"}
+                  showScope={false}
                   onOpen={() => router.push(href({ task: t.id }), { scroll: false })}
                   onToggle={() =>
                     start(async () => {
@@ -183,7 +188,7 @@ export function TasksView({
         )}
       </div>
 
-      {detail && <TaskDetail task={detail} projects={projects} onClose={() => router.push(href({ task: null }), { scroll: false })} />}
+      {detail && <TaskDetail key={detail.id} task={detail} projects={projects} onClose={() => router.push(href({ task: null }), { scroll: false })} />}
     </div>
   );
 }

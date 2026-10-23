@@ -10,23 +10,27 @@ import { Select } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
 import { focusedMinutes } from "@/lib/focus";
+import type { TaskScope } from "@/db/schema";
 
 type Phase = "foco" | "pausa";
 const KEY = "orbita:focus";
 
-type Props = { tasks: { id: string; title: string }[]; defaultMinutes: number; initialTaskId?: string };
+type Props = { tasks: { id: string; title: string }[]; defaultMinutes: number; initialTaskId?: string; scope?: TaskScope };
 const subscribeHydration = () => () => {};
 export function FocusTimer(props: Props) {
   const ready = React.useSyncExternalStore(subscribeHydration, () => true, () => false);
   return ready ? <FocusTimerClient {...props} /> : <Card className="p-8 text-sm text-muted">Preparando seu bloco de foco…</Card>;
 }
 
-function FocusTimerClient({ tasks, defaultMinutes, initialTaskId }: Props) {
+function FocusTimerClient({ tasks, defaultMinutes, initialTaskId, scope = "pessoal" }: Props) {
+  const storageKey = scope === "pessoal" ? KEY : `${KEY}:empresa`;
   const [initial] = React.useState(() => {
     const fallback = { phase: "foco" as Phase, minutes: defaultMinutes, taskId: initialTaskId ?? "", endsAt: null as number | null, remaining: defaultMinutes * 60, sessionId: null as string | null };
     try {
-      const saved = JSON.parse(localStorage.getItem(KEY) ?? "null");
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "null");
       if (!saved || !["foco", "pausa"].includes(saved.phase) || !Number.isInteger(saved.minutes) || saved.minutes < 1 || saved.minutes > 600) return fallback;
+      if (saved.taskId && !tasks.some((task) => task.id === saved.taskId)) return fallback;
+      if (scope === "empresa" && !saved.taskId) return fallback;
       if (saved.endsAt && (!Number.isFinite(saved.endsAt) || saved.endsAt < Date.now() - 86_400_000)) return fallback;
       const seconds = (saved.phase === "foco" ? saved.minutes : saved.minutes >= 50 ? 10 : 5) * 60;
       return { phase: saved.phase as Phase, minutes: saved.minutes as number, taskId: tasks.some((task) => task.id === saved.taskId) ? saved.taskId as string : initialTaskId ?? "", endsAt: typeof saved.endsAt === "number" ? saved.endsAt : null, remaining: saved.endsAt ? Math.max(0, Math.round((saved.endsAt - Date.now()) / 1000)) : Math.max(0, Math.min(seconds, Number.isFinite(saved.remaining) ? saved.remaining : seconds)), sessionId: typeof saved.sessionId === "string" && /^[0-9a-f-]{36}$/.test(saved.sessionId) ? saved.sessionId : saved.endsAt ? crypto.randomUUID() : null };
@@ -43,7 +47,7 @@ function FocusTimerClient({ tasks, defaultMinutes, initialTaskId }: Props) {
   const total = (phase === "foco" ? minutes : minutes >= 50 ? 10 : 5) * 60;
 
   function persist(state: object | null) {
-    try { if (state) localStorage.setItem(KEY, JSON.stringify(state)); else localStorage.removeItem(KEY); } catch {}
+    try { if (state) localStorage.setItem(storageKey, JSON.stringify(state)); else localStorage.removeItem(storageKey); } catch {}
   }
   function finish(automatic = false) {
     const sessionId = sessionRef.current;
@@ -58,7 +62,7 @@ function FocusTimerClient({ tasks, defaultMinutes, initialTaskId }: Props) {
         const end = new Date(automatic && endsAt ? endsAt : Date.now()).toISOString();
         start(async () => {
           try {
-            const result = await logFocus(recorded, label, taskId || null, sessionId, end);
+            const result = await logFocus(recorded, label, taskId || null, sessionId, end, scope);
             if (result.recorded) toast.success(`+${recorded} min de foco registrados`);
           } catch { toast.error("O tempo de foco não foi salvo. Confira sua conexão."); }
         });
@@ -95,6 +99,7 @@ function FocusTimerClient({ tasks, defaultMinutes, initialTaskId }: Props) {
   React.useEffect(() => () => { document.title = "Foco · Órbita"; }, []);
 
   const startTimer = () => {
+    if (phase === "foco" && scope === "empresa" && !taskId) { toast.error("Selecione uma tarefa da empresa para começar."); return; }
     if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission().catch(() => {});
     const end = Date.now() + remaining * 1000;
     if (!sessionRef.current) sessionRef.current = crypto.randomUUID();
@@ -136,7 +141,7 @@ function FocusTimerClient({ tasks, defaultMinutes, initialTaskId }: Props) {
         </div>
       </div>
       <Select value={taskId} onChange={(e) => setTaskId(e.target.value)} className="max-w-sm" disabled={Boolean(endsAt)}>
-        <option value="">Sem tarefa vinculada</option>
+        <option value="">{scope === "empresa" ? "Selecione uma tarefa da empresa" : "Sem tarefa vinculada"}</option>
         {tasks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
       </Select>
       <div className="flex items-center gap-3">

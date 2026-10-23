@@ -23,14 +23,14 @@ export default async function Page() {
   const render: Record<EmpresaWidgetId, () => React.ReactNode> = {
     aguardando: () => <Suspense fallback={<WaitingWidget asks={data.asks} due={data.due} crmMine={data.crmMine} crmTasksUrl={data.crmTasksUrl} today={data.today} />}><WaitingCard data={data} /></Suspense>,
     operacao: () => <OperationWidget ops={data.ops} />,
-    tarefas: () => <TasksWidget tasks={data.tasks} counts={data.counts} href="/tarefas?escopo=empresa" showScope={false} />,
+    tarefas: () => <TasksWidget tasks={data.tasks} counts={data.counts} href="/tarefas?escopo=empresa" title="Operação interna · Órbita" showScope={false} />,
     crm: () => <Suspense fallback={<ProviderLoading title="Conectando ao CRM" />}><CrmCard /></Suspense>,
     github: () => <Suspense fallback={<ProviderLoading title="Atualizando PRs e propostas" />}><GithubCard /></Suspense>,
     agentes: () => <AgentsWidget activity={data.activity} />,
     projetos: () => <ProjectsWidget projects={data.projects} />,
     incidentes: () => <IncidentsWidget incidents={data.incidents} />,
     dominios: () => <DomainsWidget domains={data.domains} />,
-    metas: () => <GoalsWidget goals={data.goals} />,
+    metas: () => <GoalsWidget goals={data.goals} href="/metas?escopo=empresa" />,
     agenda: () => <AgendaWidget agenda={data.agenda} />,
   };
 

@@ -14,10 +14,11 @@ import { cn } from "@/lib/utils";
 import { acknowledgeNotifications, type ShellNotification } from "@/lib/notifications";
 import { CommandPalette } from "./command-palette";
 import { Logo } from "./logo";
-import { SETTINGS_ITEM, SHARED, SPACES, isActive, spaceOf, type NavItem, type Space } from "./nav";
+import { SETTINGS_ITEM, SHARED, SPACES, navigationHref, isActive, spaceOf, type NavItem, type Space } from "./nav";
 import { QuickAdd } from "./quick-add";
 import { SpeedDial } from "./speed-dial";
 import { storePreference, useScrolled, useStoredPreference } from "./browser-state";
+import { isEditingTarget, isSidebarShortcut } from "./interactions";
 
 export type { ShellNotification } from "@/lib/notifications";
 
@@ -96,7 +97,7 @@ export function AppShell({
   avatar?: string | null;
   name: string;
   notifications: ShellNotification[];
-  projects: { id: string; name: string; color: string }[];
+  projects: { id: string; name: string; color: string; area?: string }[];
 }) {
   const pathname = usePathname();
   const { space } = useSpace();
@@ -105,27 +106,31 @@ export function AppShell({
   const [palette, setPalette] = React.useState(false);
   const [quick, setQuick] = React.useState<{ open: boolean; tab?: string }>({ open: false });
   const scrolled = useScrolled();
-  const [items, setItems] = React.useState(notifications);
+  const [noticeSnapshot, setNoticeSnapshot] = React.useState<{ scope: Space; items: ShellNotification[]; checkedAt: string | null; error: boolean }>({ scope: space, items: notifications, checkedAt: null, error: false });
+  const items = noticeSnapshot.scope === space ? noticeSnapshot.items : [];
   const readRaw = useStoredPreference("orbita:notifications:read", "[]");
   const read = React.useMemo<string[]>(() => {
     try { const value = JSON.parse(readRaw); return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(-300) : []; } catch { return []; }
   }, [readRaw]);
   const [noticesOpen, setNoticesOpen] = React.useState(false);
-  const [noticeError, setNoticeError] = React.useState(false);
-  const [checkedAt, setCheckedAt] = React.useState<string | null>(null);
-  const refreshingNotices = React.useRef(false);
+  const noticeError = noticeSnapshot.scope === space && noticeSnapshot.error;
+  const checkedAt = noticeSnapshot.scope === space ? noticeSnapshot.checkedAt : null;
+  const refreshingNotices = React.useRef<{ scope: Space; controller: AbortController } | null>(null);
   const unread = items.filter((n) => !read.includes(n.id)).length;
   const refreshNotices = React.useCallback((): Promise<void> => {
-    if (refreshingNotices.current) return Promise.resolve();
-    refreshingNotices.current = true;
-    return fetch("/api/notifications", { cache: "no-store", signal: AbortSignal.timeout(15_000) }).then(async (response) => {
+    if (refreshingNotices.current?.scope === space) return Promise.resolve();
+    refreshingNotices.current?.controller.abort();
+    const request = { scope: space, controller: new AbortController() };
+    refreshingNotices.current = request;
+    return fetch(`/api/notifications?escopo=${space}`, { cache: "no-store", signal: AbortSignal.any([request.controller.signal, AbortSignal.timeout(15_000)]) }).then(async (response) => {
       if (!response.ok) throw new Error("notifications");
       const data = await response.json();
-      setItems(data.items);
-      setCheckedAt(data.checkedAt);
-      setNoticeError(false);
-    }).catch(() => { setNoticeError(true); }).finally(() => { refreshingNotices.current = false; });
-  }, []);
+      if (data.scope !== space || !Array.isArray(data.items) || typeof data.checkedAt !== "string") throw new Error("notifications-response");
+      if (!request.controller.signal.aborted) setNoticeSnapshot({ scope: space, items: data.items, checkedAt: data.checkedAt, error: false });
+    }).catch(() => {
+      if (!request.controller.signal.aborted) setNoticeSnapshot((previous) => previous.scope === space ? { ...previous, error: true } : { scope: space, items: [], checkedAt: null, error: true });
+    }).finally(() => { if (refreshingNotices.current === request) refreshingNotices.current = null; });
+  }, [space]);
   const markRead = (ids: string[]) => storePreference("orbita:notifications:read", JSON.stringify(acknowledgeNotifications(read, ids)));
 
   React.useEffect(() => {
@@ -137,6 +142,7 @@ export function AppShell({
   }, [refreshNotices]);
 
   React.useEffect(() => { void refreshNotices(); }, [pathname, refreshNotices]);
+  React.useEffect(() => () => refreshingNotices.current?.controller.abort(), []);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -145,9 +151,12 @@ export function AppShell({
         e.preventDefault();
         setPalette((v) => !v);
       }
-      const target = e.target as HTMLElement;
-      const typing = target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.closest(".cm-editor");
-      if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "c") {
+      const typing = isEditingTarget(e.target);
+      if (isSidebarShortcut(e, typing)) {
+        e.preventDefault();
+        try { storePreference("orbita:sidebar", localStorage.getItem("orbita:sidebar") === "1" ? "0" : "1"); } catch { storePreference("orbita:sidebar", "1"); }
+      }
+      if (!typing && !e.isComposing && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "c") {
         e.preventDefault();
         setQuick({ open: true, tab: "tarefa" });
       }
@@ -183,7 +192,7 @@ export function AppShell({
                 <Logo className="size-7" />
                 <span className="hidden text-[13px] font-semibold uppercase tracking-[0.22em] sm:inline">Órbita</span>
               </Link>
-            <button onClick={toggleSidebar} className={cn("rounded-lg p-1.5 transition hover:bg-white/10", sidebar && "hidden", isHome && !scrolled ? "text-white/70 hover:text-white" : "text-muted hover:text-fg")} aria-label="Alternar barra lateral" aria-expanded={sidebar} aria-controls="workspace-sidebar">
+            <button onClick={toggleSidebar} className={cn("rounded-lg p-1.5 transition hover:bg-white/10", sidebar && "hidden", isHome && !scrolled ? "text-white/70 hover:text-white" : "text-muted hover:text-fg")} aria-label="Alternar barra lateral" title="Alternar barra lateral (')" aria-keyshortcuts="'" aria-expanded={sidebar} aria-controls="workspace-sidebar">
               <PanelLeft className="size-[18px]" />
             </button>
             <div className="ml-auto flex items-center gap-1.5">
@@ -210,9 +219,9 @@ export function AppShell({
         <main className={cn("pb-32", !isHome && "pt-20")}>{children}</main>
 
         <Dock key={`${pathname}:${space}`} pathname={pathname} hidden={sidebar} onQuick={(tab) => ctx.openQuickAdd(tab)} />
-        <CommandPalette open={palette} onOpenChange={setPalette} onQuickAdd={ctx.openQuickAdd} />
+        <CommandPalette key={`${palette}:${space}`} open={palette} onOpenChange={setPalette} onQuickAdd={ctx.openQuickAdd} scope={space} onToggleSidebar={toggleSidebar} />
         <div id="shell-overlays" />
-        <QuickAdd scope={space} key={`${quick.open}:${quick.tab}`} open={quick.open} tab={quick.tab} projects={projects} onOpenChange={(open) => setQuick((q) => ({ ...q, open }))} />
+        <QuickAdd scope={space} key={`${quick.open}:${quick.tab}:${space}`} open={quick.open} tab={quick.tab} projects={projects.filter((project) => (project.area ?? "pessoal") === space)} onOpenChange={(open) => setQuick((q) => ({ ...q, open }))} />
       </div>
     </ShellContext.Provider>
   );
@@ -225,7 +234,7 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
       <div className="flex items-center gap-2 px-4 pb-2 pt-4">
         <Logo className="size-7" />
         <span className="text-[13px] font-semibold uppercase tracking-[0.22em]">Órbita</span>
-        <button onClick={onCollapse} className="ml-auto rounded-md p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Recolher">
+        <button onClick={onCollapse} className="ml-auto rounded-md p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Recolher barra lateral" title="Recolher barra lateral (')" aria-keyshortcuts="'">
           <PanelLeft className="size-4" />
         </button>
       </div>
@@ -249,7 +258,7 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
         ))}
         <div>
           <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-faint">Geral</div>
-          {SHARED.map((i) => <NavLink key={i.href} item={i} active={isActive(pathname, i.href, escopo)} />)}
+          {SHARED.map((i) => <NavLink key={i.href} item={{ ...i, href: navigationHref(i.href, space) }} active={isActive(pathname, i.href, escopo)} />)}
         </div>
       </nav>
       <div className="border-t border-border p-3">
@@ -260,6 +269,7 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
           <Avatar name={name} src={avatar} />
           <div className="min-w-0 text-[12.5px] font-medium">{name}</div>
         </div>
+        <p className="mt-3 flex items-center justify-between px-3 text-[10.5px] text-faint"><span>Alternar barra lateral</span><Kbd>&apos;</Kbd></p>
       </div>
     </aside>
   );
@@ -284,7 +294,7 @@ function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean
             return (
               <Link
                 key={i.href}
-                href={i.href}
+                href={navigationHref(i.href, space)}
                 aria-label={i.label}
                 title={i.label}
                 className={cn(
@@ -308,7 +318,7 @@ function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean
 
 function AllApps({ pathname, onOpen }: { pathname: string; onOpen: () => void }) {
   const [open, setOpen] = React.useState(false);
-  const { escopo } = useSpace();
+  const { space, escopo } = useSpace();
   return (
     <Popover.Root open={open} onOpenChange={(value) => { setOpen(value); if (value) onOpen(); }}>
       <Popover.Trigger className="grid size-10 place-items-center rounded-2xl text-muted hover:bg-surface-2 hover:text-fg" aria-label="Todos os módulos">
@@ -323,7 +333,7 @@ function AllApps({ pathname, onOpen }: { pathname: string; onOpen: () => void })
                 {s.items.map((i) => (
                   <Link
                     key={i.href}
-                    href={i.href}
+                    href={navigationHref(i.href, space)}
                     onClick={() => setOpen(false)}
                     className={cn("flex flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-center text-[12px] transition", isActive(pathname, i.href, escopo) ? "bg-surface-3 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")}
                   >

@@ -13,26 +13,24 @@ import { cn } from "@/lib/utils";
 
 type Msg = { role: "user" | "assistant"; content: string; actions?: AiAction[] };
 const SUGGESTIONS = ["O que devo priorizar hoje?", "Reorganize minhas tarefas atrasadas", "Cria tarefa: revisar proposta amanhã às 10h", "O que está fora do ar agora?", "Quais agentes cuidam do VPS-03?", "Quais sites são P1 e o que fazer se um cair?", "Resuma as regras do vault", "Monte um plano para quitar minha dívida"];
-const KEY = "orbita:chat";
+const EMPTY_HISTORY = "[]";
+function subscribeHistory(listener: () => void) { window.addEventListener("storage", listener); return () => window.removeEventListener("storage", listener); }
+function parseHistory(raw: string): Msg[] { try { const rows = JSON.parse(raw); return Array.isArray(rows) ? rows.filter(m => (m.role === "user" || m.role === "assistant") && typeof m.content === "string").slice(-30) : []; } catch { return []; } }
 
-export function AiChat({ enabled }: { enabled: boolean }) {
-  const [msgs, setMsgs] = React.useState<Msg[]>([]);
+export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope?: "pessoal" | "empresa" }) {
+  const storageKey = `orbita:chat:${scope}`;
+  const getHistory = React.useCallback(() => { try { return sessionStorage.getItem(storageKey) ?? EMPTY_HISTORY; } catch { return EMPTY_HISTORY; } }, [storageKey]);
+  const savedHistory = React.useSyncExternalStore(subscribeHistory, getHistory, () => EMPTY_HISTORY);
+  const saved = React.useMemo(() => parseHistory(savedHistory), [savedHistory]);
+  const [current, setCurrent] = React.useState<Msg[] | null>(null);
+  const msgs = current ?? saved;
+  function setMsgs(next: Msg[]) { setCurrent(next); try { sessionStorage.setItem(storageKey, JSON.stringify(next.slice(-30))); } catch {} }
   const [input, setInput] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const end = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  React.useEffect(() => {
-    try {
-      setMsgs(JSON.parse(sessionStorage.getItem(KEY) ?? "[]"));
-    } catch {}
-  }, []);
-  React.useEffect(() => {
-    try {
-      sessionStorage.setItem(KEY, JSON.stringify(msgs.slice(-30)));
-    } catch {}
-    end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [msgs]);
+  React.useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [msgs]);
 
   const send = async (text: string) => {
     const q = text.trim();
@@ -42,7 +40,7 @@ export function AiChat({ enabled }: { enabled: boolean }) {
     setInput("");
     setBusy(true);
     try {
-      const res = await fetch("/api/ai/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages: history.slice(-20).map(({ role, content }) => ({ role, content })) }) });
+      const res = await fetch("/api/ai/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scope, messages: history.slice(-20).map(({ role, content }) => ({ role, content })) }) });
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: "Falha ao consultar a IA" }));
         setMsgs([...history, { role: "assistant", content: `⚠️ ${err.error}` }]);
@@ -73,10 +71,10 @@ export function AiChat({ enabled }: { enabled: boolean }) {
         {msgs.length === 0 && (
           <div className="mx-auto flex max-w-xl flex-col items-center pt-10 text-center">
             <span className="mb-3 grid size-12 place-items-center rounded-2xl bg-accent/15 text-accent"><Sparkles className="size-6" /></span>
-            <h2 className="text-lg font-semibold">Pergunte sobre seu dia ou sobre a AG LABS</h2>
-            <p className="mt-1 text-[13px] text-muted">A IA vê suas tarefas, hábitos, agenda e metas, consulta o vault e a operação, e também age: cria e reorganiza tarefas, marca compromissos e registra gastos.{!enabled && " Configure a chave da IA em Integrações para ativar."}</p>
+            <h2 className="text-lg font-semibold">{scope === "empresa" ? "Próximas decisões da AG LABS" : "Organize seu dia"}</h2>
+            <p className="mt-1 text-[13px] text-muted">{scope === "empresa" ? "Contexto empresarial, tarefas internas e operação. Atividades comerciais permanecem no CRM." : "Tarefas pessoais, hábitos, agenda e metas. A IA consulta seu contexto e pode executar as ações que você pedir."}{!enabled && " Configure a chave da IA em Integrações para ativar."}</p>
             <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => <button key={s} disabled={!enabled} onClick={() => send(s)} className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] hover:border-accent/50 disabled:opacity-50">{s}</button>)}
+              {(scope === "empresa" ? ["O que a empresa deve priorizar hoje?", "Revisar tarefas empresariais atrasadas", "O que está fora do ar agora?", "Resuma as regras do vault"] : SUGGESTIONS).map((s) => <button key={s} disabled={!enabled} onClick={() => send(s)} className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] hover:border-accent/50 disabled:opacity-50">{s}</button>)}
             </div>
           </div>
         )}

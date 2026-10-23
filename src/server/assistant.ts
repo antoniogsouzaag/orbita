@@ -2,9 +2,11 @@ import "server-only";
 import { desc, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { events, notes, projects, tasks, transactions } from "@/db/schema";
+import { events, notes, projects, tasks, transactions, type TaskScope } from "@/db/schema";
 import { localDate, localTime, shiftDate, today, zonedToUtc } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
+import { projectScope, taskHref } from "@/lib/task-scope";
+import { insertTask, patchTask } from "./task-write";
 import { eventsBetween } from "./calendar";
 import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./crm";
 import { liveOps } from "./ops-live";
@@ -53,14 +55,11 @@ const criarTarefaSchema = z.object({
 export const criarTarefa = {
   schema: criarTarefaSchema,
   async run(v: z.infer<typeof criarTarefaSchema>): Promise<ActionResult> {
-    const db = await getDb();
     const p = await projectByName(v.projeto);
-    const [row] = await db
-      .insert(tasks)
-      .values({ title: v.titulo, dueDate: v.prazo ?? null, dueTime: v.hora ?? null, priority: v.prioridade ? PRIORIDADE[v.prioridade] : 0, projectId: p?.id ?? null, tags: v.tags ?? [], notes: v.notas ?? null, scope: v.escopo ?? (p?.area === "empresa" ? "empresa" : "pessoal") })
-      .returning({ id: tasks.id });
+    const scope = v.escopo ?? projectScope(p?.area ?? "pessoal");
+    const id = await insertTask({ title: v.titulo, dueDate: v.prazo ?? null, dueTime: v.hora ?? null, priority: v.prioridade ? PRIORIDADE[v.prioridade] : 0, projectId: p?.id ?? null, tags: v.tags ?? [], notes: v.notas ?? null, scope });
     const extra = [v.prazo && `prazo ${v.prazo}${v.hora ? ` ${v.hora}` : ""}`, p && `projeto ${p.name}`, v.projeto && !p && `projeto “${v.projeto}” não encontrado, ficou sem projeto`].filter(Boolean).join(", ");
-    return { text: `Tarefa criada (id ${row.id}): ${v.titulo}${extra ? ` — ${extra}` : ""}.`, action: { label: `Tarefa: ${v.titulo}`, href: "/tarefas" } };
+    return { text: `Tarefa criada em ${scope} (id ${id}): ${v.titulo}${extra ? ` — ${extra}` : ""}.`, action: { label: `Tarefa: ${v.titulo}`, href: taskHref(scope) } };
   },
 };
 
@@ -69,21 +68,21 @@ export async function quickTask(texto: string): Promise<ActionResult> {
   const parsed = parseTaskInput(texto, today());
   const p = parsed.projectQuery ? await projectByName(parsed.projectQuery) : null;
   const title = (parsed.projectQuery && !p ? `${parsed.title} @${parsed.projectQuery}` : parsed.title).trim() || texto;
-  const db = await getDb();
-  await db.insert(tasks).values({ title, tags: parsed.tags, priority: parsed.priority, dueDate: parsed.dueDate, dueTime: parsed.dueTime, projectId: p?.id ?? null });
-  return { text: `Tarefa criada: ${title}${parsed.dueDate ? `, para ${parsed.dueDate}${parsed.dueTime ? ` às ${parsed.dueTime}` : ""}` : ""}.`, action: { label: `Tarefa: ${title}`, href: "/tarefas" } };
+  const scope = projectScope(p?.area ?? "pessoal");
+  await insertTask({ title, tags: parsed.tags, priority: parsed.priority, dueDate: parsed.dueDate, dueTime: parsed.dueTime, projectId: p?.id ?? null, scope });
+  return { text: `Tarefa criada em ${scope}: ${title}${parsed.dueDate ? `, para ${parsed.dueDate}${parsed.dueTime ? ` às ${parsed.dueTime}` : ""}` : ""}.`, action: { label: `Tarefa: ${title}`, href: taskHref(scope) } };
 }
 
 const listarTarefasSchema = z.object({
     visao: z.enum(["hoje", "proximos", "atrasadas", "semdata", "todas", "concluidas"]).nullish().describe("hoje inclui as atrasadas; proximos = 14 dias"),
     busca: z.string().max(100).nullish().describe("Filtra pelo texto do título"),
-    escopo: z.enum(["pessoal", "empresa"]).nullish().describe("Sem escopo = todas"),
+    escopo: z.enum(["pessoal", "empresa"]).nullish().describe("Padrão pessoal. Para consultar a operação interna da AG LABS, informe empresa; tarefas comerciais ficam em crm_tarefas."),
     limite: z.number().int().min(1).max(50).nullish(),
   });
 export const listarTarefas = {
   schema: listarTarefasSchema,
   async run(v: z.infer<typeof listarTarefasSchema>): Promise<ActionResult> {
-    const rows = await listTasks({ view: (v.visao ?? "todas") as TaskView, limit: 200, scope: v.escopo ?? undefined });
+    const rows = await listTasks({ view: (v.visao ?? "todas") as TaskView, limit: 200, scope: v.escopo ?? "pessoal" });
     const q = v.busca?.toLowerCase();
     const list = (q ? rows.filter((t) => t.title.toLowerCase().includes(q)) : rows).slice(0, v.limite ?? 25);
     return { text: list.length ? list.map(fmtTask).join("\n") : "Nenhuma tarefa encontrada." };
@@ -100,6 +99,7 @@ const atualizarTarefaSchema = z.object({
     prioridade: prioridade.nullish(),
     projeto: z.string().max(100).nullish(),
     notas: z.string().max(5000).nullish(),
+    escopo: z.enum(["pessoal", "empresa"]).nullish().describe("Apenas para mover explicitamente a tarefa entre espaços; as subtarefas acompanham."),
   });
 export const atualizarTarefa = {
   schema: atualizarTarefaSchema,
@@ -118,11 +118,12 @@ export const atualizarTarefa = {
     }
     if (v.prioridade) patch.priority = PRIORIDADE[v.prioridade];
     if (p) patch.projectId = p.id;
+    if (v.escopo) patch.scope = v.escopo;
     if (v.notas != null) patch.notes = v.notas;
     if (!Object.keys(patch).length) return { text: "Nada para alterar." };
-    await db.update(tasks).set(patch).where(eq(tasks.id, v.id));
+    await patchTask(v.id, patch);
     const what = v.status === "done" ? "concluída" : "atualizada";
-    return { text: `Tarefa ${what}: ${patch.title ?? cur.title}.${v.projeto && !p ? ` Projeto “${v.projeto}” não encontrado.` : ""}`, action: { label: `${what === "concluída" ? "Concluída" : "Atualizada"}: ${patch.title ?? cur.title}`, href: "/tarefas" } };
+    return { text: `Tarefa ${what}: ${patch.title ?? cur.title}.${v.projeto && !p ? ` Projeto “${v.projeto}” não encontrado.` : ""}`, action: { label: `${what === "concluída" ? "Concluída" : "Atualizada"}: ${patch.title ?? cur.title}`, href: taskHref(v.escopo ?? cur.scope) } };
   },
 };
 
@@ -363,8 +364,8 @@ export const ASSISTANT_TOOLS: Tool[] = [
 ] as Tool[];
 
 /** Ferramentas disponíveis agora (as do CRM só aparecem com o CRM conectado). */
-export function assistantTools() {
-  return ASSISTANT_TOOLS.filter((t) => !t.requires || t.requires());
+export function assistantTools(scope?: TaskScope) {
+  return ASSISTANT_TOOLS.filter((t) => (!t.requires || t.requires()) && !(scope === "pessoal" && t.name.startsWith("crm_")) && !(scope === "empresa" && ["registrar_lancamento", "criar_nota", "buscar_notas", "ver_agenda", "criar_evento"].includes(t.name)));
 }
 
 export function toolJsonSchema(t: Tool): Record<string, unknown> {
@@ -374,8 +375,8 @@ export function toolJsonSchema(t: Tool): Record<string, unknown> {
 }
 
 /** Executa uma ferramenta pelo nome com argumentos em JSON (vindos do modelo). */
-export async function runAssistantTool(name: string, rawArgs: string | Record<string, unknown>): Promise<ActionResult & { ok: boolean }> {
-  const tool = assistantTools().find((t) => t.name === name);
+export async function runAssistantTool(name: string, rawArgs: string | Record<string, unknown>, context?: { scope: TaskScope }): Promise<ActionResult & { ok: boolean }> {
+  const tool = assistantTools(context?.scope).find((t) => t.name === name);
   if (!tool) return { ok: false, text: `Ferramenta desconhecida: ${name}` };
   let args: unknown = rawArgs;
   if (typeof rawArgs === "string") {
@@ -384,6 +385,18 @@ export async function runAssistantTool(name: string, rawArgs: string | Record<st
     } catch {
       return { ok: false, text: "Argumentos inválidos (JSON malformado)." };
     }
+  }
+  if (context && ["criar_tarefa", "listar_tarefas", "atualizar_tarefa"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
+    const input = args as Record<string, unknown>;
+    if (input.escopo && input.escopo !== context.scope) return { ok: false, text: "Essa tarefa pertence a outro espaço. Abra Pessoal ou Empresa para agir no espaço correspondente." };
+    if (name === "atualizar_tarefa") {
+      const id = z.string().uuid().safeParse(input.id);
+      if (id.success) {
+        const db = await getDb();
+        const [task] = await db.select({ scope: tasks.scope }).from(tasks).where(eq(tasks.id, id.data));
+        if (!task || task.scope !== context.scope) return { ok: false, text: "Tarefa não encontrada neste espaço." };
+      }
+    } else args = { ...input, escopo: context.scope };
   }
   const parsed = tool.schema.safeParse(args ?? {});
   if (!parsed.success) return { ok: false, text: `Argumentos inválidos: ${parsed.error.issues.map((i) => `${i.path.join(".") || "entrada"}: ${i.message}`).join("; ")}` };

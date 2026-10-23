@@ -4,11 +4,13 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { AREAS, TASK_SCOPES, TASK_STATUS, checkins, goals, habitLogs, habits, notes, projects, tasks } from "@/db/schema";
+import { AREAS, TASK_SCOPES, checkins, goals, habitLogs, habits, notes, projects, tasks } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { today } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
+import { projectScope } from "@/lib/task-scope";
 import { setAvatar, setSetting, type AppSettings } from "@/server/settings";
+import { insertTask, patchTask, taskSchema } from "@/server/task-write";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -16,7 +18,6 @@ function refresh() {
 
 const uuid = z.string().uuid();
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const timeStr = z.string().regex(/^\d{2}:\d{2}$/);
 
 /* ───────────── Tarefas ───────────── */
 
@@ -25,55 +26,33 @@ export async function quickAddTask(raw: string, projectId?: string | null, scope
   const input = z.string().trim().min(1).max(500).parse(raw);
   const db = await getDb();
   const parsed = parseTaskInput(input, today());
+  const space = z.enum(TASK_SCOPES).default("pessoal").parse(scope);
   let pid = projectId ? uuid.parse(projectId) : null;
   let projectName: string | null = null;
-  let projectArea: string | null = null;
   if (parsed.projectQuery) {
     const all = await db.select({ id: projects.id, name: projects.name, area: projects.area }).from(projects).where(eq(projects.archived, false));
-    const p = matchProject(parsed.projectQuery, all);
+    const p = matchProject(parsed.projectQuery, all.filter((project) => projectScope(project.area) === space));
     if (p) {
       pid = p.id;
       projectName = p.name;
-      projectArea = all.find((x) => x.id === p.id)?.area ?? null;
     } else parsed.title = `${parsed.title} @${parsed.projectQuery}`.trim();
   }
   if (!parsed.title) parsed.title = input;
-  const [row] = await db
-    .insert(tasks)
-    .values({ title: parsed.title, tags: parsed.tags, priority: parsed.priority, dueDate: parsed.dueDate, dueTime: parsed.dueTime, projectId: pid, scope: z.enum(TASK_SCOPES).catch("pessoal").parse(scope ?? (projectArea === "empresa" ? "empresa" : "pessoal")) })
-    .returning({ id: tasks.id });
+  const id = await insertTask({ title: parsed.title, tags: parsed.tags, priority: parsed.priority, dueDate: parsed.dueDate, dueTime: parsed.dueTime, projectId: pid, scope: space });
   refresh();
-  return { id: row.id, parsed: { ...parsed, projectName } };
+  return { id, parsed: { ...parsed, projectName } };
 }
-
-const taskSchema = z.object({
-  title: z.string().trim().min(1).max(500),
-  notes: z.string().max(20000).nullable().optional(),
-  projectId: uuid.nullable().optional(),
-  parentId: uuid.nullable().optional(),
-  status: z.enum(TASK_STATUS).optional(),
-  scope: z.enum(TASK_SCOPES).optional(),
-  priority: z.number().int().min(0).max(3).optional(),
-  dueDate: dateStr.nullable().optional(),
-  dueTime: timeStr.nullable().optional(),
-  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
-});
 
 export async function createTask(data: z.input<typeof taskSchema>) {
   await requireAuth();
-  const v = taskSchema.parse(data);
-  const db = await getDb();
-  const [row] = await db.insert(tasks).values({ ...v, completedAt: v.status === "done" ? new Date() : null }).returning({ id: tasks.id });
+  const id = await insertTask(data);
   refresh();
-  return row.id;
+  return id;
 }
 
 export async function updateTask(id: string, patch: Partial<z.input<typeof taskSchema>>) {
   await requireAuth();
-  const v = taskSchema.partial().parse(patch);
-  const db = await getDb();
-  const extra = v.status ? { completedAt: v.status === "done" ? new Date() : null } : {};
-  await db.update(tasks).set({ ...v, ...extra }).where(eq(tasks.id, uuid.parse(id)));
+  await patchTask(id, patch);
   refresh();
 }
 

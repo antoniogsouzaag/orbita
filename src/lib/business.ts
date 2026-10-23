@@ -1,6 +1,6 @@
 // Vínculos explícitos; nunca atribuir um canal ao negócio por semelhança de nome.
 export const BARBERIAS = {
-  name: "Barberias", repo: "barberias", domain: "barberias.com.br", tag: "barberias",
+  id: "barberias", name: "Barberias", repo: "barberias", domain: "barberias.com.br", tag: "barberias", logo: "/brands/barberias.png",
   postizGroupId: "66f42ad3-dd35-40fa-a261-d632f680e18e",
   pages: [
     { label: "O sistema", path: "/sobre", purpose: "Apresentação para donos de barbearia" },
@@ -11,6 +11,29 @@ export const BARBERIAS = {
     { label: "Barbearias", path: "/barbearias", purpose: "Descoberta de estabelecimentos" },
   ],
 };
+
+// IDs conferidos na lista de grupos do Postiz. O nome de uma conta não define seu negócio.
+export const SOCIAL_ENTITIES: Record<string, { id: string; name: string; logo?: string; businessHref?: string }> = {
+  [BARBERIAS.postizGroupId]: { id: BARBERIAS.id, name: BARBERIAS.name, logo: BARBERIAS.logo, businessHref: "/empresa/negocios/barberias" },
+  "8b2560ec-d5c9-4290-9bf7-4b71555ed766": { id: "ag-labs", name: "AG LABS" },
+  "93b212db-9b05-4841-a6ba-e0bcc2c70837": { id: "mecard", name: "MeCard" },
+};
+
+export function socialGroupId(entity: string) {
+  return Object.entries(SOCIAL_ENTITIES).find(([groupId, item]) => entity === item.id || entity === groupId)?.[0] ?? entity;
+}
+
+export type GroupableChannel = { id: string; disabled?: boolean; customer?: { id: string; name: string } | null };
+export function groupSocialChannels<T extends GroupableChannel>(channels: T[]) {
+  const groups = new Map<string, { id: string; key: string; name: string; logo?: string; businessHref?: string; channels: T[] }>();
+  for (const channel of channels) {
+    const id = channel.customer?.id ?? "ungrouped";
+    const entity = SOCIAL_ENTITIES[id];
+    if (!groups.has(id)) groups.set(id, { id, key: entity?.id ?? id, name: entity?.name ?? channel.customer?.name ?? "Sem entidade", logo: entity?.logo, businessHref: entity?.businessHref, channels: [] });
+    groups.get(id)!.channels.push(channel);
+  }
+  return [...groups.values()].sort((a, b) => a.id === "ungrouped" ? 1 : b.id === "ungrouped" ? -1 : a.name.localeCompare(b.name, "pt-BR"));
+}
 export function belongsToBarberias(url: string) {
   try { const host = new URL(url).hostname.toLowerCase(); return host === BARBERIAS.domain || host.endsWith(`.${BARBERIAS.domain}`); } catch { return false; }
 }

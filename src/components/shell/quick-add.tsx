@@ -17,12 +17,12 @@ import { today } from "@/lib/dates";
 type Tab = "tarefa" | "nota" | "evento" | "financas";
 
 export function QuickAdd({ open, onOpenChange, tab, projects, scope = "pessoal" }: { scope?: "pessoal" | "empresa"; open: boolean; onOpenChange: (v: boolean) => void; tab?: string; projects: { id: string; name: string; color: string }[] }) {
-  const [current, setCurrent] = React.useState<Tab>(["tarefa", "nota", "evento", "financas"].includes(tab ?? "") ? tab as Tab : "tarefa");
+  const [current, setCurrent] = React.useState<Tab>(scope === "empresa" ? "tarefa" : ["tarefa", "nota", "evento", "financas"].includes(tab ?? "") ? tab as Tab : "tarefa");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Captura rápida" description="Adicione sem sair do que está fazendo.">
-        <Segmented
+      <DialogContent title={scope === "empresa" ? "Tarefa da empresa" : "Captura pessoal"} description={scope === "empresa" ? "Esta tarefa fica no espaço Empresa." : "Adicione sem sair do seu espaço pessoal."}>
+        {scope === "pessoal" && <Segmented
           value={current}
           onChange={setCurrent}
           className="mb-4 w-full [&>button]:flex-1"
@@ -32,7 +32,7 @@ export function QuickAdd({ open, onOpenChange, tab, projects, scope = "pessoal" 
             { value: "evento", label: <span className="flex items-center justify-center gap-1.5"><CalendarPlus className="size-3.5" />Evento</span> },
             { value: "financas", label: <span className="flex items-center justify-center gap-1.5"><Wallet className="size-3.5" />Gasto</span> },
           ]}
-        />
+        />}
         {current === "tarefa" && <TaskForm scope={scope} projects={projects} onDone={() => onOpenChange(false)} />}
         {current === "nota" && <NoteForm onDone={() => onOpenChange(false)} />}
         {current === "evento" && <EventForm onDone={() => onOpenChange(false)} />}

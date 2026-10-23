@@ -67,12 +67,12 @@ export async function loadHome() {
     eventsBetween(zonedToUtc(t), zonedToUtc(shiftDate(t, 8))),
     getCheckin(t),
     getDayPlan(t),
-    focusStats(),
+    focusStats("pessoal"),
     listWorkouts(1),
     financeMonth(),
     listBooks(),
     habitLogDates(shiftDate(t, -400)),
-    completedOnDays(shiftDate(t, -400)),
+    completedOnDays(shiftDate(t, -400), "pessoal"),
   ]);
 
   // Sequências por área + sequência geral da Órbita

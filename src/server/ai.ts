@@ -4,6 +4,7 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import type { TaskScope } from "@/db/schema";
 import { formatLong, localHour, localTime, shiftDate, today, zonedToUtc, localDate } from "@/lib/dates";
 import { eventsBetween } from "@/server/calendar";
 import { getCheckin } from "@/server/checkins";
@@ -13,7 +14,8 @@ import { focusStats, listWorkouts } from "@/server/life";
 import { getSettings } from "@/server/settings";
 import { listTasks, taskCounts } from "@/server/tasks";
 import { assistantTools, runAssistantTool, toolJsonSchema } from "@/server/assistant";
-import { crmConfigured } from "@/server/crm";
+import { crmConfigured, crmOverview } from "@/server/crm";
+import { liveOps } from "@/server/ops-live";
 import { getVaultIndexSafe, getVaultProvider, searchVault } from "@/server/vault";
 
 /**
@@ -66,37 +68,52 @@ export async function personalContext(): Promise<string> {
   const now = new Date();
   const [settings, counts, open, overdue, habits, goals, events, checkin, focus, workouts] = await Promise.all([
     getSettings(),
-    taskCounts(),
-    listTasks({ view: "hoje", limit: 40 }),
-    listTasks({ view: "proximos", limit: 30 }),
+    taskCounts("pessoal"),
+    listTasks({ view: "hoje", limit: 40, scope: "pessoal" }),
+    listTasks({ view: "proximos", limit: 30, scope: "pessoal" }),
     listHabits({ days: 60 }),
     listGoals("ativa"),
     eventsBetween(zonedToUtc(t), zonedToUtc(shiftDate(t, 8))),
     getCheckin(t),
-    focusStats(),
+    focusStats("pessoal"),
     listWorkouts(3),
   ]);
   const fmtTask = (x: (typeof open)[number]) =>
     `- ${x.title} (id ${x.id})${x.dueDate ? ` (vence ${x.dueDate}${x.dueTime ? ` ${x.dueTime}` : ""})` : ""}${x.priority ? ` [prioridade ${["", "baixa", "média", "alta"][x.priority]}]` : ""}${x.project ? ` #${x.project.name}` : ""}`;
   const lines = [
     `Agora: ${formatLong(t)}, ${localTime(now)} (hora local ${localHour()}h). Usuário: ${settings.name}.`,
-    `Tarefas: ${counts.open} abertas, ${counts.today} para hoje, ${counts.overdue} atrasadas.`,
+    `Espaço: Pessoal. Tarefas pessoais: ${counts.open} abertas, ${counts.today} para hoje, ${counts.overdue} atrasadas.`,
     `## Tarefas de hoje e atrasadas`,
     ...(open.length ? open.map(fmtTask) : ["- nenhuma"]),
     `## Próximas tarefas (14 dias)`,
     ...(overdue.length ? overdue.map(fmtTask) : ["- nenhuma"]),
     `## Hábitos de hoje`,
-    ...habits.filter((h) => h.scheduledToday).map((h) => `- ${h.doneToday ? "✅" : "⬜"} ${h.name} (sequência ${h.streak.value} ${h.streak.unit})`),
+    ...habits.filter((h) => h.scheduledToday && h.area !== "empresa").map((h) => `- ${h.doneToday ? "✅" : "⬜"} ${h.name} (sequência ${h.streak.value} ${h.streak.unit})`),
     `## Agenda (próximos 8 dias)`,
     ...(events.length ? events.map((e) => `- ${e.allDay ? e.startAt.toISOString().slice(0, 10) : `${localDate(e.startAt)} ${localTime(e.startAt)}-${localTime(e.endAt)}`} ${e.title}${e.location ? ` @ ${e.location}` : ""}`) : ["- sem eventos"]),
     `## Metas ativas`,
-    ...(goals.length ? goals.map((g) => `- ${g.title}: ${g.current}/${g.target}${g.unit ? ` ${g.unit}` : ""}${g.dueDate ? ` até ${g.dueDate}` : ""}`) : ["- nenhuma"]),
+    ...(goals.some((g) => g.area !== "empresa") ? goals.filter((g) => g.area !== "empresa").map((g) => `- ${g.title}: ${g.current}/${g.target}${g.unit ? ` ${g.unit}` : ""}${g.dueDate ? ` até ${g.dueDate}` : ""}`) : ["- nenhuma"]),
     `## Bem-estar`,
     `- Check-in de hoje: humor ${checkin?.mood ?? "?"}/5, energia ${checkin?.energy ?? "?"}/5${checkin?.note ? `, nota: ${checkin.note}` : ""}`,
     `- Foco: ${focus.today} min hoje, ${focus.week} min na semana`,
     `- Treinos recentes: ${workouts.map((w) => `${w.date} ${w.name}`).join("; ") || "nenhum"}`,
   ];
   return lines.join("\n");
+}
+
+/** A IA da Empresa não recebe hábitos, finanças, notas nem tarefas pessoais. */
+export async function empresaContext(): Promise<string> {
+  const [settings, counts, tasks, crm, live] = await Promise.all([getSettings(), taskCounts("empresa"), listTasks({ scope: "empresa", limit: 60 }), crmOverview(), liveOps()]);
+  return [
+    `Agora: ${formatLong(today())}, ${localTime(new Date())}. Usuário: ${settings.name}. Espaço: Empresa / AG LABS.`,
+    `## Operação interna · Órbita`,
+    `${counts.open} tarefas abertas, ${counts.today} para hoje, ${counts.overdue} atrasadas.`,
+    ...tasks.map((task) => `- ${task.title} (id ${task.id}) · empresa${task.dueDate ? ` · prazo ${task.dueDate}` : ""}${task.project ? ` · projeto ${task.project.name}` : ""}`),
+    `## Comercial · CRM (registros independentes, sem cópia na Órbita)`,
+    !crm.configured ? "CRM não conectado." : !crm.ok ? "CRM indisponível nesta consulta." : `${crm.summary.tarefas.pendentes} tarefas pendentes no CRM. Amostra de Antonio:\n${crm.mine.map((task) => `- ${task.titulo} (id CRM ${task.id})${task.prazo ? ` · prazo ${task.prazo}` : ""}`).join("\n") || "- nenhuma retornada"}`,
+    `## Operação monitorada`,
+    `${live.status.filter((item) => item.ok).length}/${live.status.length} endereços no ar. ${live.monitors.filter((monitor) => monitor.silent).length} monitores sem sinal.`,
+  ].join("\n");
 }
 
 /** Trechos do vault relevantes para a pergunta (busca por palavras-chave). */
@@ -131,7 +148,7 @@ function actionMarker(a: { label: string; href: string }) {
   return `${ACTION_MARK}${JSON.stringify(a)}${ACTION_MARK}`;
 }
 
-const TOOL_RULES = `Você pode agir com as ferramentas: criar, listar, atualizar e concluir tarefas; criar eventos e ver a agenda; registrar despesas e receitas; criar e buscar notas pessoais; buscar e ler o vault; ver o status da operação.
+const TOOL_RULES = `Você pode agir com as ferramentas disponíveis neste espaço. Respeite a origem e o escopo de cada ferramenta.
 - Quando o pedido for uma ação ("cria", "marca", "lembra", "anota", "gastei", "conclui", "reorganiza"), execute com a ferramenta em vez de só descrever. Depois confirme em uma linha o que foi feito.
 - Calcule datas absolutas (AAAA-MM-DD) a partir de hoje, informado no contexto. Horários em HH:MM, fuso de São Paulo.
 - Para mudar uma tarefa existente use o id do contexto ou chame listar_tarefas antes. Nunca invente ids.
@@ -148,15 +165,17 @@ const CRM_RULES = `CRM da AG LABS (ferramentas crm_*): clientes, leads, funil, r
 const NO_CRM = "- Tarefas e dados de clientes da empresa ficam no CRM, que ainda não está conectado à Órbita.";
 
 /** Resposta em streaming (texto) para a pergunta, com contexto do dia + vault e ferramentas para agir. */
-export async function askStream(history: ChatTurn[], opts: { tools?: boolean } = {}): Promise<ReadableStream<Uint8Array>> {
+export async function askStream(history: ChatTurn[], opts: { tools?: boolean; scope?: TaskScope } = {}): Promise<ReadableStream<Uint8Array>> {
   const provider = aiProvider();
   if (!provider) throw new Error("IA não configurada");
   const useTools = opts.tools ?? true;
+  const scope = opts.scope ?? "pessoal";
   const question = history.at(-1)?.content ?? "";
-  const [personal, vault] = await Promise.all([personalContext(), vaultContext(question)]);
+  const [personal, vault] = await Promise.all([scope === "empresa" ? empresaContext() : personalContext(), vaultContext(question)]);
   const context = `<contexto_do_dia>\n${personal}\n</contexto_do_dia>${vault ? `\n<vault>\n${vault}\n</vault>` : ""}`;
   const turns = history.map((m, i) => (i === history.length - 1 ? { role: "user" as const, content: `${context}\n\n<pergunta>\n${m.content}\n</pergunta>` } : m));
-  const instructions = useTools ? `${SYSTEM}\n\n${TOOL_RULES}\n${crmConfigured() ? `\n${CRM_RULES}` : NO_CRM}` : SYSTEM;
+  const spaceRules = `Espaço atual: ${scope}. Crie e consulte tarefas apenas neste espaço. Tags não mudam o espaço. Tarefas de outro espaço devem ser tratadas na respectiva tela. ${scope === "empresa" ? "Dados comerciais e tarefas ligadas a contatos ficam exclusivamente nas ferramentas crm_*. Notas, finanças e agenda pessoais não estão disponíveis neste espaço." : "O CRM e as tarefas internas da empresa ficam no espaço Empresa."}`;
+  const instructions = `${SYSTEM}\n\n${spaceRules}${useTools ? `\n\n${TOOL_RULES}\n${scope === "empresa" ? crmConfigured() ? CRM_RULES : NO_CRM : ""}` : ""}`;
   const enc = new TextEncoder();
   const controller = new AbortController();
 
@@ -165,7 +184,7 @@ export async function askStream(history: ChatTurn[], opts: { tools?: boolean } =
     async start(out) {
       const emit = (t: string) => out.enqueue(enc.encode(t));
       try {
-        await run({ instructions, turns, useTools, emit, signal: controller.signal });
+        await run({ instructions, turns, useTools, scope, emit, signal: controller.signal });
       } catch (e) {
         if (!controller.signal.aborted) emit(`\n\n⚠️ ${errorText(e)}.`);
       } finally {
@@ -192,11 +211,11 @@ export async function askOnce(text: string): Promise<{ answer: string; actions: 
   return { answer: answer.trim(), actions };
 }
 
-type RunArgs = { instructions: string; turns: ChatTurn[]; useTools: boolean; emit: (t: string) => void; signal: AbortSignal };
+type RunArgs = { instructions: string; turns: ChatTurn[]; useTools: boolean; scope: TaskScope; emit: (t: string) => void; signal: AbortSignal };
 
-async function runOpenAI({ instructions, turns, useTools, emit, signal }: RunArgs) {
+async function runOpenAI({ instructions, turns, useTools, scope, emit, signal }: RunArgs) {
   const client = openaiClient();
-  const tools: OpenAI.Responses.Tool[] = useTools ? assistantTools().map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
+  const tools: OpenAI.Responses.Tool[] = useTools ? assistantTools(scope).map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
   let input: OpenAI.Responses.ResponseInput = turns.map((t) => ({ role: t.role, content: t.content }));
   let reasoning = true; // alguns modelos não aceitam o parâmetro: cai para a chamada simples
 
@@ -236,7 +255,7 @@ async function runOpenAI({ instructions, turns, useTools, emit, signal }: RunArg
     if (!calls.length || !final) return;
     input = [...input, ...(final.output as OpenAI.Responses.ResponseInputItem[])];
     for (const c of calls) {
-      const r = await runAssistantTool(c.name, c.arguments);
+      const r = await runAssistantTool(c.name, c.arguments, { scope });
       if (r.action) emit(actionMarker(r.action));
       input.push({ type: "function_call_output", call_id: c.call_id, output: r.text });
     }
@@ -244,8 +263,8 @@ async function runOpenAI({ instructions, turns, useTools, emit, signal }: RunArg
   emit("\n\n_(parei após muitas etapas; confira o que foi feito)_");
 }
 
-async function runAnthropic({ instructions, turns, useTools, emit, signal }: RunArgs) {
-  const tools = useTools ? assistantTools().map((t) => ({ name: t.name, description: t.description, input_schema: toolJsonSchema(t) as Anthropic.Beta.BetaTool.InputSchema })) : undefined;
+async function runAnthropic({ instructions, turns, useTools, scope, emit, signal }: RunArgs) {
+  const tools = useTools ? assistantTools(scope).map((t) => ({ name: t.name, description: t.description, input_schema: toolJsonSchema(t) as Anthropic.Beta.BetaTool.InputSchema })) : undefined;
   const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role, content: t.content }));
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const stream = anthropicClient().beta.messages.stream(
@@ -263,7 +282,7 @@ async function runAnthropic({ instructions, turns, useTools, emit, signal }: Run
     const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
     for (const b of final.content) {
       if (b.type !== "tool_use") continue;
-      const r = await runAssistantTool(b.name, b.input as Record<string, unknown>);
+      const r = await runAssistantTool(b.name, b.input as Record<string, unknown>, { scope });
       if (r.action) emit(actionMarker(r.action));
       results.push({ type: "tool_result", tool_use_id: b.id, content: r.text, ...(r.ok ? {} : { is_error: true }) });
     }

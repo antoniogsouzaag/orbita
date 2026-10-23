@@ -8,46 +8,79 @@ import { toast } from "sonner";
 import { quickAddTask } from "@/app/actions/core";
 import { relativeDay } from "@/lib/dates";
 import { cn } from "@/lib/utils";
+import { orbitPositions, orbitTarget, type OrbitPoint } from "./interactions";
+import styles from "./speed-dial.module.css";
 
 const ACTIONS = [
-  { id: "tarefa", label: "Nova tarefa", icon: CheckSquare, left: 168, top: 168 },
-  { id: "nota", label: "Nova nota", icon: NotebookPen, left: 84, top: 168 },
-  { id: "evento", label: "Novo compromisso", icon: CalendarPlus, left: 168, top: 84 },
-  { id: "gasto", label: "Lançar gasto", icon: Wallet, left: 0, top: 168 },
-  { id: "projeto", label: "Novo projeto", icon: FolderPlus, left: 84, top: 84 },
-  { id: "treino", label: "Registrar treino", icon: Dumbbell, left: 168, top: 0 },
-  { id: "foco", label: "Iniciar foco", icon: Timer, left: 0, top: 84 },
-  { id: "ia", label: "Perguntar à IA", icon: Sparkles, left: 84, top: 0 },
-  { id: "voz", label: "Ditar tarefa", icon: Mic, left: 0, top: 0 },
+  { id: "tarefa", label: "Nova tarefa", icon: CheckSquare },
+  { id: "nota", label: "Nova nota", icon: NotebookPen },
+  { id: "evento", label: "Novo compromisso", icon: CalendarPlus },
+  { id: "gasto", label: "Lançar gasto", icon: Wallet },
+  { id: "projeto", label: "Novo projeto", icon: FolderPlus },
+  { id: "treino", label: "Registrar treino", icon: Dumbbell },
+  { id: "foco", label: "Iniciar foco", icon: Timer },
+  { id: "ia", label: "Perguntar à IA", icon: Sparkles },
+  { id: "voz", label: "Ditar tarefa", icon: Mic },
 ] as const;
 
-/** Botão "+" que abre os atalhos de criação rápida (com rótulo no hover) e a captura por voz. */
+/** Tap to browse, or press, drag to a bubble and release to run its action. */
 export function SpeedDial({ onQuickAdd, onOpenChange, scope, open }: { open: boolean; onQuickAdd: (tab: string) => void; onOpenChange: (open: boolean) => void; scope: "pessoal" | "empresa" }) {
   const router = useRouter();
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
-  const [anchor, setAnchor] = React.useState({ left: 12, bottom: 90 });
-  const changeOpen = (value: boolean) => {
+  const menuId = React.useId();
+  const helpId = React.useId();
+  const actions = ACTIONS.filter((action) => scope === "pessoal" || ["tarefa", "projeto", "foco", "ia", "voz"].includes(action.id));
+  const positions = orbitPositions(actions.length);
+  const [anchor, setAnchor] = React.useState({ left: 0, top: 0 });
+  const originRef = React.useRef<OrbitPoint>({ x: 0, y: 0 });
+  const gestureRef = React.useRef<{ pointerId: number; start: OrbitPoint; wasOpen: boolean; moved: boolean } | null>(null);
+  const openedByPointer = React.useRef(false);
+  const [selected, setSelected] = React.useState<number | null>(null);
+  const changeOpen = React.useCallback((value: boolean) => {
     if (value && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setAnchor({ left: Math.max(12, Math.min(rect.right - 220, window.innerWidth - 232)), bottom: window.innerHeight - rect.top + 22 });
+      originRef.current = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      setAnchor({ left: originRef.current.x, top: originRef.current.y });
     }
+    setSelected(null);
     onOpenChange(value);
     if (!value) triggerRef.current?.focus();
-  };
+  }, [onOpenChange, setSelected, setAnchor]);
   const [listening, setListening] = React.useState(false);
   const [heard, setHeard] = React.useState("");
-  const recRef = React.useRef<{ stop: () => void } | null>(null);
+  const recRef = React.useRef<{ stop: () => void; onend: () => void } | null>(null);
+
+  React.useEffect(() => () => {
+    if (recRef.current) {
+      // Leaving this space cancels dictation instead of creating a task afterward.
+      recRef.current.onend = () => {};
+      recRef.current.stop();
+    }
+  }, []);
 
   React.useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { onOpenChange(false); triggerRef.current?.focus(); } };
-    const closeOnResize = () => { onOpenChange(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); changeOpen(false); }
+      // Hand off focus cleanly when another shell layer is requested.
+      const anotherLayer = ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") || (!e.metaKey && !e.ctrlKey && !e.altKey && !e.isComposing && ["'", "c"].includes(e.key.toLowerCase()));
+      if (anotherLayer) changeOpen(false);
+      if (e.key === "Tab") {
+        const items = [...menuRef.current?.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]') ?? [], triggerRef.current].filter((item): item is HTMLButtonElement => !!item);
+        const current = items.indexOf(document.activeElement as HTMLButtonElement);
+        e.preventDefault();
+        items[(current + (e.shiftKey ? -1 : 1) + items.length) % items.length]?.focus();
+      }
+    };
+    const closeOnResize = () => changeOpen(false);
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", closeOnResize);
-    const frame = requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus());
-    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("resize", closeOnResize); cancelAnimationFrame(frame); };
-  }, [open, onOpenChange]);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const frame = requestAnimationFrame(() => { if (!openedByPointer.current) menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus(); });
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("resize", closeOnResize); cancelAnimationFrame(frame); document.body.style.overflow = previousOverflow; };
+  }, [open, changeOpen]);
 
   const voice = () => {
     type Rec = { lang: string; interimResults: boolean; continuous: boolean; start: () => void; stop: () => void; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void; onend: () => void; onerror: (e: { error: string }) => void };
@@ -76,7 +109,7 @@ export function SpeedDial({ onQuickAdd, onOpenChange, scope, open }: { open: boo
       const text = (finalText || "").trim();
       setHeard("");
       if (!text) return;
-      // "nota ..." vira nota; o resto vira tarefa interpretada (hoje, amanhã, 15h, prioridade alta...)
+      // Voice creates a task in the space where recording began.
       const spoken = text.replace(/\bprioridade (alta|m[ée]dia|baixa)\b/i, (_, p: string) => `!${p.normalize("NFD").replace(/[̀-ͯ]/g, "")}`).replace(/\bhashtag (\S+)/gi, "#$1");
       try {
       const { parsed } = await quickAddTask(spoken, null, scope);
@@ -94,26 +127,35 @@ export function SpeedDial({ onQuickAdd, onOpenChange, scope, open }: { open: boo
     if (id === "voz") return voice();
     if (id === "gasto") return onQuickAdd("financas");
     if (["tarefa", "nota", "evento"].includes(id)) return onQuickAdd(id);
-    const routes = { projeto: "/projetos?novo=1", treino: "/academia?novo=1", foco: "/foco", ia: "/ia" };
+    const routes = { projeto: `/projetos?novo=1${scope === "empresa" ? "&escopo=empresa" : ""}`, treino: "/academia?novo=1", foco: scope === "empresa" ? "/foco?escopo=empresa" : "/foco", ia: scope === "empresa" ? "/ia?escopo=empresa" : "/ia" };
     router.push(routes[id as keyof typeof routes]);
   }
 
+  const targetAt = (point: OrbitPoint) => orbitTarget({ x: point.x - originRef.current.x, y: point.y - originRef.current.y }, positions);
+  const labelFor = (action: typeof ACTIONS[number]) => action.id === "tarefa" ? `Nova tarefa ${scope === "empresa" ? "da empresa" : "pessoal"}` : action.id === "voz" ? `Ditar tarefa ${scope === "empresa" ? "da empresa" : "pessoal"}` : action.label;
 
   return (
     <>
       {open && createPortal(
         <>
-          <button type="button" aria-label="Fechar menu de atalhos" className="speed-dial-backdrop fixed inset-0 z-50 cursor-default bg-black/45 backdrop-blur-[6px]" onClick={() => changeOpen(false)} />
-          <div ref={menuRef} role="menu" aria-label="Captura e atalhos" className="speed-dial-orbit fixed z-[61] size-[220px]" style={anchor} onKeyDown={(event) => {
+          <button type="button" tabIndex={-1} aria-label="Fechar menu de atalhos" className={styles.backdrop} onClick={() => changeOpen(false)} />
+          <div ref={menuRef} id={menuId} role="menu" aria-label={`Captura e atalhos · ${scope === "empresa" ? "Empresa" : "Pessoal"}`} aria-describedby={helpId} className={styles.orbit} style={anchor} onKeyDown={(event) => {
             const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')];
             const index = buttons.indexOf(event.target as HTMLButtonElement);
             const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : ["ArrowRight", "ArrowDown"].includes(event.key) ? (index + 1) % buttons.length : ["ArrowLeft", "ArrowUp"].includes(event.key) ? (index + buttons.length - 1) % buttons.length : -1;
             if (next >= 0) { event.preventDefault(); buttons[next]?.focus(); }
           }}>
-            {ACTIONS.map((action) => {
-              return <button key={action.id} type="button" role="menuitem" aria-label={action.label} onClick={() => { changeOpen(false); runAction(action.id); }} style={{ left: action.left, top: action.top }} className="speed-dial-bubble group absolute grid size-[52px] place-items-center rounded-full border border-white/15 bg-[#29292e]/95 text-white/85 shadow-[0_8px_30px_#0005,inset_0_1px_0_#ffffff12] outline-none transition-[background,color,box-shadow,scale] duration-150 hover:z-40 focus-within:z-30 hover:scale-110 hover:bg-white hover:text-zinc-950 focus-visible:scale-110 focus-visible:bg-white focus-visible:text-zinc-950 focus-visible:ring-4 focus-visible:ring-white/15">
-                <action.icon className="size-[21px]" />
-                <span role="tooltip" className={cn(action.left == 0 ? "left-0" : "right-0", "pointer-events-none absolute bottom-full z-30 mb-3 whitespace-nowrap rounded-xl bg-white px-3 py-2 text-[13px] font-semibold text-zinc-950 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100")}>{action.label}</span>
+            <svg className={styles.guide} viewBox="0 0 240 240" fill="none" aria-hidden="true">
+              <path d="M26 216 A190 190 0 0 1 216 26" stroke="currentColor" strokeOpacity=".18" strokeDasharray="2 7" />
+              <path d="M110 216 A106 106 0 0 1 216 110" stroke="currentColor" strokeOpacity=".12" />
+            </svg>
+            <div className={styles.caption}>
+              <strong aria-live="polite">{selected !== null ? labelFor(actions[selected]) : "Seu próximo passo"}</strong>
+              <span id={helpId}>{scope === "empresa" ? "Empresa" : "Pessoal"} · toque ou arraste e solte</span>
+            </div>
+            {actions.map((action, index) => {
+              return <button key={action.id} type="button" role="menuitem" aria-label={labelFor(action)} data-selected={selected === index} onFocus={() => setSelected(index)} onPointerEnter={(event) => { if (event.pointerType === "mouse" && !gestureRef.current) setSelected(index); }} onClick={() => { changeOpen(false); runAction(action.id); }} style={{ left: positions[index].x - 25, top: positions[index].y - 25, animationDelay: `${index * 12}ms` }} className={styles.bubble}>
+                <action.icon className="size-[21px]" aria-hidden="true" />
               </button>;
             })}
           </div>
@@ -129,10 +171,43 @@ export function SpeedDial({ onQuickAdd, onOpenChange, scope, open }: { open: boo
       )}
       <button
         ref={triggerRef}
-        onClick={() => changeOpen(!open)}
-        className={cn("relative z-50 grid size-11 place-items-center rounded-full bg-fg text-bg shadow-soft transition hover:scale-105 active:scale-95", open && "rotate-90")}
+        type="button"
+        onPointerDown={(event) => {
+          if (!event.isPrimary || event.button !== 0) return;
+          event.preventDefault();
+          openedByPointer.current = true;
+          gestureRef.current = { pointerId: event.pointerId, start: { x: event.clientX, y: event.clientY }, wasOpen: open, moved: false };
+          event.currentTarget.setPointerCapture(event.pointerId);
+          if (!open) changeOpen(true);
+        }}
+        onPointerMove={(event) => {
+          const gesture = gestureRef.current;
+          if (!gesture || gesture.pointerId !== event.pointerId) return;
+          if (Math.hypot(event.clientX - gesture.start.x, event.clientY - gesture.start.y) >= 10) gesture.moved = true;
+          if (gesture.moved) setSelected(targetAt({ x: event.clientX, y: event.clientY }));
+        }}
+        onPointerUp={(event) => {
+          const gesture = gestureRef.current;
+          if (!gesture || gesture.pointerId !== event.pointerId) return;
+          gestureRef.current = null;
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+          if (gesture.moved) {
+            const target = targetAt({ x: event.clientX, y: event.clientY });
+            changeOpen(false);
+            if (target !== null) runAction(actions[target].id);
+          } else if (gesture.wasOpen) changeOpen(false);
+          else menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+        }}
+        onPointerCancel={() => { gestureRef.current = null; changeOpen(false); }}
+        onLostPointerCapture={() => { if (gestureRef.current) { gestureRef.current = null; changeOpen(false); } }}
+        onContextMenu={(event) => event.preventDefault()}
+        onClick={(event) => { if (event.detail === 0) { openedByPointer.current = false; changeOpen(!open); } }}
+        className={cn(styles.trigger, "relative z-50 grid size-11 place-items-center rounded-full bg-fg text-bg shadow-soft transition hover:scale-105 active:scale-95", open && "rotate-90")}
+        data-open={open}
         aria-label={open ? "Fechar atalhos" : "Atalhos de criação"}
         aria-expanded={open}
+        aria-haspopup="menu"
+        aria-controls={open ? menuId : undefined}
       >
         {open ? <X className="size-5" /> : <Plus className="size-5" />}
       </button>

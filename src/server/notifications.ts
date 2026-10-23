@@ -1,4 +1,5 @@
 import "server-only";
+import type { TaskScope } from "@/db/schema";
 import { localTime, today } from "@/lib/dates";
 import type { ShellNotification } from "@/lib/notifications";
 import { agentTasks } from "./agents";
@@ -7,13 +8,13 @@ import { liveOps } from "./ops-live";
 import { listTasks } from "./tasks";
 
 /** Local persisted sources only: notification refresh never waits for a provider. */
-export async function loadNotifications(): Promise<ShellNotification[]> {
+export async function loadNotifications(scope: TaskScope = "pessoal"): Promise<ShellNotification[]> {
   const now = new Date();
   const [overdue, upcoming, asks, ops] = await Promise.all([
-    listTasks({ view: "atrasadas", limit: 30 }),
-    eventsBetween(now, new Date(now.getTime() + 3 * 3_600_000)),
-    agentTasks(),
-    liveOps(),
+    listTasks({ view: "atrasadas", limit: 30, scope }),
+    scope === "pessoal" ? eventsBetween(now, new Date(now.getTime() + 3 * 3_600_000)) : Promise.resolve([]),
+    scope === "empresa" ? agentTasks() : Promise.resolve([]),
+    scope === "empresa" ? liveOps() : Promise.resolve({ events: [], monitors: [] }),
   ]);
   const t = today();
   const agentIds = new Set(asks.filter((a) => a.status !== "done").map((a) => a.id));

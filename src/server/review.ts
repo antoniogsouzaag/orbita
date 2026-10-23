@@ -6,7 +6,7 @@ import { lastNDays, localDate, shiftDate, today, zonedToUtc } from "@/lib/dates"
 import { isScheduled } from "@/lib/habits";
 import { checkinsSince } from "./checkins";
 import { listHabits } from "./habits";
-import { txSince } from "./life";
+import { focusScopeWhere, txSince } from "./life";
 import { completedOnDays } from "./tasks";
 
 export async function reviewData(days = 30) {
@@ -15,9 +15,9 @@ export async function reviewData(days = 30) {
   const db = await getDb();
   const [habits, completions, checkins, focus, tx] = await Promise.all([
     listHabits({ days: days + 10 }),
-    completedOnDays(from),
+    completedOnDays(from, "pessoal"),
     checkinsSince(from),
-    db.select({ startedAt: focusSessions.startedAt, minutes: focusSessions.minutes }).from(focusSessions).where(and(gte(focusSessions.startedAt, zonedToUtc(from)))),
+    db.select({ startedAt: focusSessions.startedAt, minutes: focusSessions.minutes }).from(focusSessions).where(and(gte(focusSessions.startedAt, zonedToUtc(from)), focusScopeWhere("pessoal"))),
     txSince(from),
   ]);
   const doneByDay = new Map<string, number>();

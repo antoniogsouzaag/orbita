@@ -21,6 +21,8 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
           { href: "/tarefas", label: "Tarefas", icon: CheckSquare, dock: true, keywords: "todo afazeres pessoais" },
           { href: "/agenda", label: "Agenda", icon: CalendarDays, dock: true, keywords: "calendário eventos" },
           { href: "/notas", label: "Notas", icon: NotebookPen, dock: true },
+          { href: "/projetos", label: "Projetos", icon: FolderKanban },
+          { href: "/kanban", label: "Kanban", icon: KanbanSquare },
         ],
       },
       {
@@ -48,8 +50,9 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
           { href: "/empresa", label: "Visão geral", icon: Building2, dock: true, keywords: "empresa aguardando aprovação" },
           { href: "/tarefas?escopo=empresa", label: "Tarefas", icon: CheckSquare, dock: true, keywords: "tarefas da empresa" },
           { href: "/empresa/negocios", label: "Negócios", icon: Building2, keywords: "produtos barberias members mecard viajeki" },
-          { href: "/projetos", label: "Projetos", icon: FolderKanban },
-          { href: "/kanban", label: "Kanban", icon: KanbanSquare },
+          { href: "/projetos?escopo=empresa", label: "Projetos", icon: FolderKanban },
+          { href: "/kanban?escopo=empresa", label: "Kanban", icon: KanbanSquare },
+          { href: "/foco?escopo=empresa", label: "Foco", icon: Timer },
         ],
       },
       {
@@ -69,6 +72,7 @@ export const SHARED: NavItem[] = [
   { href: "/github", label: "GitHub", icon: GitFork, keywords: "git commits contribuições prs propostas repositórios" },
   { href: "/vault", label: "Vault", icon: LibraryBig, dock: true, keywords: "obsidian manual inventário conhecimento empresa grafo" },
   { href: "/ia", label: "IA", icon: Sparkles, dock: true, keywords: "assistente chat" },
+  { href: "/documentacao", label: "Manual da Órbita", icon: BookOpen, keywords: "documentação canônica mcp agentes fontes responsabilidades" },
   { href: "/integracoes", label: "Integrações", icon: Plug, keywords: "conexões configurar" },
 ];
 
@@ -84,12 +88,13 @@ export const NAV: NavSection[] = [
 
 export const ALL_NAV: NavItem[] = [...NAV.flatMap((s) => s.items), SETTINGS_ITEM];
 
-const EMPRESA_PATHS = ["/empresa", "/redes", "/operacao", "/agentes", "/projetos", "/kanban"];
-const PESSOAL_PATHS = ["/tarefas", "/agenda", "/notas", "/habitos", "/metas", "/financas", "/academia", "/leitura", "/foco", "/revisao"];
+const EMPRESA_PATHS = ["/empresa", "/redes", "/operacao", "/agentes"];
+const SCOPED_PATHS = ["/tarefas", "/projetos", "/kanban", "/foco", "/metas", "/ia"];
+const PESSOAL_PATHS = ["/agenda", "/notas", "/habitos", "/metas", "/financas", "/academia", "/leitura", "/revisao"];
 
 /** Espaço da rota atual; null = tela comum aos dois (IA, Integrações, Configurações). */
 export function spaceOf(pathname: string, escopo?: string | null): Space | null {
-  if (pathname === "/tarefas" && escopo === "empresa") return "empresa";
+  if (SCOPED_PATHS.some(p => pathname === p || pathname.startsWith(`${p}/`))) return escopo === "empresa" ? "empresa" : "pessoal";
   if (EMPRESA_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return "empresa";
   if (pathname === "/" || PESSOAL_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return "pessoal";
   return null;
@@ -97,8 +102,10 @@ export function spaceOf(pathname: string, escopo?: string | null): Space | null 
 
 export function isActive(pathname: string, href: string, escopo?: string | null) {
   const [path, query] = href.split("?");
-  if (path === "/tarefas") return pathname === "/tarefas" && (query?.includes("escopo=empresa") ? escopo === "empresa" : escopo !== "empresa");
+  if (SCOPED_PATHS.includes(path)) return pathname === path && (query?.includes("escopo=empresa") ? escopo === "empresa" : escopo !== "empresa");
   if (path === "/") return pathname === "/";
   if (path === "/operacao") return pathname === "/operacao";
   return pathname === path || pathname.startsWith(`${path}/`);
 }
+
+export function navigationHref(href: string, space: Space) { return href === "/ia" && space === "empresa" ? "/ia?escopo=empresa" : href; }

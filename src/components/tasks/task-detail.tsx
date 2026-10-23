@@ -1,7 +1,7 @@
 "use client";
 
 import { Trash2, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Dialog as D } from "radix-ui";
 import * as React from "react";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { CheckButton, Segmented } from "@/components/ui/misc";
 import type { Task } from "@/db/schema";
 import { cn } from "@/lib/utils";
+import { taskHref } from "@/lib/task-scope";
 import type { TaskRow } from "@/server/tasks";
 
 export type TaskDetailData = TaskRow & { children: Task[] };
@@ -23,13 +24,10 @@ export function TaskDetail({ task, projects, onClose }: { task: TaskDetailData; 
   const [sub, setSub] = React.useState("");
   const [, start] = React.useTransition();
 
-  React.useEffect(() => {
-    setTitle(task.title);
-    setNotes(task.notes ?? "");
-    setTags(task.tags.join(", "));
-  }, [task.id, task.title, task.notes, task.tags]);
-
-  const patch = (p: Parameters<typeof updateTask>[1]) => start(() => updateTask(task.id, p));
+  const patch = (p: Parameters<typeof updateTask>[1]) => start(async () => {
+    try { await updateTask(task.id, p); }
+    catch { toast.error("Não foi possível salvar. Confira o espaço e o projeto da tarefa."); }
+  });
 
   return (
     <D.Root open onOpenChange={(o) => !o && onClose()}>
@@ -87,7 +85,14 @@ export function TaskDetail({ task, projects, onClose }: { task: TaskDetailData; 
             <Field label="Onde">
               <Segmented
                 value={task.scope}
-                onChange={(v) => patch({ scope: v as "pessoal" | "empresa" })}
+                onChange={(v) => start(async () => {
+                  try {
+                    const scope = v as Task["scope"];
+                    await updateTask(task.id, { scope });
+                    toast.success(`Tarefa movida para ${scope === "empresa" ? "Empresa" : "Pessoal"}`, { description: "As subtarefas acompanham a tarefa principal." });
+                    router.push(taskHref(scope, task.id));
+                  } catch { toast.error("Não foi possível mover a tarefa."); }
+                })}
                 options={[{ value: "pessoal", label: "Pessoal" }, { value: "empresa", label: "Empresa" }]}
               />
             </Field>
@@ -122,7 +127,7 @@ export function TaskDetail({ task, projects, onClose }: { task: TaskDetailData; 
                   const t = sub;
                   setSub("");
                   start(async () => {
-                    await createTask({ title: t, parentId: task.id, projectId: task.projectId });
+                    await createTask({ title: t, parentId: task.id, projectId: task.projectId, scope: task.scope });
                     router.refresh();
                   });
                 }}
@@ -140,8 +145,9 @@ export function TaskDetail({ task, projects, onClose }: { task: TaskDetailData; 
   );
 }
 
-export function NewTaskButton({ projectId, scope }: { projectId?: string; scope?: "pessoal" | "empresa" }) {
+export function NewTaskButton({ projectId, scope = "pessoal" }: { projectId?: string; scope?: "pessoal" | "empresa" }) {
   const router = useRouter();
+  const params = useSearchParams();
   const [, start] = React.useTransition();
   return (
     <Button
@@ -149,8 +155,14 @@ export function NewTaskButton({ projectId, scope }: { projectId?: string; scope?
       size="sm"
       onClick={() =>
         start(async () => {
-          const id = await createTask({ title: "Nova tarefa", projectId: projectId ?? null, scope });
-          router.push(`?task=${id}`);
+          try {
+            const id = await createTask({ title: "Nova tarefa", projectId: projectId ?? null, scope });
+            const query = new URLSearchParams(params.toString());
+            query.set("task", id);
+            query.delete("modo");
+            if (scope === "empresa") query.set("escopo", "empresa"); else query.delete("escopo");
+            router.push(`?${query}`);
+          } catch { toast.error("Não foi possível criar a tarefa."); }
         })
       }
     >

@@ -7,15 +7,13 @@ import { Button } from "@/components/ui/button";
 import { ColorPicker } from "@/components/ui/color";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
-import { AREAS, type Project } from "@/db/schema";
+import { AREAS, type Project, type TaskScope } from "@/db/schema";
+import { projectScope } from "@/lib/task-scope";
 import { AREA_LABEL } from "@/lib/utils";
 
-export function ProjectDialog({ open, onOpenChange, project }: { open: boolean; onOpenChange: (v: boolean) => void; project?: Project | null }) {
-  const [form, setForm] = React.useState({ name: "", description: "", color: "#3b82f6", area: "pessoal" as Project["area"], archived: false });
+export function ProjectDialog({ open, onOpenChange, project, scope = projectScope(project?.area ?? "pessoal") }: { open: boolean; onOpenChange: (v: boolean) => void; project?: Project | null; scope?: TaskScope }) {
+  const [form, setForm] = React.useState({ name: project?.name ?? "", description: project?.description ?? "", color: project?.color ?? "#3b82f6", area: project?.area ?? scope, archived: project?.archived ?? false });
   const [pending, start] = React.useTransition();
-  React.useEffect(() => {
-    if (open) setForm({ name: project?.name ?? "", description: project?.description ?? "", color: project?.color ?? "#3b82f6", area: project?.area ?? "pessoal", archived: project?.archived ?? false });
-  }, [open, project]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title={project ? "Editar projeto" : "Novo projeto"}>
@@ -23,9 +21,11 @@ export function ProjectDialog({ open, onOpenChange, project }: { open: boolean; 
           onSubmit={(e) => {
             e.preventDefault();
             start(async () => {
-              await saveProject(project?.id ?? null, form);
-              toast.success(project ? "Projeto atualizado" : "Projeto criado");
-              onOpenChange(false);
+              try {
+                await saveProject(project?.id ?? null, form);
+                toast.success(project ? "Projeto atualizado" : "Projeto criado");
+                onOpenChange(false);
+              } catch { toast.error("Não foi possível salvar o projeto."); }
             });
           }}
           className="space-y-4"
@@ -33,7 +33,7 @@ export function ProjectDialog({ open, onOpenChange, project }: { open: boolean; 
           <Field label="Nome"><Input autoFocus required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex.: Faculdade, Barberias, Casa" /></Field>
           <Field label="Área">
             <Select value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value as Project["area"] })}>
-              {AREAS.map((a) => <option key={a} value={a}>{AREA_LABEL[a]}</option>)}
+              {AREAS.filter((a) => projectScope(a) === scope).map((a) => <option key={a} value={a}>{AREA_LABEL[a]}</option>)}
             </Select>
           </Field>
           <Field label="Cor"><ColorPicker value={form.color} onChange={(color) => setForm({ ...form, color })} /></Field>

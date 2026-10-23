@@ -6,6 +6,7 @@ import { checkIntegrationHealth } from "@/server/integrations";
 import { socialOverview } from "@/server/social";
 import { z } from "zod";
 import { githubActivity } from "@/server/github";
+import { updateTag } from "next/cache";
 
 export async function checkIntegrationsAction() {
   await requireAuth();
@@ -22,9 +23,12 @@ export async function refreshGithubActivityAction() {
   return githubActivity({ force: true });
 }
 
-export async function refreshSocialAction(channelId?: string, days: 7 | 30 = 7) {
+export async function refreshSocialAction(channelId?: string, days: 7 | 30 = 7, entity?: string) {
   await requireAuth();
   const id = z.string().max(200).optional().parse(channelId);
   const range = z.union([z.literal(7), z.literal(30)]).parse(days);
-  return socialOverview(id, range, true);
+  const group = z.string().max(200).optional().parse(entity);
+  updateTag("postiz-channels");
+  updateTag("postiz-metrics");
+  return socialOverview(id, range, true, group);
 }
