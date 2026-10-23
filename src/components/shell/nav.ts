@@ -47,6 +47,7 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
         items: [
           { href: "/empresa", label: "Visão geral", icon: Building2, dock: true, keywords: "empresa aguardando aprovação" },
           { href: "/tarefas?escopo=empresa", label: "Tarefas", icon: CheckSquare, dock: true, keywords: "tarefas da empresa" },
+          { href: "/empresa/negocios", label: "Negócios", icon: Building2, keywords: "produtos barberias members mecard viajeki" },
           { href: "/projetos", label: "Projetos", icon: FolderKanban },
           { href: "/kanban", label: "Kanban", icon: KanbanSquare },
         ],
