@@ -264,7 +264,7 @@ html { scroll-padding-top: 80px; }
 /* Keep the document width stable while Radix dialogs lock body scroll. */
 html { scrollbar-gutter: stable; }
 @supports (scrollbar-gutter: stable) {
-  body[data-scroll-locked] { margin-right: 0 !important; padding-right: 0 !important; --removed-body-scroll-bar-size: 0px; }
+  html body[data-scroll-locked] { margin-right: 0 !important; padding-right: 0 !important; --removed-body-scroll-bar-size: 0px !important; }
 }
 .hero-cover-blend {
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 20%, #000f 30%, #000e 40%, #000b 52%, #0007 65%, #0003 80%, #0001 90%, transparent 100%);
