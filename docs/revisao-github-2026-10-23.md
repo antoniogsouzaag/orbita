@@ -4,13 +4,13 @@
 
 Inventário consultado na organização aglabs-core: oito PRs abertos e 52 propostas com etiqueta proposta. Também foi examinada a issue de segurança Viajeki #32. As propostas abaixo continuam abertas; triagem não equivale a defeito reproduzido ou correção publicada. Nenhum PR foi mesclado, nenhum gate foi removido e nenhuma proposta foi encerrada por inferência.
 
-Os oito heads estão sem conflito de merge, mas todos têm check FAILURE. Em todos os jobs, a anotação oficial informa que o job não iniciou por pagamentos recentes falhos ou limite de gastos do GitHub Actions. Não há logs de compilação para atribuir estas falhas ao código. Regularizar Billing & plans e executar os gates no SHA atual é a primeira pendência do responsável. Não aumentar limite nem alterar pagamento automaticamente.
+Os oito heads estão sem conflito de merge, mas todos têm check FAILURE. Em todos os jobs, a anotação oficial informa que o job não iniciou por pagamentos recentes falhos ou limite de gastos do GitHub Actions. Não há logs de compilação para atribuir estas falhas ao código. Antonio confirmou a causa: os minutos gratuitos do Actions se esgotaram. A decisão é aguardar a renovação mensal e então executar os gates no SHA atual. Não há ação de pagamento ou aumento de limite pendente.
 
 ## Ordem de revisão
 
 1. Viajeki [#32](https://github.com/aglabs-core/viajeki/issues/32): atualização do Next.js e auditoria de segurança da base. A issue relata advisories novos e gate local reprovado; precisa de checkout, lockfile, check/audit e smoke próprios. Isso é independente do bloqueio financeiro do Actions.
 2. Cobrança, acesso e créditos: Members #33/#35/#21, AG LABS #104/#107, Viajeki #26/#19/#13, Barberias #92 e MeCard #32. Reproduzir em sandbox antes de mudar regras. Não são decisões que devem ser delegadas ao Jev.
-3. PRs pequenos: AG LABS #112; Members #39/#31; Viajeki #24. Diffs e testes de regressão foram lidos. Não apresentam uma razão observada para contornar o gate. Reexecutar CI após resolver Billing.
+3. PRs pequenos: AG LABS #112; Members #39/#31; Viajeki #24. Diffs e testes de regressão foram lidos. Não apresentam uma razão observada para contornar o gate. Reexecutar CI após a renovação dos minutos.
 4. Lotes maiores: Members #32/#38, AG LABS #113 e Viajeki #25. Revisão dos diffs e da evidência declarada não substitui execução integrada e smoke autenticado. Viajeki #25 também precisa atualizar a base vulnerável antes de publicação.
 
 ## PRs e heads consultados
@@ -103,4 +103,4 @@ Viajeki #23 trata a promessa/rótulo de reativação; #26 trata possível libera
 
 ## Próximo passo operacional
 
-Depois de Billing: executar CI no head, revisar resultados e atualizar a base de cada lote; primeiro integrar correções pequenas independentes, depois os lotes de checkout/onboarding/roteiro. Preservar testes de pagamento em sandbox e validação de publicação como etapas separadas.
+Depois da renovação dos minutos: executar CI no head, revisar resultados e atualizar a base de cada lote; primeiro integrar correções pequenas independentes, depois os lotes de checkout/onboarding/roteiro. Preservar testes de pagamento em sandbox e validação de publicação como etapas separadas.

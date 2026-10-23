@@ -44,11 +44,11 @@ export default async function Page() {
               {!inst.ok ? (
                 <Card className="p-4 text-[13px] text-danger">{inst.error}</Card>
               ) : (
-                <Card className="overflow-x-auto">
+                <div className="space-y-3">{[true, false].map((active) => active ? <div key="active">                <Card className="overflow-x-auto">
                   <table className="w-full text-[13px]">
                     <thead><tr className="border-b border-border text-left text-[12px] text-faint"><th className="px-4 py-2 font-medium">Workflow</th><th className="px-4 py-2 font-medium">Estado</th><th className="px-4 py-2 font-medium">Vault</th><th className="px-4 py-2 font-medium">Atualizado</th></tr></thead>
                     <tbody>
-                      {[...inst.workflows].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name)).map((w) => (
+                      {inst.workflows.filter((w) => w.active === active).sort((a, b) => a.name.localeCompare(b.name)).map((w) => (
                         <tr key={w.id} className="border-b border-border last:border-0">
                           <td className="px-4 py-2"><a href={`${inst.url}/workflow/${w.id}`} target="_blank" rel="noreferrer" className="font-medium hover:underline">{w.name}</a></td>
                           <td className="px-4 py-2">{w.active ? <span className="flex items-center gap-1 text-success"><CheckCircle2 className="size-3.5" />ativo</span> : <span className="flex items-center gap-1 text-faint"><CircleDashed className="size-3.5" />inativo</span>}</td>
@@ -58,7 +58,21 @@ export default async function Page() {
                       ))}
                     </tbody>
                   </table>
-                </Card>
+                </Card></div> : <details key="inactive" className="rounded-2xl border border-border"><summary className="cursor-pointer px-4 py-3 text-xs text-muted">Inativos · {inst.workflows.filter((w) => !w.active).length}</summary>                <Card className="overflow-x-auto">
+                  <table className="w-full text-[13px]">
+                    <thead><tr className="border-b border-border text-left text-[12px] text-faint"><th className="px-4 py-2 font-medium">Workflow</th><th className="px-4 py-2 font-medium">Estado</th><th className="px-4 py-2 font-medium">Vault</th><th className="px-4 py-2 font-medium">Atualizado</th></tr></thead>
+                    <tbody>
+                      {inst.workflows.filter((w) => w.active === active).sort((a, b) => a.name.localeCompare(b.name)).map((w) => (
+                        <tr key={w.id} className="border-b border-border last:border-0">
+                          <td className="px-4 py-2"><a href={`${inst.url}/workflow/${w.id}`} target="_blank" rel="noreferrer" className="font-medium hover:underline">{w.name}</a></td>
+                          <td className="px-4 py-2">{w.active ? <span className="flex items-center gap-1 text-success"><CheckCircle2 className="size-3.5" />ativo</span> : <span className="flex items-center gap-1 text-faint"><CircleDashed className="size-3.5" />inativo</span>}</td>
+                          <td className="px-4 py-2 text-[12px]">{w.documented ? <span className="text-muted">documentado</span> : w.active ? <span className="text-warning">não documentado</span> : <span className="text-faint">—</span>}</td>
+                          <td className="px-4 py-2 text-[12px] text-faint">{new Date(w.updatedAt).toLocaleDateString("pt-BR")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Card></details>)}</div>
               )}
             </section>
           ))}

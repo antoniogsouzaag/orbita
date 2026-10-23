@@ -275,3 +275,7 @@ html { scrollbar-gutter: stable; }
 .speed-dial-orbit { transform-origin: bottom right; animation: orbit-reveal 180ms cubic-bezier(.2,.8,.2,1) both; }
 .speed-dial-backdrop { animation: dial-shade 180ms ease-out both; }
 @keyframes dial-shade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Focus belongs to the rounded composer, not the square textarea. */
+.capture-input:focus-visible { outline: none; }
+.capture-composer:focus-within { border-color: color-mix(in srgb, var(--accent) 35%, transparent); }

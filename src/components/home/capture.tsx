@@ -95,7 +95,7 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
 
   return (
     <div className="relative z-10 mx-auto -mt-28 w-full max-w-2xl px-4">
-      <div className="glass overflow-hidden rounded-2xl border border-white/10 shadow-soft">
+      <div className="glass capture-composer overflow-hidden rounded-2xl border border-white/10 shadow-soft">
         <div className="flex items-center gap-1 border-b border-border px-3">
           {([
             { id: "tarefa", label: "Tarefa", icon: CheckSquare },
@@ -130,7 +130,7 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
               }
             }}
             placeholder={placeholder}
-            className="w-full resize-none bg-transparent text-[15px] leading-relaxed outline-none placeholder:text-faint"
+            className="capture-input w-full resize-none bg-transparent text-[15px] leading-relaxed outline-none placeholder:text-faint"
           />
           {tab === "tarefa" && <div className="pb-1"><ParsePreview value={value} projects={projects} /></div>}
         </div>
