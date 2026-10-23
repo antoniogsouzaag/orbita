@@ -48,3 +48,26 @@ Fontes consultadas: https://learn.chatgpt.com/docs/app-server ; https://hermes-a
 - Jev confirmado na documentação oficial da TypeSafe; não é um produto da OpenAI. A seleção opcional é restrita a tarefas existentes, por ação explícita do usuário, e sem mutações. Credencial da TypeSafe não foi criada nesta revisão e não houve chamada real de decisão.
 
 Fontes Jev: https://docs.typesafe.ai/models ; https://docs.typesafe.ai/api/system-one ; https://docs.typesafe.ai/primitives/choice ; https://docs.typesafe.ai/confidence . Os thresholds são uma escolha conservadora inicial da aplicação, não uma medida comprovada de precisão na agenda de Antonio.
+
+
+## Alinhamento posterior — manual da empresa e conectores
+
+O vault permanece como manual e inventário canônico. Foi retirada a ferramenta registrar_memoria_compartilhada e a injeção da pasta avulsa no contexto. Não foi criada nem apagada nenhuma nota de memória nesta etapa. Histórico transitório continua em eventos/tarefas da central; notas canônicas podem ser editadas com fonte e controle de versão. Memória de um aplicativo de chat pertence ao runtime/conta: não se transfere automaticamente para a API usada pela Órbita.
+
+Jev agora usa OPENROUTER_API_KEY e OPENROUTER_JEV_MODEL (typesafe/jev-1.14), pela API alpha/decisions do OpenRouter. A chave já existente foi confirmada como variável de produção. O diagnóstico autentica a chave por GET /api/v1/key, sem inferência. O uso de decisão continua limitado a uma sugestão solicitada entre pelo menos duas tarefas abertas; com zero ou uma tarefa não há chamada. Outros candidatos futuros são classificação de capturas ambíguas e triagem de alertas, apenas quando regras locais forem insuficientes. Não usar Jev para aprovar pagamentos, acesso, merge ou substituir explicações e planejamento.
+
+Postiz: instância autenticada v2.24.0 conferida no navegador. API pública retornou 14 canais e séries de analytics (HTTP200); chave existente reaproveitada na Vercel como sensível, sem rotação. Redes sociais oferece seleção de todos os canais com métricas por canal sob demanda e cache de uma hora. Isso evita 8 consultas sequenciais e a cobertura truncada anterior. O diagnóstico verifica a listagem, e a agenda só recebe verificado quando há fontes sincronizadas e sem erro. Unsplash agora tem sondagem de leitura.
+
+Composio: conexão deste chat respondeu à leitura de perfil Instagram ag_labs e TikTok AG LABS. É um complemento para canais ausentes no Postiz; a conexão deste chat não provisiona COMPOSIO_API_KEY para a central. Manter Postiz como fonte principal para publicação/agendamento/analytics e acrescentar fontes só para lacunas identificadas, sem duplicar publicação.
+
+Vault: leitura de blobs GitHub por SHA imutável usa cache persistente do Next; árvore da branch e leitura por caminho continuam atuais. Editor Markdown foi separado do bundle inicial. Grafo perdeu o cabeçalho externo, ocupa mais altura e interpola destaque/opacidade por cerca de 300ms; o redesenho contínuo termina após a transição, sem reaquecer a simulação. Rótulos vizinhos não são forçados pelo hover e aparecem conforme zoom. Respeita movimento reduzido.
+
+GitHub migrou para Geral, preservando Pessoal/Empresa ao abrir. Página com estatísticas compactas, filtros por repositório e cobertura recolhida. Revisão de oito PRs e triagem de 52 propostas estão em revisao-github-2026-10-23.md. Billing de Actions confirmado pelas anotações oficiais nos oito PRs; nenhuma alteração em pagamento ou bypass de gate.
+
+Referência Nexo (página sobre acessada no navegador): priorizar tarefa ligada a bloco de agenda/foco, revisão semanal e módulos opcionais. Não copiar por quantidade os módulos de dieta/saúde/estudos. O plano diário e o resumo já existentes devem ser o ponto de integração.
+
+Codex/Claude locais: a arquitetura recomendada é uma fila na central consumida por um executor local autenticado, com diretórios permitidos, limites, aprovação e retorno de status. Ele pode usar Codex SDK/CLI e Claude Agent SDK/CLI, com continuidade por id de sessão. A máquina precisa estar ligada. Remote Control/Dispatch são interfaces dos respectivos produtos, não uma API pública que a Órbita possa assumir; não dá acesso automático ao chat atual. Esta etapa documenta a arquitetura, sem instalar worker ou abrir porta na máquina.
+
+Fontes: https://openrouter.ai/docs/guides/community/jev ; https://docs.postiz.com/public-api/analytics/platform ; https://nexo.richardtjustke.tech/sobre ; https://developers.openai.com/codex/sdk/ ; https://code.claude.com/docs/en/headless ; https://code.claude.com/docs/en/remote-control .
+
+Validação desta etapa: build de produção e TypeScript aprovados; lint dos componentes e integrações alterados sem erros; suíte completa de 94 testes passou com um worker e 10 testes focados de decisões, diagnóstico e seleção de canal passaram após as últimas alterações. A primeira execução concorrente excedeu os timeouts locais; a execução serial passou sem ampliar os timeouts. Não declara o lint global preexistente resolvido.

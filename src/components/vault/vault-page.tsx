@@ -2,11 +2,11 @@
 
 import { AlertTriangle, ArrowUpRight, Eye, FileSearch, FilePlus2, Hash, Link2, ListTree, Network, PanelLeft, PencilLine, RefreshCw, Save, Search } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import { createVaultNote, refreshVault, saveVaultFile } from "@/app/actions/vault";
-import { MarkdownEditor } from "@/components/markdown/editor";
 import { MarkdownView, slugHeading } from "@/components/markdown/view";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState } from "@/components/ui/card";
@@ -17,6 +17,10 @@ import { cn } from "@/lib/utils";
 import { createResolver } from "@/lib/wikilinks";
 import type { TreeNode } from "@/server/vault";
 import { VaultTree } from "./vault-tree";
+
+const MarkdownEditor = dynamic(() => import("@/components/markdown/editor").then((module) => module.MarkdownEditor), {
+  loading: () => <div className="p-6 text-sm text-muted">Preparando editor…</div>,
+});
 
 export type VaultFileView = {
   path: string;

@@ -18,14 +18,16 @@ async function postizRead(path: string): Promise<unknown> {
   return response.json();
 }
 
-export const socialOverview = unstable_cache(async () => {
+export const socialChannels = unstable_cache(async () => channelsSchema.parse(await postizRead("/integrations")), ["postiz-channels-v2"], { revalidate: 3600 });
+export const socialOverview = unstable_cache(async (channelId?: string) => {
   const checkedAt = new Date().toISOString();
   if (!socialConfigured()) return { configured: false, checkedAt, error: null, channels: [] };
   try {
-    const channels = channelsSchema.parse(await postizRead("/integrations"));
+    const channels = await socialChannels();
+    const selected = channels.find((channel) => channel.id === channelId) ?? channels.find((channel) => !channel.disabled) ?? channels[0];
     const results = [];
     // Sequencial para respeitar os limites da API pública e não bloquear todos os canais por 429.
-    for (const channel of channels) {
+    for (const channel of selected ? [selected] : []) {
       let metrics: SocialMetric[] = [];
       let error: string | null = null;
       if (!channel.disabled) {
@@ -33,11 +35,10 @@ export const socialOverview = unstable_cache(async () => {
         catch { error = "Métricas indisponíveis para este canal. Confira acesso, versão e permissões da rede no Postiz."; }
       }
       results.push({ ...channel, metrics, error });
-      // A consulta automática tem um limite explícito para manter a página responsiva.
-      if (results.length >= 8) break;
+
     }
-    return { configured: true, checkedAt, error: null, channels: results, total: channels.length };
+    return { configured: true, checkedAt, error: null, channels: results, total: channels.length, available: channels };
   } catch {
     return { configured: true, checkedAt, error: "Não foi possível consultar o Postiz. Confira POSTIZ_API_URL (incluindo /public/v1), chave e versão instalada.", channels: [] };
   }
-}, ["postiz-overview"], { revalidate: 3600 });
+}, ["postiz-overview-v2"], { revalidate: 3600 });

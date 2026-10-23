@@ -37,12 +37,21 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
   const fitted = React.useRef(false);
   const interacted = React.useRef(false);
   const labelBoxes = React.useRef<{ left: number; right: number; top: number; bottom: number }[]>([]);
+  const visuals = React.useRef(new Map<string, { opacity: number; highlight: number }>());
+  const lastFrame = React.useRef(0);
+  const [redrawing, setRedrawing] = React.useState(false);
   // d3 mutates nodes and link endpoints. Keep the filtering model immutable.
   const graph = React.useMemo(() => ({ nodes: data.nodes.map((node) => ({ ...node })), links: data.links.map((link) => ({ ...link })) }), [data]);
   const neighbors = React.useMemo(() => graphNeighbors(data.links), [data.links]);
   const colors = React.useMemo(() => new Map(groups.map((group, index) => [group, GRAPH_COLORS[index % GRAPH_COLORS.length]])), [groups]);
   const matchingIds = React.useMemo(() => query.trim() ? new Set(data.nodes.filter((node) => matchesGraphNode(node, query)).map((node) => node.id)) : null, [data.nodes, query]);
   const active = hover ?? focused;
+  React.useEffect(() => {
+    // Redraw only for the fade, without reheating or moving the simulation.
+    const frame = requestAnimationFrame(() => setRedrawing(true));
+    const timer = window.setTimeout(() => setRedrawing(false), 600);
+    return () => { window.clearTimeout(timer); cancelAnimationFrame(frame); };
+  }, [active, matchingIds]);
   const fit = React.useCallback((duration = 350) => {
     const graph = ref.current;
     const bounds = graph?.getGraphBbox();
@@ -93,7 +102,19 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
       width={width}
       height={height}
       backgroundColor="rgba(0,0,0,0)"
-      onRenderFramePre={() => { labelBoxes.current = []; }}
+      autoPauseRedraw={!redrawing}
+      onRenderFramePre={() => {
+        labelBoxes.current = [];
+        const now = performance.now();
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const blend = reduced ? 1 : 1 - Math.exp(-Math.min(now - lastFrame.current, 50) / 85);
+        lastFrame.current = now;
+        for (const node of graph.nodes) {
+          const target = { opacity: faded(node) ? 0.14 : 1, highlight: active === node.id ? 1 : 0 };
+          const previous = visuals.current.get(node.id) ?? { opacity: 1, highlight: 0 };
+          visuals.current.set(node.id, { opacity: previous.opacity + (target.opacity - previous.opacity) * blend, highlight: previous.highlight + (target.highlight - previous.highlight) * blend });
+        }
+      }}
       minZoom={0.15}
       maxZoom={8}
       d3AlphaDecay={0.045}
@@ -106,11 +127,19 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
       enableNodeDrag
       enablePanInteraction
       enableZoomInteraction
-      linkColor={(link: CanvasLink) => {
-        const connected = active && (endId(link.source) === active || endId(link.target) === active);
-        return connected ? (dark ? "rgba(167,139,250,0.65)" : "rgba(109,76,189,0.62)") : active ? (dark ? "rgba(150,160,180,0.07)" : "rgba(80,90,110,0.07)") : dark ? "rgba(158,170,192,0.11)" : "rgba(95,105,125,0.13)";
+      linkCanvasObject={(link: CanvasLink, ctx) => {
+        const source = link.source as CanvasNode;
+        const target = link.target as CanvasNode;
+        if (source.x === undefined || source.y === undefined || target.x === undefined || target.y === undefined) return;
+        const a = visuals.current.get(endId(source) ?? "");
+        const b = visuals.current.get(endId(target) ?? "");
+        const highlight = Math.max(a?.highlight ?? 0, b?.highlight ?? 0);
+        const opacity = Math.min(a?.opacity ?? 1, b?.opacity ?? 1);
+        ctx.beginPath(); ctx.moveTo(source.x, source.y); ctx.lineTo(target.x, target.y);
+        ctx.lineWidth = 0.4 + highlight * 0.6;
+        ctx.strokeStyle = `rgba(${dark ? "167,139,250" : "109,76,189"},${0.12 * opacity + highlight * 0.5})`;
+        ctx.stroke();
       }}
-      linkWidth={(link: CanvasLink) => active && (endId(link.source) === active || endId(link.target) === active) ? 1 : 0.4}
       onNodeHover={(node) => onHover(node ?? null)}
       onNodeClick={(node) => onOpen(node.id)}
       onNodeRightClick={(node, event) => { event.preventDefault(); onFocus(node.id); }}
@@ -135,11 +164,12 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
         const radius = nodeRadius(node);
         const color = colors.get(node.group) ?? GRAPH_COLORS[0];
         const isActive = active === node.id;
-        const isNeighbor = Boolean(active && neighbors.get(active)?.has(node.id));
         const isMatch = Boolean(matchingIds?.has(node.id));
+        const visual = visuals.current.get(node.id) ?? { opacity: 1, highlight: 0 };
         ctx.save();
-        ctx.globalAlpha = faded(node) ? 0.14 : 1;
-        if (isActive || isMatch) {
+        ctx.globalAlpha = visual.opacity;
+        if (visual.highlight > 0.01 || isMatch) {
+          ctx.globalAlpha = visual.opacity * (isMatch ? 1 : visual.highlight);
           ctx.beginPath();
           ctx.arc(x, y, radius + 5 / scale, 0, Math.PI * 2);
           ctx.fillStyle = dark ? "rgba(167,139,250,0.12)" : "rgba(109,76,189,0.10)";
@@ -147,12 +177,14 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
           ctx.lineWidth = 1 / scale;
           ctx.strokeStyle = color;
           ctx.stroke();
+          ctx.globalAlpha = visual.opacity;
         }
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = isActive ? (dark ? "#f0ecff" : "#5f42a8") : color;
+        ctx.fillStyle = color;
         if (node.degree === 0) { ctx.lineWidth = 1 / scale; ctx.strokeStyle = color; ctx.stroke(); } else ctx.fill();
-        if (!faded(node) && ((labels && (scale > 2.5 || (scale > 0.85 && node.degree >= 20))) || isActive || isMatch || isNeighbor)) {
+        if ((labels && (scale > 2.5 || (!active && scale > 1.4 && node.degree >= 20))) || visual.highlight > 0.02 || isMatch) {
+          ctx.globalAlpha = visual.opacity * (isMatch || labels && scale > 2.5 || !active && labels && scale > 1.4 && node.degree >= 20 ? 1 : visual.highlight);
           const fontSize = 10 / Math.sqrt(Math.max(scale, 0.7));
           const title = node.name.length > 44 ? `${node.name.slice(0, 43)}…` : node.name;
           ctx.font = `${isActive ? "600 " : ""}${fontSize}px system-ui, sans-serif`;

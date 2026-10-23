@@ -11,11 +11,21 @@ vi.mock("@/server/vault", () => ({ vaultConfig: vi.fn(() => ({ configured: false
 import { checkIntegrationHealth, integrationConfiguration } from "@/server/integrations";
 
 beforeEach(() => {
-  for (const key of ["DATABASE_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "CRON_SECRET", "N8N_INSTANCES", "OPS_TOKEN", "CALENDAR_FEED_TOKEN", "CONTEXT_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "UNSPLASH_ACCESS_KEY"]) vi.stubEnv(key, "");
+  for (const key of ["OPENROUTER_API_KEY", "POSTIZ_API_URL", "POSTIZ_API_KEY", "DATABASE_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "CRON_SECRET", "N8N_INSTANCES", "OPS_TOKEN", "CALENDAR_FEED_TOKEN", "CONTEXT_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "UNSPLASH_ACCESS_KEY"]) vi.stubEnv(key, "");
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 describe("diagnóstico das integrações", () => {
+  it("autentica OpenRouter sem gerar conteúdo e sem expor a credencial", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "secret-openrouter-key");
+    const request = vi.fn(async () => Response.json({ data: { limit_remaining: 2, is_disabled: false } }));
+    vi.stubGlobal("fetch", request);
+    const rows = await checkIntegrationHealth();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("https://openrouter.ai/api/v1/key", expect.objectContaining({ cache: "no-store" }));
+    expect(rows.find((row) => row.id === "jev")).toMatchObject({ state: "verified" });
+    expect(JSON.stringify(rows)).not.toContain("secret-openrouter-key");
+  });
   it("diferencia configuração de verificação e não serializa valores secretos", () => {
     vi.stubEnv("OPENAI_API_KEY", "never-display-ai-key");
     vi.stubEnv("OPS_TOKEN", "never-display-ops-token");

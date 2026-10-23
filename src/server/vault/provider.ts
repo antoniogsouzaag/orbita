@@ -88,7 +88,9 @@ class GitHubProvider implements VaultProvider {
   private async api(url: string, init: RequestInit = {}) {
     const res = await fetch(`https://api.github.com${url}`, {
       ...init,
-      cache: "no-store",
+      // Blob SHAs identify immutable content. Persist these reads across cold
+      // starts; the branch tree and path reads must still see current content.
+      cache: url.includes("/git/blobs/") ? "force-cache" : "no-store",
       headers: {
         authorization: `Bearer ${this.token}`,
         accept: "application/vnd.github+json",
