@@ -27,6 +27,9 @@ export type VaultIndex = {
   builtAt: number;
 };
 
+// Retain at most 256 immutable SHA-keyed blobs per process, not every historical
+// version. This bounds entry count only, not bytes or the current parsed index.
+const MAX_CACHED_BLOBS = 256;
 const blobCache = new Map<string, string>();
 let cached: VaultIndex | null = null;
 let building: Promise<VaultIndex> | null = null;
@@ -93,9 +96,12 @@ async function build(): Promise<VaultIndex> {
   const resolve = createResolver(md.map((e) => e.path));
   const contents = await pool(md, 12, async (e) => {
     const hit = blobCache.get(e.sha);
-    if (hit !== undefined) return hit;
+    if (hit !== undefined) {
+      rememberBlob(e.sha, hit);
+      return hit;
+    }
     const text = await p.read(e.path, p.kind === "github" ? e.sha : undefined);
-    blobCache.set(e.sha, text);
+    rememberBlob(e.sha, text);
     return text;
   });
   const notes = new Map<string, VaultNote>();
@@ -143,7 +149,12 @@ export function invalidateVault() {
 }
 
 export function rememberBlob(sha: string, content: string) {
+  // Map insertion order is the LRU order; both reads and writes refresh it.
+  blobCache.delete(sha);
   blobCache.set(sha, content);
+  if (blobCache.size > MAX_CACHED_BLOBS) {
+    blobCache.delete(blobCache.keys().next().value!);
+  }
 }
 
 export type SearchHit = { path: string; title: string; folder: string; snippet: string; score: number };
