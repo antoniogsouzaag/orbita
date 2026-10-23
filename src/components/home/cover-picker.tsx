@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 type Photo = { id: string; thumb: string; url: string; author: string; authorUrl: string; color: string };
 
-export function CoverPicker({ open, onOpenChange, current }: { open: boolean; onOpenChange: (v: boolean) => void; current: string }) {
+export function CoverPicker({ open, onOpenChange, current, field = "cover" }: { open: boolean; onOpenChange: (v: boolean) => void; current: string; field?: "cover" | "empresaCover" }) {
   const [q, setQ] = React.useState("");
   const [results, setResults] = React.useState<Photo[] | null>(null);
   const [searching, setSearching] = React.useState(false);
@@ -21,7 +21,7 @@ export function CoverPicker({ open, onOpenChange, current }: { open: boolean; on
 
   const choose = (c: { url: string; author?: string; authorUrl?: string; color?: string; id?: string }) =>
     start(async () => {
-      await updateSettings({ cover: { url: c.url, author: c.author, authorUrl: c.authorUrl, color: c.color, source: c.author ? "unsplash" : "custom" } });
+      await updateSettings({ [field]: { url: c.url, author: c.author, authorUrl: c.authorUrl, color: c.color, source: c.author ? "unsplash" : "custom" } });
       if (c.id) fetch(`/api/covers?track=${encodeURIComponent(c.id)}`).catch(() => {});
       toast.success("Capa atualizada");
       onOpenChange(false);

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-export function Customize({ order, hidden, labels }: { order: string[]; hidden: string[]; labels: Record<string, string> }) {
+export function Customize({ order, hidden, labels, field = "widgets", title = "Personalizar o Início" }: { order: string[]; hidden: string[]; labels: Record<string, string>; field?: "widgets" | "empresaWidgets"; title?: string }) {
   const [o, setO] = React.useState(order);
   const [h, setH] = React.useState(hidden);
   const [pending, start] = React.useTransition();
@@ -25,7 +25,7 @@ export function Customize({ order, hidden, labels }: { order: string[]; hidden: 
       <DialogTrigger className="flex items-center gap-1.5 text-[12.5px] text-muted hover:text-fg">
         <LayoutGrid className="size-3.5" /> Personalizar
       </DialogTrigger>
-      <DialogContent title="Personalizar o Início" description="Mostre, esconda e reordene os blocos.">
+      <DialogContent title={title} description="Mostre, esconda e reordene os blocos.">
         <div className="space-y-1">
           {o.map((id, i) => (
             <div key={id} className={cn("flex items-center gap-2 rounded-xl border border-border px-3 py-2", h.includes(id) && "opacity-50")}>
@@ -39,7 +39,7 @@ export function Customize({ order, hidden, labels }: { order: string[]; hidden: 
           ))}
         </div>
         <div className="mt-4 flex justify-end">
-          <Button variant="primary" disabled={pending} onClick={() => start(async () => { await updateSettings({ widgets: { order: o as never, hidden: h as never } }); setOpen(false); })}>Salvar</Button>
+          <Button variant="primary" disabled={pending} onClick={() => start(async () => { await updateSettings({ [field]: { order: o as never, hidden: h as never } }); setOpen(false); })}>Salvar</Button>
         </div>
       </DialogContent>
     </Dialog>

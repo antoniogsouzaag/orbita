@@ -130,13 +130,13 @@ export function HabitsWidget({ habits, done, total }: { habits: HomeData["habits
 }
 
 /* ───────── Tarefas ───────── */
-export function TasksWidget({ tasks, counts }: { tasks: HomeData["tasks"]; counts: HomeData["counts"] }) {
+export function TasksWidget({ tasks, counts, href = "/tarefas", title = "Tarefas", showScope = true }: { tasks: HomeData["tasks"]; counts: HomeData["counts"]; href?: string; title?: string; showScope?: boolean }) {
   const router = useRouter();
   const [optimistic, setOptimistic] = React.useOptimistic(tasks, (state, id: string) => state.map((t) => (t.id === id ? { ...t, status: t.status === "done" ? "todo" : "done" } : t)) as typeof tasks);
   const [, start] = React.useTransition();
   return (
     <Card className="h-full">
-      <CardHeader icon={<CheckSquare />} title="Tarefas" meta={`${counts.today} para hoje · ${counts.overdue} ${counts.overdue === 1 ? "atrasada" : "atrasadas"}`} href="/tarefas" />
+      <CardHeader icon={<CheckSquare />} title={title} meta={`${counts.today} para hoje · ${counts.overdue} ${counts.overdue === 1 ? "atrasada" : "atrasadas"}`} href={href} />
       {tasks.length === 0 ? (
         <EmptyState icon={<CheckSquare />} title="Nada pendente" description="Use a captura rápida acima para adicionar." />
       ) : (
@@ -146,7 +146,7 @@ export function TasksWidget({ tasks, counts }: { tasks: HomeData["tasks"]; count
               key={t.id}
               task={t}
               compact
-              showScope
+              showScope={showScope}
               onOpen={() => router.push(t.scope === "empresa" ? `/tarefas?escopo=empresa&task=${t.id}` : `/tarefas?task=${t.id}`)}
               onToggle={() =>
                 start(async () => {
@@ -160,7 +160,7 @@ export function TasksWidget({ tasks, counts }: { tasks: HomeData["tasks"]; count
         </div>
       )}
       {counts.open > tasks.length && (
-        <Link href="/tarefas" className="flex items-center gap-1 px-5 pb-4 text-[12.5px] text-muted hover:text-fg">Ver as {counts.open} tarefas <ArrowRight className="size-3.5" /></Link>
+        <Link href={href} className="flex items-center gap-1 px-5 pb-4 text-[12.5px] text-muted hover:text-fg">Ver as {counts.open} tarefas <ArrowRight className="size-3.5" /></Link>
       )}
     </Card>
   );

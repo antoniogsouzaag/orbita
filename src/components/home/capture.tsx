@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 type Tab = "tarefa" | "ia" | "nota";
 
-export function Capture({ projects, aiEnabled }: { projects: { id: string; name: string; color: string }[]; aiEnabled: boolean }) {
+export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: { id: string; name: string; color: string }[]; aiEnabled: boolean; scope?: "pessoal" | "empresa" }) {
   const router = useRouter();
   const [tab, setTab] = React.useState<Tab>("tarefa");
   const [value, setValue] = React.useState("");
@@ -38,7 +38,7 @@ export function Capture({ projects, aiEnabled }: { projects: { id: string; name:
     setAsking(true);
     setAnswer("");
     try {
-      const res = await fetch("/api/ai/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question }) });
+      const res = await fetch("/api/ai/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: scope === "empresa" ? `[Espaço Empresa — trate como assunto da AG LABS; tarefas criadas aqui são da empresa] ${question}` : question }) });
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: "Falha ao consultar a IA" }));
         setAnswer(`⚠️ ${err.error}`);
@@ -76,7 +76,7 @@ export function Capture({ projects, aiEnabled }: { projects: { id: string; name:
     }
     start(async () => {
       if (tab === "tarefa") {
-        const { parsed } = await quickAddTask(text, projectId);
+        const { parsed } = await quickAddTask(text, projectId, scope);
         const bits = [parsed.dueDate && `${relativeDay(parsed.dueDate)}${parsed.dueTime ? ` ${parsed.dueTime}` : ""}`, parsed.projectName, ...parsed.tags.map((t) => `#${t}`)].filter(Boolean);
         toast.success(`Tarefa criada${bits.length ? ` · ${bits.join(" · ")}` : ""}`);
       } else {
@@ -88,7 +88,10 @@ export function Capture({ projects, aiEnabled }: { projects: { id: string; name:
     });
   };
 
-  const placeholder = tab === "tarefa" ? "O que precisa ser feito?" : tab === "ia" ? "Pergunte sobre seu dia, suas tarefas ou a operação…" : "Escreva uma nota rápida (1ª linha vira o título)…";
+  const placeholder =
+    scope === "empresa"
+      ? tab === "tarefa" ? "O que a AG LABS precisa fazer?" : tab === "ia" ? "Pergunte sobre a operação, os agentes, o vault…" : "Nota rápida da empresa (1ª linha vira o título)…"
+      : tab === "tarefa" ? "O que precisa ser feito?" : tab === "ia" ? "Pergunte sobre seu dia, suas tarefas ou a operação…" : "Escreva uma nota rápida (1ª linha vira o título)…";
 
   return (
     <div className="relative z-10 mx-auto -mt-28 w-full max-w-2xl px-4">

@@ -6,6 +6,7 @@ import { events, notes, projects, tasks, transactions } from "@/db/schema";
 import { localDate, localTime, shiftDate, today, zonedToUtc } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
 import { eventsBetween } from "./calendar";
+import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./crm";
 import { liveOps } from "./ops-live";
 import { listTasks, type TaskView } from "./tasks";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
@@ -244,9 +245,99 @@ export const statusOperacao = {
   },
 };
 
+/* ───────────── CRM (servidor MCP do crm-dash) ───────────── */
+
+const responsavel = z.enum(["maia", "leo", "antonio", "tecnico"]);
+const idCrm = z.string().uuid("use o id que o CRM devolveu");
+/** O modelo manda null nos campos opcionais; o CRM espera o campo ausente. */
+const semNulos = (v: Record<string, unknown>) => Object.fromEntries(Object.entries(v).filter(([, x]) => x !== null && x !== undefined));
+const crmLink = (label: string, path: string) => {
+  const href = crmUrl(path);
+  return href ? { label, href } : undefined;
+};
+
+const crmResumoSchema = z.object({});
+export const crmResumo = {
+  schema: crmResumoSchema,
+  async run(): Promise<ActionResult> {
+    return { text: `CRM — resumo: ${JSON.stringify(await crmCall("crm_resumo"))}` };
+  },
+};
+
+const crmTarefasSchema = z.object({
+  responsavel: responsavel.nullish(),
+  situacao: z.enum(["todas", "vencidas", "hoje", "ate_hoje"]).nullish(),
+  limite: z.number().int().min(1).max(50).nullish(),
+});
+export const crmTarefas = {
+  schema: crmTarefasSchema,
+  async run(v: z.infer<typeof crmTarefasSchema>): Promise<ActionResult> {
+    return { text: `CRM — tarefas pendentes: ${JSON.stringify(await crmCall("crm_tarefas", semNulos(v)))}` };
+  },
+};
+
+const crmBuscarContatosSchema = z.object({ termo: z.string().trim().min(2).max(80).describe("Nome, empresa, e-mail ou Instagram") });
+export const crmBuscarContatos = {
+  schema: crmBuscarContatosSchema,
+  async run(v: z.infer<typeof crmBuscarContatosSchema>): Promise<ActionResult> {
+    return { text: `CRM — contatos: ${JSON.stringify(await crmCall("crm_buscar_contatos", v))}` };
+  },
+};
+
+const crmContatoSchema = z.object({ contato_id: idCrm });
+export const crmContato = {
+  schema: crmContatoSchema,
+  async run(v: z.infer<typeof crmContatoSchema>): Promise<ActionResult> {
+    return { text: `CRM — ficha: ${JSON.stringify(await crmCall("crm_contato", v))}` };
+  },
+};
+
+const crmCriarTarefaSchema = z.object({
+  titulo: z.string().trim().min(3).max(200),
+  descricao: z.string().trim().max(2000).nullish().describe("O que fazer; para e-mail, o conteúdo ou o objetivo da mensagem"),
+  responsavel,
+  prazo: data.nullish(),
+  prioridade: z.enum(["Baixa", "Média", "Alta"]).nullish(),
+  contato_id: idCrm.nullish(),
+});
+export const crmCriarTarefa = {
+  schema: crmCriarTarefaSchema,
+  async run(v: z.infer<typeof crmCriarTarefaSchema>): Promise<ActionResult> {
+    const r = await crmCall<{ criada: { id: string; titulo: string } }>("crm_criar_tarefa", semNulos(v));
+    clearCrmCache();
+    const quem = CRM_ASSIGNEE[v.responsavel];
+    return { text: `Tarefa criada no CRM para ${quem} (id ${r.criada.id}): ${r.criada.titulo}.`, action: crmLink(`CRM: ${v.titulo} → ${quem}`, v.contato_id ? `/contacts/${v.contato_id}` : "/tasks") };
+  },
+};
+
+const crmConcluirTarefaSchema = z.object({ tarefa_id: idCrm, motivo: z.string().trim().min(3).max(500).describe("Por que foi concluída, cancelada ou substituída") });
+export const crmConcluirTarefa = {
+  schema: crmConcluirTarefaSchema,
+  async run(v: z.infer<typeof crmConcluirTarefaSchema>): Promise<ActionResult> {
+    const r = await crmCall<{ concluida?: string; ja_concluida?: boolean; tarefa?: string }>("crm_concluir_tarefa", v);
+    clearCrmCache();
+    if (r.ja_concluida) return { text: `A tarefa “${r.tarefa}” já estava concluída no CRM.` };
+    return { text: `Tarefa concluída no CRM: ${r.concluida}.`, action: crmLink(`CRM concluída: ${r.concluida}`, "/tasks") };
+  },
+};
+
+const crmRegistrarAtividadeSchema = z.object({
+  contato_id: idCrm,
+  tipo: z.enum(["note", "followup", "suporte", "meeting"]).describe("note = nota, followup, suporte ou meeting = reunião"),
+  canal: z.enum(["whatsapp", "email", "telefone", "presencial", "instagram"]).nullish(),
+  resumo: z.string().trim().min(3).max(2000),
+});
+export const crmRegistrarAtividade = {
+  schema: crmRegistrarAtividadeSchema,
+  async run(v: z.infer<typeof crmRegistrarAtividadeSchema>): Promise<ActionResult> {
+    await crmCall("crm_registrar_atividade", semNulos(v));
+    return { text: "Interação registrada na ficha do contato no CRM.", action: crmLink("CRM: interação registrada", `/contacts/${v.contato_id}`) };
+  },
+};
+
 /* ───────────── Catálogo para a IA ───────────── */
 
-type Tool = { name: string; description: string; schema: z.ZodObject; run: (v: never) => Promise<ActionResult> };
+type Tool = { name: string; description: string; schema: z.ZodObject; run: (v: never) => Promise<ActionResult>; requires?: () => boolean };
 
 export const ASSISTANT_TOOLS: Tool[] = [
   { name: "criar_tarefa", description: "Cria uma tarefa para Antonio. Use datas absolutas (AAAA-MM-DD) calculadas a partir de hoje.", ...criarTarefa },
@@ -260,7 +351,19 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "buscar_no_vault", description: "Busca no vault da AG LABS (manual canônico da empresa).", ...buscarNoVault },
   { name: "ler_nota_do_vault", description: "Lê uma nota inteira do vault pelo caminho ou nome.", ...lerNotaDoVault },
   { name: "status_operacao", description: "Estado ao vivo: sites fora do ar, incidentes, falhas de workflow, monitores e domínios.", ...statusOperacao },
+  { name: "crm_resumo", description: "CRM da AG LABS: funil por etapa, novos contatos, receita líquida do mês e tarefas por responsável.", requires: crmConfigured, ...crmResumo },
+  { name: "crm_tarefas", description: "Tarefas pendentes do CRM (Maia, Léo, Antonio, técnico), das mais urgentes; filtra por responsável e situação.", requires: crmConfigured, ...crmTarefas },
+  { name: "crm_buscar_contatos", description: "Procura clientes e leads no CRM por nome, empresa, e-mail ou Instagram. Use antes de agir sobre um contato.", requires: crmConfigured, ...crmBuscarContatos },
+  { name: "crm_contato", description: "Ficha de um contato do CRM: etapa, produto, últimas interações, tarefas e receita.", requires: crmConfigured, ...crmContato },
+  { name: "crm_criar_tarefa", description: "Cria tarefa no CRM com responsável. Para enviar e-mail a um contato, crie para leo com o contato e o conteúdo.", requires: crmConfigured, ...crmCriarTarefa },
+  { name: "crm_concluir_tarefa", description: "Conclui tarefa do CRM com o motivo (também para cancelada ou substituída).", requires: crmConfigured, ...crmConcluirTarefa },
+  { name: "crm_registrar_atividade", description: "Registra na ficha do contato uma interação que já aconteceu. Não muda a etapa do funil.", requires: crmConfigured, ...crmRegistrarAtividade },
 ] as Tool[];
+
+/** Ferramentas disponíveis agora (as do CRM só aparecem com o CRM conectado). */
+export function assistantTools() {
+  return ASSISTANT_TOOLS.filter((t) => !t.requires || t.requires());
+}
 
 export function toolJsonSchema(t: Tool): Record<string, unknown> {
   const schema = z.toJSONSchema(t.schema, { io: "input" }) as Record<string, unknown>;
@@ -270,7 +373,7 @@ export function toolJsonSchema(t: Tool): Record<string, unknown> {
 
 /** Executa uma ferramenta pelo nome com argumentos em JSON (vindos do modelo). */
 export async function runAssistantTool(name: string, rawArgs: string | Record<string, unknown>): Promise<ActionResult & { ok: boolean }> {
-  const tool = ASSISTANT_TOOLS.find((t) => t.name === name);
+  const tool = assistantTools().find((t) => t.name === name);
   if (!tool) return { ok: false, text: `Ferramenta desconhecida: ${name}` };
   let args: unknown = rawArgs;
   if (typeof rawArgs === "string") {

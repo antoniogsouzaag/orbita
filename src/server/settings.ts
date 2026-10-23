@@ -22,18 +22,29 @@ export const WIDGETS = [
 ] as const;
 export type WidgetId = (typeof WIDGETS)[number]["id"];
 
-export const THEMES = ["grafite", "meia-noite", "ameixa", "floresta", "areia"] as const;
-export type ThemeId = (typeof THEMES)[number];
-export const SURFACES = ["solido", "vidro"] as const;
-export type SurfaceId = (typeof SURFACES)[number];
+/** Cards do Início da Empresa. */
+export const EMPRESA_WIDGETS = [
+  { id: "aguardando", label: "Aguardando você" },
+  { id: "operacao", label: "Operação agora" },
+  { id: "tarefas", label: "Tarefas da empresa" },
+  { id: "crm", label: "CRM" },
+  { id: "github", label: "GitHub — PRs e propostas" },
+  { id: "agentes", label: "Atividade dos agentes" },
+  { id: "projetos", label: "Projetos" },
+  { id: "incidentes", label: "Incidentes e falhas" },
+  { id: "dominios", label: "Domínios" },
+  { id: "metas", label: "Metas da empresa" },
+  { id: "agenda", label: "Agenda" },
+] as const;
+export type EmpresaWidgetId = (typeof EMPRESA_WIDGETS)[number]["id"];
 
 export type AppSettings = {
   name: string;
   accent: string;
-  theme: ThemeId;
-  surface: SurfaceId;
   cover: Cover;
   widgets: { order: WidgetId[]; hidden: WidgetId[] };
+  empresaCover: Cover;
+  empresaWidgets: { order: EmpresaWidgetId[]; hidden: EmpresaWidgetId[] };
   focusMinutes: number;
 };
 
@@ -48,12 +59,21 @@ export const DEFAULT_COVER: Cover = {
 export const DEFAULT_SETTINGS: AppSettings = {
   name: process.env.OWNER_NAME ?? "Antonio Garcia",
   accent: "cyan",
-  theme: "grafite",
-  surface: "solido",
   cover: DEFAULT_COVER,
   widgets: {
     order: ["conquistas", "habitos", "metas", "tarefas", "agenda", "plano", "checkin", "operacao", "foco", "treino", "financas", "leitura"],
     hidden: ["leitura"],
+  },
+  empresaCover: {
+    url: COVER_PRESETS.find((c) => c.id === "city2")?.url ?? COVER_PRESETS[1].url,
+    author: COVER_PRESETS.find((c) => c.id === "city2")?.author ?? COVER_PRESETS[1].author,
+    authorUrl: COVER_PRESETS.find((c) => c.id === "city2")?.authorUrl ?? COVER_PRESETS[1].authorUrl,
+    source: "unsplash",
+    color: COVER_PRESETS.find((c) => c.id === "city2")?.color ?? COVER_PRESETS[1].color,
+  },
+  empresaWidgets: {
+    order: ["aguardando", "operacao", "tarefas", "crm", "github", "agentes", "projetos", "incidentes", "dominios", "metas", "agenda"],
+    hidden: ["agenda"],
   },
   focusMinutes: 25,
 };
@@ -68,6 +88,8 @@ export async function getSettings(): Promise<AppSettings> {
   // garante que widgets novos apareçam para quem já tinha uma ordem salva
   const known = new Set(merged.widgets.order);
   for (const w of DEFAULT_SETTINGS.widgets.order) if (!known.has(w)) merged.widgets.order.push(w);
+  const knownE = new Set(merged.empresaWidgets.order);
+  for (const w of DEFAULT_SETTINGS.empresaWidgets.order) if (!knownE.has(w)) merged.empresaWidgets.order.push(w);
   return merged;
 }
 

@@ -16,7 +16,6 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
   --highlight: rgba(255, 255, 255, 0.9);
   --card-shadow: 0 1px 2px rgba(16, 16, 20, 0.04), 0 4px 16px -8px rgba(16, 16, 20, 0.08);
-  --ambient: #a78bfa;
   --rim: 0, 0, 0;
   --accent: #0ea5e9;
   --accent-fg: #ffffff;
@@ -39,49 +38,10 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
   --highlight: rgba(255, 255, 255, 0.045);
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 30px -12px rgba(0, 0, 0, 0.5);
-  --ambient: #6d5bd0;
   --rim: 255, 255, 255;
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #f43f5e;
-}
-
-/* ───────────── Temas (cada um com versão escura e clara) ───────────── */
-.dark[data-theme="meia-noite"] {
-  --bg: #060912; --surface: #0c1220; --surface-2: #111a2c; --surface-3: #172238;
-  --border: #19243a; --border-strong: #26344f; --text: #e7edf8; --muted: #8b98b0; --faint: #5f6b84;
-  --glass: rgba(12, 18, 32, 0.72); --ambient: #2563eb;
-}
-:root:not(.dark)[data-theme="meia-noite"] {
-  --bg: #f2f5fb; --surface: #ffffff; --surface-2: #eef2f9; --surface-3: #e3e9f4;
-  --border: #dde4f0; --border-strong: #c9d3e4; --text: #101828; --muted: #5a6478; --faint: #97a1b4; --ambient: #3b82f6;
-}
-.dark[data-theme="ameixa"] {
-  --bg: #0a070f; --surface: #120e19; --surface-2: #191322; --surface-3: #211a2d;
-  --border: #231c30; --border-strong: #332947; --text: #efe9f7; --muted: #9b90ae; --faint: #675d78;
-  --glass: rgba(18, 14, 25, 0.72); --ambient: #a21caf;
-}
-:root:not(.dark)[data-theme="ameixa"] {
-  --bg: #f7f4fa; --surface: #ffffff; --surface-2: #f3eef8; --surface-3: #eae2f2;
-  --border: #e6dcef; --border-strong: #d4c5e3; --text: #1d1428; --muted: #675b78; --faint: #a497b5; --ambient: #c026d3;
-}
-.dark[data-theme="floresta"] {
-  --bg: #060a08; --surface: #0d1310; --surface-2: #121a16; --surface-3: #18221d;
-  --border: #1a2520; --border-strong: #27362e; --text: #e8f0eb; --muted: #8aa094; --faint: #59695f;
-  --glass: rgba(13, 19, 16, 0.72); --ambient: #059669;
-}
-:root:not(.dark)[data-theme="floresta"] {
-  --bg: #f2f6f3; --surface: #ffffff; --surface-2: #edf3ef; --surface-3: #e1eae4;
-  --border: #dbe5de; --border-strong: #c5d4ca; --text: #102018; --muted: #566a5e; --faint: #94a69b; --ambient: #10b981;
-}
-.dark[data-theme="areia"] {
-  --bg: #0b0907; --surface: #14110e; --surface-2: #1b1713; --surface-3: #231e19;
-  --border: #26201a; --border-strong: #372f26; --text: #f2ede6; --muted: #a59b8e; --faint: #6e6458;
-  --glass: rgba(20, 17, 14, 0.72); --ambient: #d97706;
-}
-:root:not(.dark)[data-theme="areia"] {
-  --bg: #f7f4ee; --surface: #fffdf9; --surface-2: #f3eee6; --surface-3: #eae3d8;
-  --border: #e6ddd0; --border-strong: #d6cab9; --text: #1f1a14; --muted: #6d6358; --faint: #a69c8f; --ambient: #f59e0b;
 }
 
 [data-accent="cyan"] { --accent: #22d3ee; --accent-fg: #062026; }
@@ -119,7 +79,6 @@
 }
 
 html { background: var(--bg); color: var(--text); }
-/* o fundo fica no html: assim a luz ambiente (.app-backdrop, z-index -1) aparece por trás do conteúdo */
 body { background: transparent; color: var(--text); }
 body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; }
 
@@ -129,44 +88,29 @@ body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiase
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 
-/* ───────────── Superfícies ───────────── */
-
-/* Luz ambiente atrás das telas internas (a Início usa a foto de capa) */
-.app-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(1100px 520px at 12% -12%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 62%),
-    radial-gradient(900px 480px at 100% -6%, color-mix(in oklab, var(--ambient) 11%, transparent), transparent 60%),
-    radial-gradient(700px 500px at 50% 115%, color-mix(in oklab, var(--ambient) 6%, transparent), transparent 70%),
-    var(--bg);
-}
-[data-surface="vidro"] .app-backdrop {
-  background:
-    radial-gradient(900px 600px at 8% -8%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 60%),
-    radial-gradient(800px 560px at 96% 4%, color-mix(in oklab, var(--ambient) 26%, transparent), transparent 62%),
-    radial-gradient(900px 600px at 60% 110%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 70%),
-    var(--bg);
-}
-
-.card {
-  background: linear-gradient(180deg, color-mix(in oklab, var(--surface) 96%, var(--text) 4%) 0%, var(--surface) 42%);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  box-shadow: inset 0 1px 0 0 var(--highlight), var(--card-shadow);
-}
-.glass {
-  background: var(--glass);
-  backdrop-filter: blur(18px) saturate(1.4);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
-}
+/* ───────────── Superfícies (vidro é o padrão) ───────────── */
 
 /*
- * Liquid glass: só o vidro (fundo translúcido, desfoque e brilho nas bordas internas).
- * Bordas, raios e tamanhos continuam os de cada componente.
+ * Liquid glass: só o vidro — fundo translúcido, desfoque e brilho nas bordas internas.
+ * Bordas, raios e tamanhos continuam os de cada componente. Fundo da página é liso.
  */
+.card {
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow:
+    inset 1px 1px 1px -0.5px rgba(var(--rim), 0.16),
+    inset -1px -1px 1px -0.5px rgba(var(--rim), 0.1),
+    var(--card-shadow);
+}
+.glass {
+  background: color-mix(in oklab, var(--surface) 55%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.7);
+  backdrop-filter: blur(24px) saturate(1.7);
+  box-shadow: inset 1px 1px 1px -0.5px rgba(var(--rim), 0.2), inset -1px -1px 1px -0.5px rgba(var(--rim), 0.12);
+}
 .liquid {
   position: relative;
   isolation: isolate;
@@ -194,63 +138,30 @@ body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiase
   .liquid-distort { backdrop-filter: url(#orbita-glass) blur(6px) saturate(1.6); }
 }
 
-/* Modo Vidro: cartões, barras e controles secundários viram vidro */
-[data-surface="vidro"] .card {
-  background: color-mix(in oklab, var(--surface) 46%, transparent);
-  -webkit-backdrop-filter: blur(22px) saturate(1.6);
-  backdrop-filter: blur(22px) saturate(1.6);
-  box-shadow:
-    inset 1px 1px 1px -0.5px rgba(var(--rim), 0.22),
-    inset -1px -1px 1px -0.5px rgba(var(--rim), 0.14),
-    inset 0 0 18px 2px rgba(var(--rim), 0.025),
-    var(--card-shadow);
-}
-[data-surface="vidro"] .glass {
-  background: color-mix(in oklab, var(--surface) 34%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
-  backdrop-filter: blur(24px) saturate(1.8);
-  box-shadow: inset 1px 1px 1px -0.5px rgba(var(--rim), 0.25), inset -1px -1px 1px -0.5px rgba(var(--rim), 0.15);
-}
-
 /* ───────────── Botões ───────────── */
 .btn-primary {
   color: var(--accent-fg);
-  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 88%, white 12%), var(--accent) 55%, color-mix(in oklab, var(--accent) 90%, black 10%));
+  background: var(--accent);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.32),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
-    0 0 0 1px color-mix(in oklab, var(--accent) 70%, black 30%),
-    0 1px 2px rgba(0, 0, 0, 0.25),
-    0 6px 16px -6px color-mix(in oklab, var(--accent) 55%, transparent);
+    inset 1px 1px 1px -0.5px rgba(255, 255, 255, 0.55),
+    inset -1px -1px 1px -0.5px rgba(255, 255, 255, 0.25),
+    inset 0 0 6px 3px rgba(255, 255, 255, 0.08);
 }
-.btn-primary:hover { filter: brightness(1.07) saturate(1.05); }
-.btn-primary:active { filter: brightness(0.96); }
+.btn-primary:hover { filter: brightness(1.06); }
+.btn-primary:active { filter: brightness(0.95); }
 .btn-secondary {
   color: var(--text);
-  background: linear-gradient(180deg, var(--surface-3), var(--surface-2));
+  background: color-mix(in oklab, var(--surface-2) 55%, transparent);
   border: 1px solid var(--border);
-  box-shadow: inset 0 1px 0 var(--highlight), 0 1px 2px rgba(0, 0, 0, 0.18);
-}
-.btn-secondary:hover { border-color: var(--border-strong); filter: brightness(1.06); }
-[data-surface="vidro"] .btn-secondary {
-  background: color-mix(in oklab, var(--surface-2) 42%, transparent);
   -webkit-backdrop-filter: blur(12px) saturate(1.6);
   backdrop-filter: blur(12px) saturate(1.6);
   box-shadow:
     inset 3px 3px 0.5px -3.5px rgba(var(--rim), 0.1),
-    inset -3px -3px 0.5px -3.5px rgba(var(--rim), 0.55),
-    inset 1px 1px 1px -0.5px rgba(var(--rim), 0.35),
-    inset -1px -1px 1px -0.5px rgba(var(--rim), 0.35),
-    inset 0 0 6px 6px rgba(var(--rim), 0.05);
+    inset -3px -3px 0.5px -3.5px rgba(var(--rim), 0.5),
+    inset 1px 1px 1px -0.5px rgba(var(--rim), 0.3),
+    inset -1px -1px 1px -0.5px rgba(var(--rim), 0.3);
 }
-[data-surface="vidro"] .btn-primary {
-  box-shadow:
-    inset 1px 1px 1px -0.5px rgba(255, 255, 255, 0.7),
-    inset -1px -1px 1px -0.5px rgba(255, 255, 255, 0.35),
-    inset 0 0 6px 4px rgba(255, 255, 255, 0.12),
-    0 0 0 1px color-mix(in oklab, var(--accent) 70%, black 30%),
-    0 8px 22px -8px color-mix(in oklab, var(--accent) 70%, transparent);
-}
+.btn-secondary:hover { border-color: var(--border-strong); background: color-mix(in oklab, var(--surface-3) 65%, transparent); }
 
 /* Conteúdo markdown (notas e vault) */
 .prose-orbita { line-height: 1.7; font-size: 15px; color: var(--text); }

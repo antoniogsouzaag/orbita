@@ -5,7 +5,7 @@ import * as React from "react";
 import type { Cover } from "@/server/settings";
 import { CoverPicker } from "./cover-picker";
 
-export function Hero({ cover, title, subtitle, tone }: { cover: Cover; title: string; subtitle: string; tone?: "warning" }) {
+export function Hero({ cover, title, subtitle, tone, field = "cover", eyebrow }: { cover: Cover; title: string; subtitle: string; tone?: "warning"; field?: "cover" | "empresaCover"; eyebrow?: string }) {
   const [state, setState] = React.useState<"loading" | "ok" | "failed">("loading");
   const [picker, setPicker] = React.useState(false);
   const img = React.useRef<HTMLImageElement>(null);
@@ -32,6 +32,7 @@ export function Hero({ cover, title, subtitle, tone }: { cover: Cover; title: st
       <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/10 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-bg via-bg/60 to-transparent" />
       <div className="relative mx-auto flex h-full max-w-5xl flex-col items-center justify-center px-5 pb-24 text-center">
+        {eyebrow && <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.22em] text-white/70 drop-shadow">{eyebrow}</div>}
         <h1 className="text-balance text-[30px] font-bold leading-tight tracking-tight text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.5)] sm:text-[42px]">{title}</h1>
         <p className={`mt-2 text-[14.5px] drop-shadow ${tone === "warning" ? "text-amber-200" : "text-white/80"}`}>{subtitle}</p>
       </div>
@@ -48,7 +49,7 @@ export function Hero({ cover, title, subtitle, tone }: { cover: Cover; title: st
       <button onClick={() => setPicker(true)} className="glass absolute bottom-28 right-4 grid size-8 place-items-center rounded-lg border border-white/10 text-white sm:hidden" aria-label="Trocar capa">
         <ImageIcon className="size-4" />
       </button>
-      <CoverPicker open={picker} onOpenChange={setPicker} current={cover.url} />
+      <CoverPicker open={picker} onOpenChange={setPicker} current={cover.url} field={field} />
     </section>
   );
 }

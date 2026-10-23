@@ -132,12 +132,12 @@ export function AppShell({
   };
 
   const ctx = React.useMemo<Ctx>(() => ({ openPalette: () => setPalette(true), openQuickAdd: (tab) => setQuick({ open: true, tab }) }), []);
-  const isHome = pathname === "/";
+  // Início e Empresa têm capa: o topo fica transparente sobre a foto.
+  const isHome = pathname === "/" || pathname === "/empresa";
 
   return (
     <ShellContext.Provider value={ctx}>
       <div className={cn("min-h-dvh", sidebar && "lg:pl-[268px]")}>
-        {!isHome && <div className="app-backdrop" aria-hidden />}
         <GlassFilter />
         {sidebar && <Sidebar pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} notifications={notifications.length} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />}
 

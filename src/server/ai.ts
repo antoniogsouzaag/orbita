@@ -12,7 +12,8 @@ import { listHabits } from "@/server/habits";
 import { focusStats, listWorkouts } from "@/server/life";
 import { getSettings } from "@/server/settings";
 import { listTasks, taskCounts } from "@/server/tasks";
-import { ASSISTANT_TOOLS, runAssistantTool, toolJsonSchema } from "@/server/assistant";
+import { assistantTools, runAssistantTool, toolJsonSchema } from "@/server/assistant";
+import { crmConfigured } from "@/server/crm";
 import { getVaultIndexSafe, getVaultProvider, searchVault } from "@/server/vault";
 
 /**
@@ -135,7 +136,15 @@ const TOOL_RULES = `Você pode agir com as ferramentas: criar, listar, atualizar
 - Para mudar uma tarefa existente use o id do contexto ou chame listar_tarefas antes. Nunca invente ids.
 - Para reorganizar o dia ou a semana, ajuste prazo e prioridade das tarefas e explique a nova ordem.
 - Pedido ambíguo que pode criar algo errado: pergunte antes. Você não apaga nada.
-- O vault é só leitura aqui; tarefas e dados de clientes da empresa ficam no CRM, que você ainda não acessa.`;
+- O vault é só leitura aqui.`;
+
+const CRM_RULES = `CRM da AG LABS (ferramentas crm_*): clientes, leads, funil, receita e tarefas do time (Maia, Léo, Antonio, técnico).
+- Procure o contato (crm_buscar_contatos) antes de criar tarefa ou interação sobre ele; use o id que o CRM devolver.
+- E-mail para um contato é enviado pelo Léo: crie a tarefa para leo com o contato e o que deve ser enviado. Atribuir não garante que ele recebeu.
+- Tarefa da empresa sobre cliente ou venda vai para o CRM; tarefa pessoal ou interna de Antonio continua na Órbita.
+- Você não muda a etapa do funil, não apaga e não vê e-mail ou telefone dos contatos.`;
+
+const NO_CRM = "- Tarefas e dados de clientes da empresa ficam no CRM, que ainda não está conectado à Órbita.";
 
 /** Resposta em streaming (texto) para a pergunta, com contexto do dia + vault e ferramentas para agir. */
 export async function askStream(history: ChatTurn[], opts: { tools?: boolean } = {}): Promise<ReadableStream<Uint8Array>> {
@@ -146,7 +155,7 @@ export async function askStream(history: ChatTurn[], opts: { tools?: boolean } =
   const [personal, vault] = await Promise.all([personalContext(), vaultContext(question)]);
   const context = `<contexto_do_dia>\n${personal}\n</contexto_do_dia>${vault ? `\n<vault>\n${vault}\n</vault>` : ""}`;
   const turns = history.map((m, i) => (i === history.length - 1 ? { role: "user" as const, content: `${context}\n\n<pergunta>\n${m.content}\n</pergunta>` } : m));
-  const instructions = useTools ? `${SYSTEM}\n\n${TOOL_RULES}` : SYSTEM;
+  const instructions = useTools ? `${SYSTEM}\n\n${TOOL_RULES}\n${crmConfigured() ? `\n${CRM_RULES}` : NO_CRM}` : SYSTEM;
   const enc = new TextEncoder();
   const controller = new AbortController();
 
@@ -186,7 +195,7 @@ type RunArgs = { instructions: string; turns: ChatTurn[]; useTools: boolean; emi
 
 async function runOpenAI({ instructions, turns, useTools, emit, signal }: RunArgs) {
   const client = openaiClient();
-  const tools: OpenAI.Responses.Tool[] = useTools ? ASSISTANT_TOOLS.map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
+  const tools: OpenAI.Responses.Tool[] = useTools ? assistantTools().map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
   let input: OpenAI.Responses.ResponseInput = turns.map((t) => ({ role: t.role, content: t.content }));
   let reasoning = true; // alguns modelos não aceitam o parâmetro: cai para a chamada simples
 
@@ -235,7 +244,7 @@ async function runOpenAI({ instructions, turns, useTools, emit, signal }: RunArg
 }
 
 async function runAnthropic({ instructions, turns, useTools, emit, signal }: RunArgs) {
-  const tools = useTools ? ASSISTANT_TOOLS.map((t) => ({ name: t.name, description: t.description, input_schema: toolJsonSchema(t) as Anthropic.Beta.BetaTool.InputSchema })) : undefined;
+  const tools = useTools ? assistantTools().map((t) => ({ name: t.name, description: t.description, input_schema: toolJsonSchema(t) as Anthropic.Beta.BetaTool.InputSchema })) : undefined;
   const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role, content: t.content }));
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const stream = anthropicClient().beta.messages.stream(

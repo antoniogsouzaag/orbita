@@ -2,16 +2,17 @@ import "server-only";
 import { formatLong, localTime, shiftDate, today, zonedToUtc } from "@/lib/dates";
 import { agentTasks } from "./agents";
 import { eventsBetween } from "./calendar";
+import { CRM_ASSIGNEE, crmOverview } from "./crm";
 import { listHabits } from "./habits";
 import { liveOps } from "./ops-live";
 import { getSettings } from "./settings";
 import { listTasks, type TaskRow } from "./tasks";
 import { escHtml } from "./telegram";
 
-/** “Bom dia” da Órbita: agenda, tarefas pessoais e da empresa, pedidos de agentes e operação. Texto em HTML do Telegram. */
+/** “Bom dia” da Órbita: agenda, tarefas pessoais e da empresa, CRM, pedidos de agentes e operação. Texto em HTML do Telegram. */
 export async function buildBrief(): Promise<string> {
   const t = today();
-  const [settings, events, pessoal, empresa, asks, habits, live] = await Promise.all([
+  const [settings, events, pessoal, empresa, asks, habits, live, crm] = await Promise.all([
     getSettings(),
     eventsBetween(zonedToUtc(t), zonedToUtc(shiftDate(t, 1))),
     listTasks({ view: "hoje", scope: "pessoal", limit: 30 }),
@@ -19,6 +20,7 @@ export async function buildBrief(): Promise<string> {
     agentTasks(),
     listHabits({ days: 30 }),
     liveOps(),
+    crmOverview(0),
   ]);
   const base = process.env.APP_URL ?? "https://orb.aglabs.api.br";
   const first = settings.name.split(" ")[0];
@@ -41,6 +43,16 @@ export async function buildBrief(): Promise<string> {
   if (open.length) {
     lines.push("", `🤖 <b>Pedidos dos agentes</b> — ${open.length}`);
     for (const a of open.slice(0, 5)) lines.push(`• ${escHtml(a.title)} <i>(${escHtml(a.tags.find((x) => x.startsWith("agente:"))?.slice(7) ?? "agente")})</i>`);
+  }
+
+  if (crm.configured && !crm.ok) lines.push("", `💼 <b>CRM</b> — não consegui ler (${escHtml(crm.error)})`);
+  if (crm.configured && crm.ok) {
+    const s = crm.summary;
+    const mine = crm.mine.filter((x) => x.prazo && x.prazo <= t);
+    lines.push("", `💼 <b>CRM</b> — ${s.oportunidades_abertas} oportunidade(s) abertas · ${s.novos_7d} novo(s) em 7 dias · receita do mês ${s.receita_mes.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`);
+    for (const x of mine.slice(0, 5)) lines.push(`• ${x.vencida ? "⚠️ " : ""}${escHtml(x.titulo)}${x.contato?.nome ? ` <i>(${escHtml(x.contato.nome)})</i>` : ""}`);
+    const team = crm.team.filter((x) => x.vencida);
+    if (team.length) lines.push(`• Time com ${team.length} tarefa(s) vencida(s): ${[...new Set(team.map((x) => CRM_ASSIGNEE[x.responsavel ?? "sem_responsavel"]))].join(", ")}`);
   }
 
   const todayHabits = habits.filter((h) => h.scheduledToday);

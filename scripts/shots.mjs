@@ -18,7 +18,6 @@ if (process.env.SIDEBAR === "1") await page.evaluate(() => localStorage.setItem(
 if (process.env.THEME === "light") await page.evaluate(() => localStorage.setItem("theme", "light"));
 for (const r of routes) {
   await page.goto(`${base}${r}`, { waitUntil: "networkidle", timeout: 120000 });
-  await page.evaluate(([t, sf]) => { if (t) document.documentElement.setAttribute("data-theme", t); if (sf) document.documentElement.setAttribute("data-surface", sf); }, [process.env.DATA_THEME ?? "", process.env.DATA_SURFACE ?? ""]);
   await page.waitForTimeout(900);
   const file = `${out}/${prefix}-${r.replace(/[/?=&]+/g, "_").replace(/^_|_$/g, "") || "home"}.png`;
   await page.screenshot({ path: file, fullPage: process.env.FULL === "1" });

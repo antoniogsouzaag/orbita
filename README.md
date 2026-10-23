@@ -8,7 +8,7 @@ Uso pessoal, um único usuário. Em produção: Vercel (região `gru1`, São Pau
 
 | Área | Páginas |
 | --- | --- |
-| Núcleo | Início (capa, saudação, captura rápida, widgets), Tarefas, Projetos, Kanban, Agenda, Notas |
+| Núcleo | Início e Empresa (capa, saudação, captura rápida, cards personalizáveis), Tarefas, Projetos, Kanban, Agenda, Notas |
 | Vida | Metas, Hábitos, Academia, Finanças, Leitura, Foco |
 | Operação | Vault (editor estilo Obsidian, wikilinks, backlinks, grafo), Operação (status ao vivo), Automações, Agentes |
 | Insights | Revisão, IA (chat com ações e plano do dia), Integrações, Configurações |
@@ -67,9 +67,30 @@ A Órbita tem dois espaços, alternados no topo da barra lateral (ou pelo ícone
 | Espaço | O que tem |
 | --- | --- |
 | **Pessoal** | Início, tarefas pessoais, agenda, notas, hábitos, metas, finanças, academia, leitura, foco e revisão |
-| **Empresa** | Visão geral (Aguardando você, operação, atividade dos agentes), tarefas da empresa, projetos, kanban, operação, automações, agentes e vault |
+| **Empresa** | Visão geral, tarefas da empresa, projetos, kanban, operação, automações, agentes e vault |
 
-Cada tarefa tem um escopo (`pessoal` ou `empresa`). Pedidos de agentes e tarefas de projetos da empresa entram como `empresa`; a IA escolhe o escopo pelo pedido. A página **Empresa** junta o que espera decisão: pedidos dos agentes, tarefas vencidas e PRs/propostas abertos na `aglabs-core` (com `GITHUB_INBOX_TOKEN`).
+Cada tarefa tem um escopo (`pessoal` ou `empresa`). Pedidos de agentes e tarefas de projetos da empresa entram como `empresa`; a IA escolhe o escopo pelo pedido.
+
+A **Visão geral da Empresa** segue o formato do Início: capa própria do Unsplash, captura (tarefa da empresa, pergunta à IA no contexto da AG LABS ou nota) e cards que se escondem e reordenam em **Personalizar**:
+
+| Card | O que mostra |
+| --- | --- |
+| Aguardando você | Pedidos dos agentes, tarefas da empresa vencidas ou de hoje e suas tarefas no CRM |
+| Operação agora | Endereços no ar, falhas de workflow em 24h, domínios perto de vencer e monitores |
+| Tarefas, Projetos, Metas | Só o que é da área Empresa |
+| CRM | Receita do mês, funil, oportunidades, clientes e tarefas do time (Maia, Léo, técnico) |
+| PRs e propostas | PRs abertos e issues `proposta` da `aglabs-core` (com `GITHUB_INBOX_TOKEN`) |
+| Atividade dos agentes, Incidentes e falhas, Domínios, Agenda | Histórico recente da operação |
+
+## CRM
+
+A Órbita conversa com o CRM (`aglabs-core/crm-dash`) pelo servidor MCP dele (`/api/mcp`, documentado em `docs/mcp.md` daquele repositório). A Órbita pede, o CRM executa com as próprias regras: sem acesso direto ao Supabase, sem e-mail ou telefone dos contatos, sem mudar etapa do funil e sem apagar nada.
+
+- **Empresa → CRM**: resumo do funil, receita e tarefas, com cache de 1 minuto.
+- **Bom dia**: oportunidades, receita do mês, suas tarefas do CRM e tarefas vencidas do time.
+- **IA**: busca contatos, abre a ficha, cria tarefa para Maia, Léo, Antonio ou técnico, conclui com motivo e registra interações. E-mail para um contato vira tarefa para o Léo, que já faz o envio.
+
+Para ligar: gere um token (`openssl rand -hex 32`), coloque `CRM_MCP_TOKENS="orbita:<token>:leitura,tarefas,atividades"` na Vercel do CRM e `CRM_MCP_URL` + `CRM_MCP_TOKEN` na Vercel da Órbita.
 
 ## Telegram
 
@@ -82,7 +103,7 @@ Os alertas de queda e de falha continuam saindo do n8n, de forma independente: s
 
 ## Aparência
 
-Em **Configurações → Aparência**: modo (escuro, claro, sistema), tema (Grafite, Meia-noite, Ameixa, Floresta, Areia; cada um com versão clara e escura), estilo das superfícies (**Sólido** ou **Vidro**, com o efeito liquid glass em cartões, barras e botões) e cor de destaque. O componente `LiquidButton` (`src/components/ui/liquid-glass-button.tsx`) usa o mesmo vidro; o filtro SVG `#orbita-glass` é carregado uma vez no layout.
+Superfícies em vidro (liquid glass: fundo translúcido, desfoque e brilho nas bordas internas) sobre fundo liso. Em **Configurações → Aparência** escolhem-se o modo (escuro, claro, sistema) e a cor de destaque. O componente `LiquidButton` (`src/components/ui/liquid-glass-button.tsx`) usa o mesmo vidro; o filtro SVG `#orbita-glass` é carregado uma vez no layout.
 
 ## IA com ações
 
@@ -96,6 +117,8 @@ O chat (página **IA** e “Perguntar à IA” no Início) usa o modelo de `OPEN
 | `criar_nota`, `buscar_notas` | Notas pessoais |
 | `buscar_no_vault`, `ler_nota_do_vault` | Vault (só leitura) |
 | `status_operacao` | Sites fora do ar, incidentes, falhas, monitores e domínios |
+| `crm_resumo`, `crm_tarefas`, `crm_buscar_contatos`, `crm_contato` | Funil, receita, tarefas do time e fichas do CRM (com o CRM conectado) |
+| `crm_criar_tarefa`, `crm_concluir_tarefa`, `crm_registrar_atividade` | Tarefa para Maia, Léo, Antonio ou técnico; conclusão com motivo; interação na ficha |
 
 Nada é apagado pela IA. Cada ação aparece como um selo na resposta, com link para a tela correspondente. O mesmo catálogo vale para Claude (`AI_PROVIDER=anthropic`).
 
@@ -120,6 +143,7 @@ Veja `.env.example`. As principais:
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Envio pelo Telegram (bom dia e pedidos dos agentes) |
 | `CRON_SECRET` | Autoriza o agendador da Vercel a chamar `/api/cron/brief` |
 | `GITHUB_INBOX_TOKEN` | Opcional: PRs e propostas da `aglabs-core` na página Empresa (fine-grained, leitura de Pull requests, Issues e Metadata) |
+| `CRM_MCP_URL`, `CRM_MCP_TOKEN` | Opcional: CRM na Empresa, no bom dia e na IA (veja **CRM**) |
 | `N8N_INSTANCES` | Opcional: API de cada n8n para listar workflows |
 | `UNSPLASH_ACCESS_KEY`, `GITHUB_USER`, `GITHUB_TOKEN` | Opcionais: capas e sequência de commits |
 

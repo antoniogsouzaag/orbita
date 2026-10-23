@@ -24,18 +24,36 @@ export function TaskItem({ task, onToggle, onOpen, compact, showDate = true, sho
       <div className="min-w-0 flex-1">
         <div className={cn("truncate text-[14px]", done && "text-faint line-through")}>{task.title}</div>
         {!compact && task.tags.length > 0 && <div className="mt-0.5 truncate text-[11.5px] text-faint">{task.tags.map((x) => `#${x}`).join(" ")}</div>}
+        {/* Nos cards (compacto) os detalhes vão para a linha de baixo: o título nunca some. */}
+        {compact && ((showScope && task.scope === "empresa") || task.project || (showDate && task.dueDate)) && (
+          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[11.5px] text-faint">
+            {showScope && task.scope === "empresa" && <Briefcase className="size-3 shrink-0" aria-label="Tarefa da empresa" />}
+            {task.project && (
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="size-1.5 shrink-0 rounded-full" style={{ background: task.project.color }} />
+                <span className="truncate">{task.project.name}</span>
+              </span>
+            )}
+            {showDate && task.dueDate && (
+              <span className={cn("shrink-0", overdue ? "text-danger" : isToday ? "text-warning" : "")}>
+                {relativeDay(task.dueDate)}
+                {task.dueTime && ` ${task.dueTime}`}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       {task.subtasks.total > 0 && (
         <span className="flex shrink-0 items-center gap-1 text-[12px] text-faint"><ListChecks className="size-3.5" />{task.subtasks.done}/{task.subtasks.total}</span>
       )}
-      {showScope && task.scope === "empresa" && (
+      {!compact && showScope && task.scope === "empresa" && (
         <span className="hidden shrink-0 items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-muted sm:flex" title="Tarefa da empresa"><Briefcase className="size-3" />Empresa</span>
       )}
-      {task.project && <Chip color={task.project.color} className="hidden shrink-0 sm:inline-flex">{task.project.name}</Chip>}
+      {!compact && task.project && <Chip color={task.project.color} className="hidden shrink-0 sm:inline-flex">{task.project.name}</Chip>}
       {!showDate && task.dueTime && (
         <span className="flex shrink-0 items-center gap-1 text-[12px] text-muted"><Clock className="size-3.5" />{task.dueTime}</span>
       )}
-      {showDate && task.dueDate && (
+      {!compact && showDate && task.dueDate && (
         <span className={cn("flex shrink-0 items-center gap-1 text-[12px]", overdue ? "text-danger" : isToday ? "text-warning" : "text-muted")}>
           <CalendarDays className="size-3.5" />
           {relativeDay(task.dueDate)}

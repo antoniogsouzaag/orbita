@@ -43,6 +43,19 @@ export type StreakCard = {
   href: string;
 };
 
+/** Agenda agrupada por dia (próximos compromissos), usada no Início pessoal e no da Empresa. */
+export function groupAgenda(events: Awaited<ReturnType<typeof eventsBetween>>, now: Date, t: string) {
+  const upcoming = events.filter((e) => e.endAt > now);
+  const agenda = new Map<string, { label: string; items: { id: string; title: string; time: string; until: string; color: string; allDay: boolean }[] }>();
+  for (const e of upcoming) {
+    const d = e.allDay ? e.startAt.toISOString().slice(0, 10) : localDate(e.startAt);
+    const key = d < t ? t : d;
+    if (!agenda.has(key)) agenda.set(key, { label: relativeDay(key).toUpperCase(), items: [] });
+    agenda.get(key)!.items.push({ id: e.id, title: e.title, time: e.allDay ? "Dia todo" : localTime(e.startAt), until: e.allDay ? "" : `até ${localTime(e.endAt)}`, color: e.color, allDay: e.allDay });
+  }
+  return [...agenda.entries()].slice(0, 5).map(([date, v]) => ({ date, ...v }));
+}
+
 export async function loadHome() {
   syncStaleCalendars(60).catch(() => {});
   const t = today();
@@ -86,16 +99,8 @@ export async function loadHome() {
     return { key: c.key, label: c.label, emoji: c.emoji, color: c.color, streak, week: week(c.set), next: nextMilestone(streak), quote: QUOTES[(seed + i) % QUOTES.length], href: c.href };
   });
 
-  // Agenda agrupada por dia
   const upcoming = events.filter((e) => e.endAt > now);
-  const agenda = new Map<string, { label: string; items: { id: string; title: string; time: string; until: string; color: string; allDay: boolean }[] }>();
-  for (const e of upcoming) {
-    const d = e.allDay ? e.startAt.toISOString().slice(0, 10) : localDate(e.startAt);
-    const key = d < t ? t : d;
-    if (!agenda.has(key)) agenda.set(key, { label: relativeDay(key).toUpperCase(), items: [] });
-    agenda.get(key)!.items.push({ id: e.id, title: e.title, time: e.allDay ? "Dia todo" : localTime(e.startAt), until: e.allDay ? "" : `até ${localTime(e.endAt)}`, color: e.color, allDay: e.allDay });
-  }
-
+  const agenda = groupAgenda(events, now, t);
   // Subtítulo do herói
   const next = upcoming.find((e) => !e.allDay && e.startAt > now && e.startAt.getTime() - now.getTime() < 36 * 3_600_000);
   const scheduled = habits.filter((h) => h.scheduledToday);
@@ -117,7 +122,7 @@ export async function loadHome() {
     habitsDone: scheduled.filter((h) => h.doneToday).length,
     habitsTotal: scheduled.length,
     goals,
-    agenda: [...agenda.entries()].slice(0, 5).map(([date, v]) => ({ date, ...v })),
+    agenda,
     checkin,
     plan,
     focus: { week: focus.week, today: focus.today, avgDaily: focus.avgDaily },
