@@ -80,7 +80,7 @@ export function StreaksWidget({ cards }: { cards: StreakCard[] }) {
 }
 
 /* ───────── Hábitos ───────── */
-export function HabitsWidget({ habits, done, total }: { habits: HomeData["habits"]; done: number; total: number }) {
+export function HabitsWidget({ habits, total }: { habits: HomeData["habits"]; done: number; total: number }) {
   const [optimistic, setOptimistic] = React.useOptimistic(habits, (state, id: string) => state.map((h) => (h.id === id ? { ...h, doneToday: !h.doneToday } : h)));
   const [, start] = React.useTransition();
   const doneCount = optimistic.filter((h) => h.scheduledToday && h.doneToday).length;
@@ -398,7 +398,7 @@ export function WorkoutWidget({ workout }: { workout: HomeData["lastWorkout"] })
             <div className="mt-1 text-[12.5px] text-muted">{relativeDay(workout.date)}{workout.minutes ? ` · ${workout.minutes} min` : ""}{workout.exercises.length ? ` · ${workout.exercises.length} exercícios` : ""}</div>
           </>
         ) : (
-          <p className="text-[13px] text-muted">Nenhum treino registrado ainda.</p>
+            <p className="text-[13px] text-muted">Monte sua ficha na Academia e acompanhe a frequência em Hábitos.</p>
         )}
       </div>
     </Card>

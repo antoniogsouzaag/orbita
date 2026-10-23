@@ -25,7 +25,7 @@ export function GithubInbox({ initial }: { initial: Inbox }) {
           { label: "PRs para revisar", value: data.items.filter((item) => item.kind === "pr" && !item.draft).length },
           { label: "Rascunhos", value: data.items.filter((item) => item.kind === "pr" && item.draft).length },
           { label: "Propostas abertas", value: data.items.filter((item) => item.kind === "proposta").length },
-        ].map((stat) => <Card key={stat.label} className="!rounded-2xl p-3 sm:p-4"><p className="text-[11px] text-muted">{stat.label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{data.error || !data.configured ? "—" : stat.value}</p></Card>)}
+        ].map((stat) => <Card key={stat.label} className="!rounded-2xl p-3 sm:p-4"><p className="text-[11px] text-muted">{stat.label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{data.error && !data.stale || !data.configured ? "—" : stat.value}</p></Card>)}
       </div>
       <div className="flex flex-wrap gap-2" aria-label="Repositórios">
         <button type="button" aria-pressed={repo === "all"} onClick={() => setRepo("all")} className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${repo === "all" ? "border-accent/30 bg-accent/10 text-accent" : "border-border text-muted hover:bg-surface-2"}`}>Todos · {data.items.length}</button>
@@ -39,7 +39,8 @@ export function GithubInbox({ initial }: { initial: Inbox }) {
             try { setData(await refreshGithubInboxAction()); } catch { toast.error("Não foi possível atualizar o GitHub."); }
           })}>{pending ? <Loader2 className="animate-spin" /> : <RefreshCw />}Atualizar</Button>
         </div>
-        {data.error ? <EmptyState icon={<CircleAlert />} title="A consulta ao GitHub falhou" description={data.error} /> : !data.configured ? <EmptyState icon={<GitPullRequest />} title="Conecte o GitHub" description="Configure GITHUB_INBOX_TOKEN ou um acesso já existente no servidor. Nenhum token é exibido no navegador." /> : !items.length ? <EmptyState icon={<GitPullRequest />} title={query || kind !== "all" ? "Nenhum resultado neste filtro" : "Nenhuma pendência visível"} description="Confira a cobertura do token antes de considerar a revisão de toda a organização concluída." /> : (
+        {data.stale && data.error && <p role="alert" className="border-b border-border px-5 py-3 text-xs text-warning">{data.error} Exibindo a última resposta válida; os dados podem estar desatualizados.</p>}
+        {data.error && !data.stale ? <EmptyState icon={<CircleAlert />} title="A consulta ao GitHub falhou" description={data.error} /> : !data.configured ? <EmptyState icon={<GitPullRequest />} title="Conecte o GitHub" description="Configure GITHUB_INBOX_TOKEN ou um acesso já existente no servidor. Nenhum token é exibido no navegador." /> : !items.length ? <EmptyState icon={<GitPullRequest />} title={query || kind !== "all" ? "Nenhum resultado neste filtro" : "Nenhuma pendência visível"} description="Confira a cobertura do token antes de considerar a revisão de toda a organização concluída." /> : (
           <ul className="divide-y divide-border">
             {items.map((item) => (
               <li key={item.url}>

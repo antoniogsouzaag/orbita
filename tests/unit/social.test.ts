@@ -1,8 +1,39 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }));
-import { socialOverview } from "@/server/social";
+import { socialOverview, socialPanelUrl } from "@/server/social";
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("Postiz somente consulta", () => {
+  it("link do painel não transporta credenciais da URL", () => {
+    vi.stubEnv("POSTIZ_API_URL", "https://user:private@postiz.example/api/public/v1");
+    expect(socialPanelUrl()).toBeNull();
+  });
+  it("aceita pontos numéricos reais do Instagram e mantém o grupo explícito", async () => {
+    vi.stubEnv("POSTIZ_API_URL", "https://postiz.example/api/public/v1");
+    vi.stubEnv("POSTIZ_API_KEY", "private-key");
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      expect(init.headers).toMatchObject({ "user-agent": "orbita" });
+      return Response.json(url.endsWith("/integrations") ? [{ id: "barber", name: "BARBER PRO", identifier: "instagram-standalone", customer: { id: "explicit", name: "Barberias" } }] : [{ label: "Follower Count", percentageChange: 5, data: [{ date: "2026-10-23", total: 3 }] }]);
+    }));
+    const result = await socialOverview("barber", 30, true);
+    expect(result.channels[0]).toMatchObject({ error: null, customer: { id: "explicit" }, metrics: [{ data: [{ total: "3" }] }] });
+  });
+  it("não transforma canal inválido em métricas de outro canal", async () => {
+    vi.stubEnv("POSTIZ_API_URL", "https://postiz.example/api/public/v1");
+    vi.stubEnv("POSTIZ_API_KEY", "private-key");
+    const request = vi.fn(async () => Response.json([{ id: "real", name: "Real", identifier: "youtube" }]));
+    vi.stubGlobal("fetch", request);
+    expect(await socialOverview("apagado")).toMatchObject({ channels: [], error: expect.stringContaining("não está mais disponível") });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it("diferencia limite da API e não impede uma nova tentativa", async () => {
+    vi.stubEnv("POSTIZ_API_URL", "https://postiz.example/api/public/v1");
+    vi.stubEnv("POSTIZ_API_KEY", "private-key");
+    let limited = true;
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url.endsWith("/integrations") ? Response.json([{ id: "a", name: "A", identifier: "instagram" }]) : limited ? new Response("", { status: 429 }) : Response.json([])));
+    expect((await socialOverview("a")).channels[0].error).toContain("HTTP 429");
+    limited = false;
+    expect((await socialOverview("a", 7, true)).channels[0].error).toBeNull();
+  });
   it("consulta só o canal escolhido e preserva todos os canais para seleção", async () => {
     vi.stubEnv("POSTIZ_API_URL", "https://postiz.example/api/public/v1");
     vi.stubEnv("POSTIZ_API_KEY", "private-key");

@@ -7,6 +7,8 @@ import { getDb } from "@/db";
 import { books, focusSessions, transactions, workouts } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { today } from "@/lib/dates";
+import { exerciseSchema, trainingPlanSchema } from "@/lib/training";
+import { settings } from "@/db/schema";
 
 const uuid = z.string().uuid();
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -44,17 +46,36 @@ const workoutSchema = z.object({
   name: z.string().trim().min(1).max(160),
   minutes: z.number().int().min(0).max(1000).nullable().optional(),
   notes: z.string().max(4000).nullable().optional(),
-  exercises: z.array(z.object({ name: z.string().trim().min(1).max(120), sets: z.number().int().min(0).max(100).optional(), reps: z.string().max(40).optional(), load: z.string().max(40).optional() })).max(60).optional(),
+  exercises: z.array(exerciseSchema).max(60).optional(),
 });
 
 export async function saveWorkout(id: string | null, data: z.input<typeof workoutSchema>) {
   await requireAuth();
   const v = workoutSchema.parse(data);
+  if (v.date && (Number.isNaN(Date.parse(`${v.date}T12:00:00Z`)) || new Date(`${v.date}T12:00:00Z`).toISOString().slice(0, 10) !== v.date || v.date > today())) throw new Error("Escolha uma data válida até hoje.");
   const db = await getDb();
   const values = { ...v, date: v.date ?? today(), exercises: v.exercises ?? [] };
   if (id) await db.update(workouts).set(values).where(eq(workouts.id, uuid.parse(id)));
   else await db.insert(workouts).values(values);
   refresh();
+}
+
+export async function saveTrainingPlan(id: string | null, data: z.input<typeof trainingPlanSchema>) {
+  await requireAuth();
+  const value = trainingPlanSchema.parse(data);
+  const planId = id ? uuid.parse(id) : crypto.randomUUID();
+  const key = `training-plan:${planId}`;
+  const db = await getDb();
+  await db.insert(settings).values({ key, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
+  revalidatePath("/academia");
+  return planId;
+}
+
+export async function deleteTrainingPlan(id: string) {
+  await requireAuth();
+  const db = await getDb();
+  await db.delete(settings).where(eq(settings.key, `training-plan:${uuid.parse(id)}`));
+  revalidatePath("/academia");
 }
 
 export async function deleteWorkout(id: string) {
