@@ -3,12 +3,12 @@ import { unstable_cache } from "next/cache";
 import { today } from "@/lib/dates";
 import { dayStreak } from "@/lib/habits";
 
-/** Sequência de dias com contribuições no GitHub (opcional: GITHUB_TOKEN + GITHUB_USER). */
-export const commitStreak = unstable_cache(
-  async (): Promise<number | null> => {
-    const token = process.env.GITHUB_TOKEN ?? process.env.VAULT_GITHUB_TOKEN;
+/** Calendário real de contribuições do GitHub. */
+export const githubActivity = unstable_cache(
+  async (): Promise<{ days: { date: string; count: number }[]; user: string | null; error: string | null }> => {
+    const token = process.env.GITHUB_TOKEN ?? process.env.GITHUB_INBOX_TOKEN ?? process.env.VAULT_GITHUB_TOKEN;
     const user = process.env.GITHUB_USER;
-    if (!token || !user) return null;
+    if (!token || !user) return { days: [], user: user ?? null, error: "Configure GITHUB_USER e uma credencial GitHub para consultar contribuições reais." };
     try {
       const res = await fetch("https://api.github.com/graphql", {
         method: "POST",
@@ -19,16 +19,22 @@ export const commitStreak = unstable_cache(
         }),
         signal: AbortSignal.timeout(8000),
       });
-      if (!res.ok) return null;
+      if (!res.ok) throw new Error("GitHub");
       const json = await res.json();
       const days: { date: string; contributionCount: number }[] =
         json?.data?.user?.contributionsCollection?.contributionCalendar?.weeks?.flatMap((w: { contributionDays: unknown[] }) => w.contributionDays) ?? [];
-      const active = new Set(days.filter((d) => d.contributionCount > 0).map((d) => d.date));
-      return dayStreak(active, today());
+      if (json.errors?.length || !days.length) throw new Error("Calendário indisponível");
+      return { days: days.map((d) => ({ date: d.date, count: d.contributionCount })), user, error: null };
     } catch {
-      return null;
+      return { days: [], user: user ?? null, error: "Não foi possível consultar as contribuições. Confira usuário e permissões GitHub." };
     }
   },
-  ["commit-streak"],
+  ["github-activity"],
   { revalidate: 3600 },
 );
+
+export type ActivityDay = { date: string; count: number };
+export async function commitStreak(): Promise<number | null> {
+  const activity = await githubActivity();
+  return activity.error ? null : dayStreak(new Set(activity.days.filter((day) => day.count > 0).map((day) => day.date)), today());
+}

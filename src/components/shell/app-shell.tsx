@@ -99,6 +99,7 @@ export function AppShell({
   projects: { id: string; name: string; color: string }[];
 }) {
   const pathname = usePathname();
+  const { space } = useSpace();
   const sidebar = useStoredPreference("orbita:sidebar", "0") === "1";
   const setSidebar = (value: boolean) => storePreference("orbita:sidebar", value ? "1" : "0");
   const [palette, setPalette] = React.useState(false);
@@ -169,20 +170,20 @@ export function AppShell({
         <GlassFilter />
         <Wallpaper urls={wallpapers} />
         {sidebar && <button className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] lg:hidden" aria-label="Fechar navegação" onClick={toggleSidebar} />}
-        <Sidebar open={sidebar} pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} onNavigate={() => { if (window.matchMedia("(max-width: 1023px)").matches) setSidebar(false); }} notifications={unread} onNotifications={() => setNoticesOpen(true)} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />
+        <Sidebar open={sidebar} pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} onNavigate={() => { if (window.matchMedia("(max-width: 1023px)").matches) setSidebar(false); }} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />
 
         <header
           className={cn(
             "fixed inset-x-0 top-0 z-40 transition-[background,border,backdrop-filter] duration-300",
-            scrolled || !isHome ? "glass border-b border-border/60" : "border-b border-transparent",
+            "pointer-events-none border-0 bg-transparent",
           )}
         >
-          <div className="mx-auto flex h-14 max-w-[1500px] items-center gap-2 px-4 sm:px-6">
+          <div className="pointer-events-auto mx-auto flex h-14 max-w-[1500px] items-center gap-2 px-4 sm:px-6">
               <Link href="/" className={cn("brand-lockup flex items-center gap-2", sidebar && "lg:opacity-0 lg:pointer-events-none", isHome && !scrolled ? "text-white" : "text-fg")} aria-label="Início">
                 <Logo className="size-7" />
                 <span className="hidden text-[13px] font-semibold uppercase tracking-[0.22em] sm:inline">Órbita</span>
               </Link>
-            <button onClick={toggleSidebar} className={cn("rounded-lg p-1.5 transition hover:bg-white/10", sidebar && "lg:ml-[120px]", isHome && !scrolled ? "text-white/70 hover:text-white" : "text-muted hover:text-fg")} aria-label="Alternar barra lateral" aria-expanded={sidebar} aria-controls="workspace-sidebar">
+            <button onClick={toggleSidebar} className={cn("rounded-lg p-1.5 transition hover:bg-white/10", sidebar && "hidden", isHome && !scrolled ? "text-white/70 hover:text-white" : "text-muted hover:text-fg")} aria-label="Alternar barra lateral" aria-expanded={sidebar} aria-controls="workspace-sidebar">
               <PanelLeft className="size-[18px]" />
             </button>
             <div className="ml-auto flex items-center gap-1.5">
@@ -208,15 +209,16 @@ export function AppShell({
 
         <main className={cn("pb-32", !isHome && "pt-20")}>{children}</main>
 
-        <Dock pathname={pathname} hidden={sidebar} onQuick={(tab) => ctx.openQuickAdd(tab)} />
+        <Dock key={`${pathname}:${space}`} pathname={pathname} hidden={sidebar} onQuick={(tab) => ctx.openQuickAdd(tab)} />
         <CommandPalette open={palette} onOpenChange={setPalette} onQuickAdd={ctx.openQuickAdd} />
-        <QuickAdd open={quick.open} tab={quick.tab} projects={projects} onOpenChange={(open) => setQuick((q) => ({ ...q, open }))} />
+        <div id="shell-overlays" />
+        <QuickAdd scope={space} key={`${quick.open}:${quick.tab}`} open={quick.open} tab={quick.tab} projects={projects} onOpenChange={(open) => setQuick((q) => ({ ...q, open }))} />
       </div>
     </ShellContext.Provider>
   );
 }
 
-function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, notifications, onNotifications, onSearch, onQuick }: { open: boolean; pathname: string; name: string; avatar?: string | null; onCollapse: () => void; onNavigate: () => void; notifications: number; onNotifications: () => void; onSearch: () => void; onQuick: () => void }) {
+function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearch, onQuick }: { open: boolean; pathname: string; name: string; avatar?: string | null; onCollapse: () => void; onNavigate: () => void; onSearch: () => void; onQuick: () => void }) {
   const { space, escopo } = useSpace();
   return (
     <aside id="workspace-sidebar" aria-label="Navegação principal" aria-hidden={!open} inert={!open} onClick={(event) => { if ((event.target as HTMLElement).closest("a[href]")) onNavigate(); }} className={cn("workspace-sidebar glass fixed inset-y-2 left-2 z-50 flex w-[256px] flex-col overflow-hidden rounded-[22px] border border-border shadow-soft", open && "is-open")}>
@@ -235,10 +237,7 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, notific
         <button onClick={onQuick} className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-[13px] text-muted hover:bg-surface-2 hover:text-fg">
           <Plus className="size-4" /> Captura rápida <Kbd className="ml-auto">C</Kbd>
         </button>
-        <button onClick={onNotifications} className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-[13px] text-muted transition hover:bg-surface-2 hover:text-fg">
-          <Bell className="size-4" /> Notificações
-          {notifications > 0 && <span className="ml-auto rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">{notifications}</span>}
-        </button>
+
       </div>
       <SpaceSwitch space={space} className="mx-3 mb-1" />
       <nav className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-3 py-2">
@@ -268,11 +267,12 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, notific
 
 function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean; onQuick: (tab: string) => void }) {
   const { space, escopo } = useSpace();
+  const [dialOpen, setDialOpen] = React.useState(false);
   const items = [...SPACES[space].sections.flatMap((s) => s.items).filter((i) => i.dock), ...SHARED.filter((i) => i.dock)];
   const other: Space = space === "pessoal" ? "empresa" : "pessoal";
   const Other = SPACES[other];
   return (
-    <div className={cn("pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-3", hidden && "lg:hidden")}>
+    <div className={cn("pointer-events-none fixed inset-x-0 bottom-4 flex justify-center px-3", dialOpen ? "z-[60]" : "z-40", hidden && "lg:hidden")}>
       <nav className="glass pointer-events-auto flex items-center gap-1 rounded-[22px] border border-border p-1.5 shadow-soft">
         <Link href={Other.home} prefetch={true} title={`Ir para ${Other.label}`} aria-label={`Ir para ${Other.label}`} className="grid size-10 shrink-0 place-items-center rounded-2xl text-muted transition hover:bg-surface-2 hover:text-fg">
           <Other.icon className="size-[18px]" />
@@ -299,18 +299,18 @@ function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean
           })}
         </div>
         <div className="mx-1 h-6 w-px bg-border" />
-        <AllApps pathname={pathname} />
-        <SpeedDial onQuickAdd={onQuick} />
+        <AllApps pathname={pathname} onOpen={() => setDialOpen(false)} />
+        <SpeedDial open={dialOpen} onQuickAdd={onQuick} onOpenChange={setDialOpen} scope={space} />
       </nav>
     </div>
   );
 }
 
-function AllApps({ pathname }: { pathname: string }) {
+function AllApps({ pathname, onOpen }: { pathname: string; onOpen: () => void }) {
   const [open, setOpen] = React.useState(false);
   const { escopo } = useSpace();
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open} onOpenChange={(value) => { setOpen(value); if (value) onOpen(); }}>
       <Popover.Trigger className="grid size-10 place-items-center rounded-2xl text-muted hover:bg-surface-2 hover:text-fg" aria-label="Todos os módulos">
         <LayoutGrid className="size-[18px]" />
       </Popover.Trigger>

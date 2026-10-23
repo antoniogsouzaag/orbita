@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { POST } from "@/app/api/mcp/route";
 import { getDb } from "@/db";
 import { agentActivity, agentTokens, opsEvents, tasks } from "@/db/schema";
-import { agentActivitySummary, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken } from "@/server/agents";
+import { agentActivitySummary, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken, updateAgentScopes } from "@/server/agents";
 
 let n = 0;
 async function rpc(token: string | null, method: string, params: object = {}) {
@@ -84,6 +84,18 @@ describe("central dos agentes (MCP)", () => {
     expect(JSON.stringify(r.body)).toMatch(/isError|invalid|error/i);
     const db = await getDb();
     expect((await db.select().from(tasks)).filter((x) => x.title === "ok")).toHaveLength(0);
+  });
+
+  it("admin recebe as ações da central e downgrade remove o acesso imediatamente", async () => {
+    const token = await createAgentToken("Coordenador", ["admin"]);
+    expect(await toolNames(token)).toContain("orbita_registrar_lancamento");
+    expect(await toolNames(token)).toContain("contexto_pessoal");
+    const identity = await verifyAgentToken(token);
+    await updateAgentScopes(identity!.id, ["contexto", "status"]);
+    const names = await toolNames(token);
+    expect(names).not.toContain("orbita_registrar_lancamento");
+    expect(names).not.toContain("criar_tarefa_para_antonio");
+    expect(names).toContain("contexto_operacional");
   });
 
   it("conta a janela inteira de atividade e ignora chamadas antigas", async () => {

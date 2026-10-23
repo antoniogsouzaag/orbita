@@ -3,7 +3,7 @@
 import { KeyRound, Plus, ShieldOff } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { createAgentTokenAction, revokeAgentTokenAction } from "@/app/actions/agents";
+import { createAgentTokenAction, revokeAgentTokenAction, updateAgentProfileAction } from "@/app/actions/agents";
 import { CopyButton } from "@/components/ops/copy-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 export type TokenRow = { id: string; name: string; prefix: string; scopes: string[]; revoked: boolean; lastUsedAt: string | null; createdAt: string };
 
 const SCOPES: { id: string; label: string; desc: string }[] = [
+  { id: "admin", label: "Administrador", desc: "Todas as ferramentas da central, inclusive dados pessoais, agenda, finanças e ações do CRM" },
   { id: "contexto", label: "Contexto", desc: "Ler o contexto operacional e buscar/ler notas do vault" },
   { id: "status", label: "Status", desc: "Ver operação, PRs, propostas e falhas das automações" },
   { id: "tarefas", label: "Tarefas", desc: "Abrir tarefas para você e acompanhar as que abriu" },
@@ -43,6 +44,10 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
     <Card>
       <CardHeader icon={<KeyRound />} title="Acessos dos agentes" meta={`${active.length} ativo${active.length === 1 ? "" : "s"}`} />
       <div className="space-y-5 px-5 pb-5 text-[13px]">
+        <div className="flex flex-wrap gap-2" aria-label="Perfis dos coordenadores">
+          {["Tom", "Hermes Oracle", "Hermes EasyPanel"].map((coordinator) => <Button key={coordinator} size="sm" variant="outline" onClick={() => { setName(coordinator); setScopes(["admin", "contexto", "status", "tarefas", "eventos"]); }}>{coordinator} · admin</Button>)}
+          <Button size="sm" variant="ghost" onClick={() => { setName(""); setScopes(["contexto", "status"]); }}>Outro agente · leitura</Button>
+        </div>
         <form
           className="space-y-3 rounded-xl border border-border p-4"
           onSubmit={(e) => {
@@ -75,7 +80,7 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
               );
             })}
           </div>
-          <p className="text-[12px] text-faint">Cada escopo libera só as ferramentas descritas. Contexto permite ler o vault conectado; compartilhe esse acesso apenas com agentes de confiança. Dados pessoais do banco não ficam disponíveis, e o MCP não edita o vault.</p>
+          <p className="text-[12px] text-faint">Coordenadores Tom, Hermes Oracle e Hermes Easy: perfil Administrador. Demais agentes: Contexto e Status para leitura. A permissão fica no token individual; o nome não concede acesso. Administradores usam as mesmas ações da IA e todas as chamadas ficam registradas.</p>
         </form>
 
         {created && (
@@ -115,6 +120,14 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
                   {t.scopes.map((s) => <span key={s} className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-muted">{s}</span>)}
                 </span>
                 <span className="ml-auto text-[12px] text-faint">{ago(t.lastUsedAt)}</span>
+                <select aria-label={`Perfil de ${t.name}`} className="rounded-lg border border-border bg-surface px-2 py-1 text-xs" value={t.scopes.includes("admin") ? "admin" : t.scopes.every((scope) => ["contexto", "status"].includes(scope)) ? "leitura" : "custom"} disabled={pending} onChange={(event) => {
+                  const profile = event.target.value;
+                  if (profile !== "admin" && profile !== "leitura") return;
+                  start(async () => {
+                    try { await updateAgentProfileAction(t.id, profile); toast.success(`Perfil de ${t.name} atualizado`); }
+                    catch { toast.error("Não foi possível atualizar o acesso"); }
+                  });
+                }}><option value="leitura">Leitura</option><option value="admin">Administrador</option><option value="custom" disabled>Personalizado</option></select>
                 <Button
                   size="sm"
                   variant="danger"

@@ -24,27 +24,51 @@ export function NotesPage({ notes, selected }: { notes: Note[]; selected: Note |
   const [, start] = React.useTransition();
   const timer = React.useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const [selection, setSelection] = React.useState(selected?.id);
+  const pending = React.useRef<{ id: string; patch: { title?: string; content?: string } } | null>(null);
+  const chain = React.useRef(Promise.resolve());
+  const saving = React.useRef(0);
+  const currentId = React.useRef(selected?.id);
+  if (selection !== selected?.id) {
+    setSelection(selected?.id); setTitle(selected?.title ?? ""); setContent(selected?.content ?? ""); setSaved(true);
+  }
+  const flush = React.useCallback(() => {
+    clearTimeout(timer.current);
+    const payload = pending.current;
+    if (!payload) return;
+    pending.current = null;
+    saving.current += 1;
+    chain.current = chain.current.catch(() => {}).then(async () => {
+      try {
+        await saveNote(payload.id, payload.patch);
+        if (currentId.current === payload.id && !pending.current && saving.current === 1) setSaved(true);
+        router.refresh();
+      } catch {
+        if (currentId.current === payload.id) {
+          const current = pending.current as { id: string; patch: { title?: string; content?: string } } | null;
+          pending.current = { id: payload.id, patch: { ...payload.patch, ...(current?.id === payload.id ? current.patch : {}) } };
+          setSaved(false);
+        }
+        toast.error("A nota não foi salva. Mantenha esta tela aberta e tente editar novamente.");
+      } finally { saving.current -= 1; }
+    });
+  }, [router]);
   React.useEffect(() => {
-    setTitle(selected?.title ?? "");
-    setContent(selected?.content ?? "");
-    setSaved(true);
-  }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const persist = React.useCallback(
-    (patch: { title?: string; content?: string }) => {
-      if (!selected) return;
-      clearTimeout(timer.current);
-      setSaved(false);
-      timer.current = setTimeout(() => {
-        start(async () => {
-          await saveNote(selected.id, patch);
-          setSaved(true);
-          router.refresh();
-        });
-      }, 700);
-    },
-    [selected, router],
-  );
+    currentId.current = selected?.id;
+    return () => flush();
+  }, [selected?.id, flush]);
+  React.useEffect(() => {
+    const beforeLeave = (event: BeforeUnloadEvent) => { if (pending.current || saving.current) event.preventDefault(); };
+    window.addEventListener("beforeunload", beforeLeave);
+    return () => window.removeEventListener("beforeunload", beforeLeave);
+  }, []);
+  const persist = React.useCallback((patch: { title?: string; content?: string }) => {
+    if (!selected) return;
+    if (pending.current && pending.current.id !== selected.id) flush();
+    pending.current = { id: selected.id, patch: { ...pending.current?.patch, ...patch } };
+    clearTimeout(timer.current); setSaved(false);
+    timer.current = setTimeout(flush, 700);
+  }, [selected, flush]);
 
   const filtered = notes.filter((n) => !q || `${n.title} ${n.content}`.toLowerCase().includes(q.toLowerCase()));
   const titles = notes.map((n) => n.title);

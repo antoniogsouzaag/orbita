@@ -8,11 +8,12 @@ import { liveOps } from "./ops-live";
 import { getSettings } from "./settings";
 import { listTasks, type TaskRow } from "./tasks";
 import { escHtml } from "./telegram";
+import { agentReports } from "./agent-reports";
 
 /** “Bom dia” da Órbita: agenda, tarefas pessoais e da empresa, CRM, pedidos de agentes e operação. Texto em HTML do Telegram. */
 export async function buildBrief(): Promise<string> {
   const t = today();
-  const [settings, events, pessoal, empresa, asks, habits, live, crm] = await Promise.all([
+  const [settings, events, pessoal, empresa, asks, habits, live, crm, reports] = await Promise.all([
     getSettings(),
     eventsBetween(zonedToUtc(t), zonedToUtc(shiftDate(t, 1))),
     listTasks({ view: "hoje", scope: "pessoal", limit: 30 }),
@@ -21,6 +22,7 @@ export async function buildBrief(): Promise<string> {
     listHabits({ days: 30 }),
     liveOps(),
     crmOverview(0),
+    agentReports(),
   ]);
   const base = process.env.APP_URL ?? "https://orb.aglabs.api.br";
   const first = settings.name.split(" ")[0];
@@ -68,6 +70,10 @@ export async function buildBrief(): Promise<string> {
   for (const d of soon) lines.push(`• 🌐 ${escHtml(d.domain)} vence em ${Math.ceil((d.expiresAt!.getTime() - Date.now()) / 86_400_000)} dias`);
   for (const m of silent) lines.push(`• ⚠️ monitor em silêncio: ${escHtml(m.label)}`);
 
+  if (reports.length) {
+    lines.push("", "📨 <b>Resumos dos agentes · últimas 24h</b>");
+    for (const report of reports.slice(0, 5)) lines.push(`• ${escHtml(report.source.replace(/^agente:/, ""))} · ${localTime(report.createdAt)}: ${escHtml(report.subject)} — ${escHtml(String(report.detail.message ?? "").slice(0, 300))}`);
+  }
   lines.push("", `<a href="${base}">Abrir a Órbita</a>`);
   return lines.join("\n");
 }

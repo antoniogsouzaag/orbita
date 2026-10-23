@@ -34,6 +34,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
   const [focused, setFocused] = React.useState<string | null>(null);
   const [depth, setDepth] = React.useState(1);
   const [labels, setLabels] = React.useState(true);
+  const [nodeSize, setNodeSize] = React.useState(1);
   const [paused, setPaused] = React.useState(false);
   const [explorerOpen, setExplorerOpen] = React.useState(false);
   const [fullscreen, setFullscreen] = React.useState(false);
@@ -101,6 +102,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
         </Select>
         <Button size="sm" variant={connectedOnly ? "secondary" : "ghost"} aria-label="Mostrar somente notas conectadas" aria-pressed={connectedOnly} onClick={() => { setConnectedOnly(!connectedOnly); setHover(null); }} title="Ocultar notas sem conexões" className="h-9"><Filter /><span className="hidden sm:inline">Conectadas</span></Button>
         <Button size="sm" variant="ghost" aria-label="Mostrar títulos das notas" aria-pressed={labels} onClick={() => setLabels(!labels)} title={labels ? "Ocultar títulos" : "Mostrar títulos"} className="h-9"><Tags /><span className="hidden xl:inline">Títulos</span></Button>
+        <label className="flex items-center gap-2 px-1 text-[11px] text-muted">Nós<input type="range" aria-label="Tamanho dos nós" min="0.5" max="1.8" step="0.1" value={nodeSize} onChange={(event) => setNodeSize(Number(event.target.value))} className="w-20 accent-[var(--accent)]" /></label>
         <div className="ml-auto flex items-center gap-1">
           <Button size="icon" variant="ghost" aria-label={explorerOpen ? "Ocultar explorador de notas" : "Mostrar explorador de notas"} aria-expanded={explorerOpen} aria-controls="vault-graph-explorer" onClick={() => setExplorerOpen(!explorerOpen)} className="lg:hidden"><List /></Button>
           <Button size="icon" variant="ghost" aria-label={fullscreen ? "Sair da tela cheia" : "Abrir grafo em tela cheia"} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 /> : <Maximize2 />}</Button>
@@ -114,7 +116,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
       </div>}
 
       <div className="relative flex min-h-0 flex-1">
-        <div ref={canvasRef} className="relative min-w-0 flex-1 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40" style={{ backgroundColor: dark ? "#10141d" : "#f6f7fb", backgroundImage: `radial-gradient(${dark ? "#53607935" : "#78849b30"} 0.75px, transparent 0.75px)`, backgroundSize: "24px 24px" }} role="region" aria-label="Mapa interativo de notas do vault" aria-describedby="vault-graph-help" tabIndex={0}
+        <div ref={canvasRef} className="relative min-w-0 flex-1 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40" style={{ backgroundColor: dark ? "#171719" : "#fafafa" }} role="region" aria-label="Mapa interativo de notas do vault" aria-describedby="vault-graph-help" tabIndex={0}
           onKeyDown={(event) => {
             if (event.target !== event.currentTarget) return;
             if (event.key === "+" || event.key === "=") { event.preventDefault(); controlsRef.current?.zoom(1.35); }
@@ -122,7 +124,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
             if (event.key === "0") { event.preventDefault(); controlsRef.current?.fit(); }
             if (event.key === "Escape") { setFocused(null); setHover(null); }
           }}>
-          {visible.nodes.length ? <GraphCanvas data={visible} groups={groups} width={size.width} height={size.height} dark={dark} query={deferredQuery} hover={hover?.id ?? null} focused={focused} labels={labels} paused={paused} controlsRef={controlsRef} onHover={setHover} onOpen={(id) => router.push(vaultNoteHref(id))} onFocus={focusNode} onZoom={setZoom} /> : <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-5 text-center"><Network className="size-8 text-faint" /><p className="text-sm text-muted">Nenhuma nota nesta visualização.</p>{hasFilters && <Button size="sm" onClick={reset}>Limpar filtros</Button>}</div>}
+          {visible.nodes.length ? <GraphCanvas data={visible} groups={groups} width={size.width} height={size.height} dark={dark} query={deferredQuery} hover={hover?.id ?? null} focused={focused} labels={labels} paused={paused} nodeSize={nodeSize} controlsRef={controlsRef} onHover={setHover} onOpen={(id) => router.push(vaultNoteHref(id))} onFocus={focusNode} onZoom={setZoom} /> : <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-5 text-center"><Network className="size-8 text-faint" /><p className="text-sm text-muted">Nenhuma nota nesta visualização.</p>{hasFilters && <Button size="sm" onClick={reset}>Limpar filtros</Button>}</div>}
           <div className="pointer-events-none absolute left-4 top-4 rounded-xl border border-border/60 bg-surface/85 px-3 py-2 text-[11px] text-muted shadow-sm backdrop-blur-md" aria-live="polite"><span className="font-semibold text-fg">{visible.nodes.length}</span> notas <span className="px-1 text-faint">/</span> {graph.nodes.length} <span className="mx-2 text-faint">·</span>{visible.links.length} conexões</div>
           {detail && <div className="pointer-events-none absolute bottom-16 left-3 max-w-[calc(100%-24px)] rounded-xl border border-border bg-surface/95 px-3 py-2 shadow-lg backdrop-blur sm:max-w-80"><p className="truncate text-sm font-medium">{detail.name}</p><p className="mt-0.5 truncate text-[11px] text-muted">{detail.id}</p><p className="mt-1 text-[11px] text-faint">{detail.degree} notas conectadas · clique para abrir</p></div>}
           <div className="absolute bottom-3 left-3 flex items-center gap-0.5 rounded-xl border border-border bg-surface/95 p-1 shadow-lg backdrop-blur-md">

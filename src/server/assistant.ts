@@ -10,6 +10,8 @@ import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./c
 import { liveOps } from "./ops-live";
 import { listTasks, type TaskView } from "./tasks";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
+import { memorySchema, rememberShared } from "./shared-memory";
+import { editVault, editVaultSchema } from "./vault-edit";
 
 /**
  * Ações que a IA da Órbita (e o atalho do iPhone) podem executar em nome de Antonio.
@@ -221,7 +223,7 @@ export const lerNotaDoVault = {
     if (!idx) return { text: (await vaultHealth()).error ?? "Vault não configurado." };
     const p = idx.notes.has(v.caminho) ? v.caminho : idx.resolve(v.caminho.replace(/\.md$/i, ""));
     const n = p ? idx.notes.get(p) : null;
-    return n ? { text: `# ${n.title} (${n.path})\n\n${n.body.slice(0, 12_000)}` } : { text: "Nota não encontrada no vault." };
+    return n ? { text: `# ${n.title} (${n.path})\nVersão: ${n.sha}\n\n${n.body.slice(0, 12_000)}` } : { text: "Nota não encontrada no vault." };
   },
 };
 
@@ -340,6 +342,8 @@ export const crmRegistrarAtividade = {
 type Tool = { name: string; description: string; schema: z.ZodObject; run: (v: never) => Promise<ActionResult>; requires?: () => boolean };
 
 export const ASSISTANT_TOOLS: Tool[] = [
+  { name: "salvar_nota_vault", description: "Cria ou atualiza nota canônica do vault com controle de versão. Leia antes e forneça o SHA. Só registre mudanças de política, produto ou responsabilidade explicitamente aprovadas por Antonio; nunca salve segredos ou dados de clientes.", schema: editVaultSchema, run: editVault, requires: () => Boolean(getVaultProvider()) },
+  { name: "registrar_memoria_compartilhada", description: "Salva no vault uma decisão ou contexto duradouro da empresa, SOMENTE quando Antonio pedir para lembrar ou registrar. Informe fonte; nunca grave segredos nem dados pessoais. Memórias são compartilhadas com agentes autorizados.", schema: memorySchema, run: rememberShared, requires: () => Boolean(getVaultProvider()) },
   { name: "criar_tarefa", description: "Cria uma tarefa para Antonio. Use datas absolutas (AAAA-MM-DD) calculadas a partir de hoje.", ...criarTarefa },
   { name: "listar_tarefas", description: "Lista tarefas com id, prazo, prioridade e projeto. Use antes de atualizar ou concluir.", ...listarTarefas },
   { name: "atualizar_tarefa", description: "Altera ou conclui uma tarefa existente (status done = concluir). Para reorganizar, mude prazo e prioridade.", ...atualizarTarefa },

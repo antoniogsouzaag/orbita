@@ -16,11 +16,8 @@ import { today } from "@/lib/dates";
 
 type Tab = "tarefa" | "nota" | "evento" | "financas";
 
-export function QuickAdd({ open, onOpenChange, tab, projects }: { open: boolean; onOpenChange: (v: boolean) => void; tab?: string; projects: { id: string; name: string; color: string }[] }) {
-  const [current, setCurrent] = React.useState<Tab>("tarefa");
-  React.useEffect(() => {
-    if (open && tab) setCurrent(tab as Tab);
-  }, [open, tab]);
+export function QuickAdd({ open, onOpenChange, tab, projects, scope = "pessoal" }: { scope?: "pessoal" | "empresa"; open: boolean; onOpenChange: (v: boolean) => void; tab?: string; projects: { id: string; name: string; color: string }[] }) {
+  const [current, setCurrent] = React.useState<Tab>(["tarefa", "nota", "evento", "financas"].includes(tab ?? "") ? tab as Tab : "tarefa");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -36,7 +33,7 @@ export function QuickAdd({ open, onOpenChange, tab, projects }: { open: boolean;
             { value: "financas", label: <span className="flex items-center justify-center gap-1.5"><Wallet className="size-3.5" />Gasto</span> },
           ]}
         />
-        {current === "tarefa" && <TaskForm projects={projects} onDone={() => onOpenChange(false)} />}
+        {current === "tarefa" && <TaskForm scope={scope} projects={projects} onDone={() => onOpenChange(false)} />}
         {current === "nota" && <NoteForm onDone={() => onOpenChange(false)} />}
         {current === "evento" && <EventForm onDone={() => onOpenChange(false)} />}
         {current === "financas" && <TxForm onDone={() => onOpenChange(false)} />}
@@ -45,14 +42,14 @@ export function QuickAdd({ open, onOpenChange, tab, projects }: { open: boolean;
   );
 }
 
-function TaskForm({ projects, onDone }: { projects: { id: string; name: string; color: string }[]; onDone: () => void }) {
+function TaskForm({ projects, onDone, scope }: { scope: "pessoal" | "empresa"; projects: { id: string; name: string; color: string }[]; onDone: () => void }) {
   const [value, setValue] = React.useState("");
   const [projectId, setProjectId] = React.useState("");
   const [pending, start] = React.useTransition();
   const submit = () =>
     start(async () => {
       if (!value.trim()) return;
-      await quickAddTask(value, projectId || null);
+      await quickAddTask(value, projectId || null, scope);
       toast.success("Tarefa criada");
       setValue("");
       onDone();

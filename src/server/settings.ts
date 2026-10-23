@@ -7,6 +7,7 @@ import { COVER_PRESETS } from "@/lib/covers";
 export type Cover = { url: string; author?: string; authorUrl?: string; source?: string; color?: string };
 
 export const WIDGETS = [
+  { id: "prioridades", label: "Próxima ação" },
   { id: "plano", label: "Plano do dia" },
   { id: "checkin", label: "Como foi hoje?" },
   { id: "conquistas", label: "Metas & Conquistas" },
@@ -61,7 +62,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   accent: "cyan",
   cover: DEFAULT_COVER,
   widgets: {
-    order: ["conquistas", "habitos", "metas", "tarefas", "agenda", "plano", "checkin", "operacao", "foco", "treino", "financas", "leitura"],
+    order: ["conquistas", "prioridades", "habitos", "metas", "tarefas", "agenda", "plano", "checkin", "operacao", "foco", "treino", "financas", "leitura"],
     hidden: ["leitura"],
   },
   empresaCover: {
@@ -87,7 +88,10 @@ export async function getSettings(): Promise<AppSettings> {
   const merged = structuredClone({ ...DEFAULT_SETTINGS, ...map });
   // garante que widgets novos apareçam para quem já tinha uma ordem salva
   const known = new Set(merged.widgets.order);
-  for (const w of DEFAULT_SETTINGS.widgets.order) if (!known.has(w)) merged.widgets.order.push(w);
+  for (const w of DEFAULT_SETTINGS.widgets.order) if (!known.has(w)) {
+    if (w === "prioridades") merged.widgets.order.splice(Math.max(0, merged.widgets.order.indexOf("conquistas") + 1), 0, w);
+    else merged.widgets.order.push(w);
+  }
   const knownE = new Set(merged.empresaWidgets.order);
   for (const w of DEFAULT_SETTINGS.empresaWidgets.order) if (!knownE.has(w)) merged.empresaWidgets.order.push(w);
   return merged;
