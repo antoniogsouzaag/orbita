@@ -92,10 +92,13 @@ export async function deleteBook(id: string) {
 }
 
 /* Foco */
-export async function logFocus(minutes: number, label?: string | null, taskId?: string | null) {
+export async function logFocus(minutes: number, label?: string | null, taskId?: string | null, sessionId?: string, endedAt?: string) {
   await requireAuth();
   const m = z.number().int().min(1).max(600).parse(Math.round(minutes));
   const db = await getDb();
-  await db.insert(focusSessions).values({ minutes: m, label: label ? z.string().max(200).parse(label) : null, taskId: taskId ? uuid.parse(taskId) : null, startedAt: new Date(Date.now() - m * 60_000) });
+  const end = endedAt ? new Date(z.iso.datetime({ offset: true }).parse(endedAt)).getTime() : Date.now();
+  if (end > Date.now() + 60_000 || end < Date.now() - 30 * 86_400_000) throw new Error("Horário da sessão inválido");
+  const rows = await db.insert(focusSessions).values({ id: sessionId ? uuid.parse(sessionId) : undefined, minutes: m, label: label ? z.string().max(200).parse(label) : null, taskId: taskId ? uuid.parse(taskId) : null, startedAt: new Date(end - m * 60_000) }).onConflictDoNothing().returning({ id: focusSessions.id });
   refresh();
+  return { recorded: rows.length > 0 };
 }

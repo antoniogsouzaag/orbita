@@ -1,3 +1,5 @@
+import { Priorities } from "@/components/home/priorities";
+import { personalPriorities, jevConfigured } from "@/server/decisions";
 import { Capture } from "@/components/home/capture";
 import { Customize } from "@/components/home/customize";
 import { Hero } from "@/components/home/hero";
@@ -15,7 +17,7 @@ import { syncStaleCalendars } from "@/server/calendar";
 import { commitStreak } from "@/server/github";
 import type { HomeData } from "@/server/home";
 
-const SPAN: Partial<Record<WidgetId, string>> = { conquistas: "md:col-span-2", plano: "md:col-span-2", metas: "md:col-span-2 xl:col-span-1" };
+const SPAN: Partial<Record<WidgetId, string>> = { conquistas: "md:col-span-2", prioridades: "md:col-span-2", plano: "md:col-span-2", metas: "md:col-span-2 xl:col-span-1" };
 
 export default async function HomePage() {
   after(() => syncStaleCalendars(60).then(() => undefined).catch(() => {}));
@@ -23,6 +25,7 @@ export default async function HomePage() {
   const { settings } = data;
 
   const render: Record<WidgetId, () => React.ReactNode> = {
+    prioridades: () => <Suspense fallback={<div className="p-5 text-xs text-muted">Organizando próximas ações…</div>}><PrioritySection /></Suspense>,
     conquistas: () => <StreaksWidget cards={data.cards} />,
     habitos: () => <HabitsWidget habits={data.habits} done={data.habitsDone} total={data.habitsTotal} />,
     metas: () => <GoalsWidget goals={data.goals} />,
@@ -66,3 +69,5 @@ async function PersonalHero({ data }: { data: HomeData }) {
   const commits = data.counts.open === 0 && data.subtitle.text === "0 tarefas abertas" ? await commitStreak() : null;
   return <Hero cover={data.settings.cover} title={data.title} subtitle={commits && commits > 1 ? `🔥 ${commits} dias seguidos de contribuições no GitHub` : data.subtitle.text} tone={data.subtitle.tone} />;
 }
+
+async function PrioritySection() { return <Priorities tasks={await personalPriorities()} jev={jevConfigured()} />; }

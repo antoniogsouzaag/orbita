@@ -17,19 +17,19 @@ export function Hero({ cover, title, subtitle, tone, field = "cover", eyebrow }:
   }, [cover.url]);
   return (
     <section className="home-hero relative h-[420px] w-full overflow-hidden sm:h-[460px]">
-      <div className="absolute inset-0 [mask-image:linear-gradient(to_bottom,black_35%,transparent_92%)]" style={{ background: cover.color ?? "#0b0b0d" }} />
+      <div className="absolute inset-0 hero-cover-blend" style={{ background: cover.color ?? "#0b0b0d" }} />
       {state !== "failed" && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           ref={img}
           src={cover.url}
           alt=""
-          className={`absolute inset-0 size-full object-cover transition-opacity duration-700 [mask-image:linear-gradient(to_bottom,black_35%,transparent_92%)] ${state === "ok" ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 size-full object-cover transition-opacity duration-700 hero-cover-blend ${state === "ok" ? "opacity-100" : "opacity-0"}`}
           onLoad={() => setState("ok")}
           onError={() => setState("failed")}
         />
       )}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/10 to-transparent" />
+      <div className="hero-cover-shade absolute inset-0" />
       <div className="relative mx-auto flex h-full max-w-5xl flex-col items-center justify-center px-5 pb-24 text-center">
         {eyebrow && <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.22em] text-white/70 drop-shadow">{eyebrow}</div>}
         <h1 className="text-balance text-[30px] font-bold leading-tight tracking-tight text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.5)] sm:text-[42px]">{title}</h1>

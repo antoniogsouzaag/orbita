@@ -36,6 +36,7 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
   const ref = React.useRef<ForceGraphMethods<GraphNode> | undefined>(undefined);
   const fitted = React.useRef(false);
   const interacted = React.useRef(false);
+  const labelBoxes = React.useRef<{ left: number; right: number; top: number; bottom: number }[]>([]);
   // d3 mutates nodes and link endpoints. Keep the filtering model immutable.
   const graph = React.useMemo(() => ({ nodes: data.nodes.map((node) => ({ ...node })), links: data.links.map((link) => ({ ...link })) }), [data]);
   const neighbors = React.useMemo(() => graphNeighbors(data.links), [data.links]);
@@ -92,6 +93,7 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
       width={width}
       height={height}
       backgroundColor="rgba(0,0,0,0)"
+      onRenderFramePre={() => { labelBoxes.current = []; }}
       minZoom={0.15}
       maxZoom={8}
       d3AlphaDecay={0.045}
@@ -150,10 +152,17 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fillStyle = isActive ? (dark ? "#f0ecff" : "#5f42a8") : color;
         if (node.degree === 0) { ctx.lineWidth = 1 / scale; ctx.strokeStyle = color; ctx.stroke(); } else ctx.fill();
-        if ((labels && (scale > 2 || node.degree > 14)) || isActive || isMatch || isNeighbor) {
+        if (!faded(node) && ((labels && (scale > 2.5 || (scale > 0.85 && node.degree >= 20))) || isActive || isMatch || isNeighbor)) {
           const fontSize = 10 / Math.sqrt(Math.max(scale, 0.7));
           const title = node.name.length > 44 ? `${node.name.slice(0, 43)}…` : node.name;
           ctx.font = `${isActive ? "600 " : ""}${fontSize}px system-ui, sans-serif`;
+          const halfWidth = ctx.measureText(title).width / 2 + 3 / scale;
+          const top = y + radius + 4 / scale;
+          const box = { left: x - halfWidth, right: x + halfWidth, top, bottom: top + fontSize + 3 / scale };
+          // Keep hubs readable at rest and always preserve the hovered title.
+          const overlaps = labelBoxes.current.some((other) => box.left < other.right && box.right > other.left && box.top < other.bottom && box.bottom > other.top);
+          if (overlaps && !isActive) { ctx.restore(); return; }
+          labelBoxes.current.push(box);
           ctx.textAlign = "center";
           ctx.textBaseline = "top";
           ctx.lineWidth = 3 / scale;

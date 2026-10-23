@@ -9,98 +9,104 @@ import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
+import { focusedMinutes } from "@/lib/focus";
 
 type Phase = "foco" | "pausa";
 const KEY = "orbita:focus";
 
-export function FocusTimer({ tasks, defaultMinutes }: { tasks: { id: string; title: string }[]; defaultMinutes: number }) {
-  const [minutes, setMinutes] = React.useState(defaultMinutes);
-  const [phase, setPhase] = React.useState<Phase>("foco");
-  const [endsAt, setEndsAt] = React.useState<number | null>(null);
-  const [remaining, setRemaining] = React.useState(defaultMinutes * 60);
-  const [taskId, setTaskId] = React.useState("");
+type Props = { tasks: { id: string; title: string }[]; defaultMinutes: number; initialTaskId?: string };
+const subscribeHydration = () => () => {};
+export function FocusTimer(props: Props) {
+  const ready = React.useSyncExternalStore(subscribeHydration, () => true, () => false);
+  return ready ? <FocusTimerClient {...props} /> : <Card className="p-8 text-sm text-muted">Preparando seu bloco de foco…</Card>;
+}
+
+function FocusTimerClient({ tasks, defaultMinutes, initialTaskId }: Props) {
+  const [initial] = React.useState(() => {
+    const fallback = { phase: "foco" as Phase, minutes: defaultMinutes, taskId: initialTaskId ?? "", endsAt: null as number | null, remaining: defaultMinutes * 60, sessionId: null as string | null };
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) ?? "null");
+      if (!saved || !["foco", "pausa"].includes(saved.phase) || !Number.isInteger(saved.minutes) || saved.minutes < 1 || saved.minutes > 600) return fallback;
+      if (saved.endsAt && (!Number.isFinite(saved.endsAt) || saved.endsAt < Date.now() - 86_400_000)) return fallback;
+      const seconds = (saved.phase === "foco" ? saved.minutes : saved.minutes >= 50 ? 10 : 5) * 60;
+      return { phase: saved.phase as Phase, minutes: saved.minutes as number, taskId: tasks.some((task) => task.id === saved.taskId) ? saved.taskId as string : initialTaskId ?? "", endsAt: typeof saved.endsAt === "number" ? saved.endsAt : null, remaining: saved.endsAt ? Math.max(0, Math.round((saved.endsAt - Date.now()) / 1000)) : Math.max(0, Math.min(seconds, Number.isFinite(saved.remaining) ? saved.remaining : seconds)), sessionId: typeof saved.sessionId === "string" && /^[0-9a-f-]{36}$/.test(saved.sessionId) ? saved.sessionId : saved.endsAt ? crypto.randomUUID() : null };
+    } catch { return fallback; }
+  });
+  const [minutes, setMinutes] = React.useState(initial.minutes);
+  const [phase, setPhase] = React.useState<Phase>(initial.phase);
+  const [endsAt, setEndsAt] = React.useState<number | null>(initial.endsAt);
+  const [remaining, setRemaining] = React.useState(initial.remaining);
+  const [taskId, setTaskId] = React.useState(initial.taskId);
+  const sessionRef = React.useRef<string | null>(initial.sessionId);
+  const completed = React.useRef(new Set<string>());
   const [, start] = React.useTransition();
   const total = (phase === "foco" ? minutes : minutes >= 50 ? 10 : 5) * 60;
 
-  // restaura timer em andamento (sobrevive a recarregar a página)
-  React.useEffect(() => {
-    try {
-      const s = JSON.parse(localStorage.getItem(KEY) ?? "null");
-      if (s?.endsAt > Date.now()) {
-        setPhase(s.phase);
-        setMinutes(s.minutes);
-        setTaskId(s.taskId ?? "");
-        setEndsAt(s.endsAt);
+  function persist(state: object | null) {
+    try { if (state) localStorage.setItem(KEY, JSON.stringify(state)); else localStorage.removeItem(KEY); } catch {}
+  }
+  function finish(automatic = false) {
+    const sessionId = sessionRef.current;
+    if (phase === "foco" && sessionId && completed.current.has(sessionId)) return;
+    if (sessionId) completed.current.add(sessionId);
+    setEndsAt(null);
+    sessionRef.current = null;
+    if (phase === "foco") {
+      const recorded = focusedMinutes(minutes, remaining, automatic);
+      if (recorded > 0 && sessionId) {
+        const label = tasks.find((task) => task.id === taskId)?.title ?? null;
+        const end = new Date(automatic && endsAt ? endsAt : Date.now()).toISOString();
+        start(async () => {
+          try {
+            const result = await logFocus(recorded, label, taskId || null, sessionId, end);
+            if (result.recorded) toast.success(`+${recorded} min de foco registrados`);
+          } catch { toast.error("O tempo de foco não foi salvo. Confira sua conexão."); }
+        });
       }
-    } catch {}
-  }, []);
-
+      setPhase("pausa");
+      setRemaining((minutes >= 50 ? 10 : 5) * 60);
+    } else { setPhase("foco"); setRemaining(minutes * 60); }
+    persist(null);
+    if (automatic) {
+      try {
+        const audio = new AudioContext();
+        const oscillator = audio.createOscillator(); const gain = audio.createGain();
+        oscillator.frequency.value = phase === "foco" ? 880 : 660;
+        gain.gain.setValueAtTime(0.12, audio.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.3);
+        oscillator.connect(gain).connect(audio.destination); oscillator.start(); oscillator.stop(audio.currentTime + 0.3);
+        oscillator.onended = () => { void audio.close(); };
+        if ("Notification" in window && Notification.permission === "granted") new Notification(phase === "foco" ? "Foco concluído! Hora da pausa." : "Pausa encerrada. Bora voltar?");
+      } catch {}
+    }
+  }
+  const finishFromClock = React.useEffectEvent(() => finish(true));
   React.useEffect(() => {
     if (!endsAt) return;
     const tick = () => {
       const left = Math.max(0, Math.round((endsAt - Date.now()) / 1000));
       setRemaining(left);
       document.title = `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")} · ${phase === "foco" ? "Foco" : "Pausa"}`;
-      if (left === 0) finish();
+      if (left === 0) finishFromClock();
     };
-    tick();
-    const t = setInterval(tick, 500);
-    return () => clearInterval(t);
-  }, [endsAt]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  React.useEffect(() => () => void (document.title = "Foco · Órbita"), []);
-
-  const persist = (s: object | null) => {
-    try {
-      if (s) localStorage.setItem(KEY, JSON.stringify(s));
-      else localStorage.removeItem(KEY);
-    } catch {}
-  };
-
-  const finish = () => {
-    setEndsAt(null);
-    persist(null);
-    try {
-      const ctx = new AudioContext();
-      [0, 0.25, 0.5].forEach((t) => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.frequency.value = phase === "foco" ? 880 : 660;
-        g.gain.setValueAtTime(0.18, ctx.currentTime + t);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.2);
-        o.connect(g).connect(ctx.destination);
-        o.start(ctx.currentTime + t);
-        o.stop(ctx.currentTime + t + 0.22);
-      });
-      if ("Notification" in window && Notification.permission === "granted") new Notification(phase === "foco" ? "Foco concluído! Hora da pausa." : "Pausa encerrada. Bora voltar?");
-    } catch {}
-    if (phase === "foco") {
-      const label = tasks.find((t) => t.id === taskId)?.title ?? null;
-      start(() => logFocus(minutes, label, taskId || null));
-      toast.success(`+${minutes} min de foco registrados`);
-      setPhase("pausa");
-      setRemaining((minutes >= 50 ? 10 : 5) * 60);
-    } else {
-      setPhase("foco");
-      setRemaining(minutes * 60);
-    }
-  };
+    const first = requestAnimationFrame(tick);
+    const timer = setInterval(tick, 500);
+    return () => { cancelAnimationFrame(first); clearInterval(timer); };
+  }, [endsAt, phase]);
+  React.useEffect(() => () => { document.title = "Foco · Órbita"; }, []);
 
   const startTimer = () => {
-    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});
-    const e = Date.now() + remaining * 1000;
-    setEndsAt(e);
-    persist({ endsAt: e, phase, minutes, taskId });
+    if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission().catch(() => {});
+    const end = Date.now() + remaining * 1000;
+    if (!sessionRef.current) sessionRef.current = crypto.randomUUID();
+    setEndsAt(end);
+    persist({ endsAt: end, remaining, phase, minutes, taskId, sessionId: sessionRef.current });
   };
   const pause = () => {
-    setEndsAt(null);
-    persist(null);
+    const left = endsAt ? Math.max(0, Math.round((endsAt - Date.now()) / 1000)) : remaining;
+    setEndsAt(null); setRemaining(left);
+    persist({ endsAt: null, remaining: left, phase, minutes, taskId, sessionId: sessionRef.current });
   };
-  const reset = () => {
-    pause();
-    setPhase("foco");
-    setRemaining(minutes * 60);
-  };
+  const reset = () => { setEndsAt(null); setPhase("foco"); setRemaining(minutes * 60); sessionRef.current = null; persist(null); };
 
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
   const ss = String(remaining % 60).padStart(2, "0");
@@ -140,7 +146,7 @@ export function FocusTimer({ tasks, defaultMinutes }: { tasks: { id: string; tit
         ) : (
           <Button size="lg" variant="primary" className="w-36" onClick={startTimer}><Play /> {remaining < total ? "Retomar" : "Começar"}</Button>
         )}
-        <Button size="icon" variant="secondary" onClick={finish} aria-label="Pular"><SkipForward /></Button>
+        <Button size="icon" variant="secondary" onClick={() => finish(false)} aria-label="Pular"><SkipForward /></Button>
       </div>
     </Card>
   );

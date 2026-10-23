@@ -206,3 +206,12 @@ Stack: Next.js 16 (App Router), React 19, Tailwind v4, Drizzle ORM, Neon, jose, 
 - **Resumos dos agentes**: `registrar_evento` aceita `tipo: resumo`. A central mostra o último relato por origem nas últimas 24 horas e o bom dia inclui até cinco. O Léo ainda precisa ser conectado para enviar essa triagem; nenhum recebimento é simulado.
 
 MCP é a entrada dos agentes na Órbita. A Órbita acionar Hermes/OpenClaw requer adaptadores de saída autenticados; observar contexto em Claude/Codex não cria um canal para iniciar uma sessão desktop. Telegram atual envia avisos e resumo; isso não é uma conversa bidirecional. Discord e dispatch externo dependem de configuração e validação próprias.
+
+
+### Refinos da experiência pessoal
+
+O + do dock abre bolhas flutuantes com rótulos no hover/foco, navegação por setas e Escape. A camada de atalhos fica fora do elemento com backdrop-filter, com uma única animação. Menus não modais não bloqueiam a rolagem; modais preservam o gutter da scrollbar para manter a largura estável. A capa usa uma máscara progressiva de múltiplos estágios.
+
+A captura rápida e o ditado usam o espaço atual (Pessoal/Empresa). O Início oferece o card personalizável Próxima ação: prazos e prioridade ordenam as tarefas sem chamada de IA; Focar abre o timer com a tarefa vinculada. O timer preserva pausas após recarregar, registra apenas minutos realizados ao pular e usa idempotência por sessão para evitar duplicações. O salvamento das notas combina título/conteúdo e serializa as escritas antes de atualizar a tela.
+
+**Jev (TypeSafe)** é opcional e sob demanda. `TYPESAFE_API_KEY` habilita Sugerir com Jev; `JEV_MODEL` fixa a versão (padrão `jev-1.14.0`). A chamada envia somente id, título, prazo e prioridade de até 20 tarefas pessoais, escolhendo uma tarefa existente. Confiança abaixo de 0,75, probabilidade da opção abaixo de 0,65, resultado desconhecido ou indisponibilidade preservam as regras locais; não há fallback pago para outro modelo nem execução automática. A IA conversacional continua disponível para perguntas e planejamento aberto. A integração com o provedor real exige credencial e validação posterior; testes usam respostas simuladas.

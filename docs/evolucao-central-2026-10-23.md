@@ -31,6 +31,20 @@ Consulta de produção em 23/10, 11:41 (São Paulo): banco e vault responderam, 
 
 ## Validação de código
 
-Suíte completa passou: 22 arquivos e 89 testes, incluindo autorização/admin/downgrade, conflitos de versão e caminhos do vault, séries Postiz e auditoria estrutural. Primeiro build Next.js passou; a compilação final e a validação visual estão registradas no fechamento abaixo. O lint global identifica 30 erros e dois avisos preexistentes em efeitos, refs e renderização de outros fluxos; não devem ser confundidos com uma revisão completa e resolvida desse passivo.
+Suíte completa passou: 22 arquivos e 89 testes, incluindo autorização/admin/downgrade, conflitos de versão e caminhos do vault, séries Postiz e auditoria estrutural. Build final Next.js e TypeScript passaram. A validação visual de publicação é acompanhada no deployment e na conversa desta revisão. O lint global identifica 30 erros e dois avisos preexistentes em efeitos, refs e renderização de outros fluxos; não devem ser confundidos com uma revisão completa e resolvida desse passivo.
 
 Fontes consultadas: https://learn.chatgpt.com/docs/app-server ; https://hermes-agent.nousresearch.com/docs/user-guide/features/memory-providers ; https://docs.openclaw.ai/concepts/memory-architecture ; código oficial gitroomhq/postiz-app (PublicIntegrationsController e AnalyticsData).
+
+
+## Continuação — experiência pessoal
+
+- Menu do dock redesenhado com bolhas como na referência; portal dentro da camada da aplicação e fora do backdrop-filter do dock. Uma única animação, rótulos por hover/foco, Escape e navegação por setas.
+- Menus comuns passam a não modais. Modais mantêm o espaço da barra de rolagem com scrollbar-gutter estável, sem compensação dupla do Radix.
+- Hero com máscara de múltiplos estágios, eliminando a concentração da transição numa faixa estreita.
+- Corrigido o contexto da captura rápida e ditado: agora preservam Pessoal/Empresa.
+- Adicionado card Próxima ação à personalização do Início, com regras locais e vínculo direto ao timer.
+- Corrigido Pular no foco: não registra minutos que não aconteceram. Pausas sobrevivem ao reload; sessões recebem id para gravação idempotente e horário de conclusão explícito.
+- Notas combinam patches de título e conteúdo e serializam as escritas. A troca de nota descarrega o debounce anterior; fechamento da página avisa se há gravação pendente.
+- Jev confirmado na documentação oficial da TypeSafe; não é um produto da OpenAI. A seleção opcional é restrita a tarefas existentes, por ação explícita do usuário, e sem mutações. Credencial da TypeSafe não foi criada nesta revisão e não houve chamada real de decisão.
+
+Fontes Jev: https://docs.typesafe.ai/models ; https://docs.typesafe.ai/api/system-one ; https://docs.typesafe.ai/primitives/choice ; https://docs.typesafe.ai/confidence . Os thresholds são uma escolha conservadora inicial da aplicação, não uma medida comprovada de precisão na agenda de Antonio.

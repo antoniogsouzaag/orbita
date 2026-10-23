@@ -99,6 +99,7 @@ export function AppShell({
   projects: { id: string; name: string; color: string }[];
 }) {
   const pathname = usePathname();
+  const { space } = useSpace();
   const sidebar = useStoredPreference("orbita:sidebar", "0") === "1";
   const setSidebar = (value: boolean) => storePreference("orbita:sidebar", value ? "1" : "0");
   const [palette, setPalette] = React.useState(false);
@@ -208,9 +209,10 @@ export function AppShell({
 
         <main className={cn("pb-32", !isHome && "pt-20")}>{children}</main>
 
-        <Dock pathname={pathname} hidden={sidebar} onQuick={(tab) => ctx.openQuickAdd(tab)} />
+        <Dock key={`${pathname}:${space}`} pathname={pathname} hidden={sidebar} onQuick={(tab) => ctx.openQuickAdd(tab)} />
         <CommandPalette open={palette} onOpenChange={setPalette} onQuickAdd={ctx.openQuickAdd} />
-        <QuickAdd open={quick.open} tab={quick.tab} projects={projects} onOpenChange={(open) => setQuick((q) => ({ ...q, open }))} />
+        <div id="shell-overlays" />
+        <QuickAdd scope={space} key={`${quick.open}:${quick.tab}`} open={quick.open} tab={quick.tab} projects={projects} onOpenChange={(open) => setQuick((q) => ({ ...q, open }))} />
       </div>
     </ShellContext.Provider>
   );
@@ -265,11 +267,12 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
 
 function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean; onQuick: (tab: string) => void }) {
   const { space, escopo } = useSpace();
+  const [dialOpen, setDialOpen] = React.useState(false);
   const items = [...SPACES[space].sections.flatMap((s) => s.items).filter((i) => i.dock), ...SHARED.filter((i) => i.dock)];
   const other: Space = space === "pessoal" ? "empresa" : "pessoal";
   const Other = SPACES[other];
   return (
-    <div className={cn("pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-3", hidden && "lg:hidden")}>
+    <div className={cn("pointer-events-none fixed inset-x-0 bottom-4 flex justify-center px-3", dialOpen ? "z-[60]" : "z-40", hidden && "lg:hidden")}>
       <nav className="glass pointer-events-auto flex items-center gap-1 rounded-[22px] border border-border p-1.5 shadow-soft">
         <Link href={Other.home} prefetch={true} title={`Ir para ${Other.label}`} aria-label={`Ir para ${Other.label}`} className="grid size-10 shrink-0 place-items-center rounded-2xl text-muted transition hover:bg-surface-2 hover:text-fg">
           <Other.icon className="size-[18px]" />
@@ -296,18 +299,18 @@ function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean
           })}
         </div>
         <div className="mx-1 h-6 w-px bg-border" />
-        <AllApps pathname={pathname} />
-        <SpeedDial onQuickAdd={onQuick} />
+        <AllApps pathname={pathname} onOpen={() => setDialOpen(false)} />
+        <SpeedDial open={dialOpen} onQuickAdd={onQuick} onOpenChange={setDialOpen} scope={space} />
       </nav>
     </div>
   );
 }
 
-function AllApps({ pathname }: { pathname: string }) {
+function AllApps({ pathname, onOpen }: { pathname: string; onOpen: () => void }) {
   const [open, setOpen] = React.useState(false);
   const { escopo } = useSpace();
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open} onOpenChange={(value) => { setOpen(value); if (value) onOpen(); }}>
       <Popover.Trigger className="grid size-10 place-items-center rounded-2xl text-muted hover:bg-surface-2 hover:text-fg" aria-label="Todos os módulos">
         <LayoutGrid className="size-[18px]" />
       </Popover.Trigger>

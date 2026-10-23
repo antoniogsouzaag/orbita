@@ -3,7 +3,7 @@ import { DropdownMenu as M } from "radix-ui";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export const Menu = M.Root;
+export function Menu(props: React.ComponentProps<typeof M.Root>) { return <M.Root modal={false} {...props} />; }
 export const MenuTrigger = M.Trigger;
 
 export function MenuContent({ children, align = "end", className }: { children: React.ReactNode; align?: "start" | "end" | "center"; className?: string }) {
