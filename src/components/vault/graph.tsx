@@ -89,7 +89,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
   }
 
   return (
-    <div ref={containerRef} className={cn("flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-sm", fullscreen ? "h-dvh rounded-none" : "h-[calc(100dvh-185px)] min-h-[560px] sm:min-h-[590px]")}>
+    <div ref={containerRef} className={cn("flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-sm", fullscreen ? "h-dvh rounded-none" : "h-[calc(100dvh-135px)] min-h-[450px]")}>
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface/95 p-3">
         <div className="relative min-w-[150px] flex-1 sm:max-w-80">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" />

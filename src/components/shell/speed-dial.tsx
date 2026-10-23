@@ -10,15 +10,15 @@ import { relativeDay } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
 const ACTIONS = [
-  { id: "tarefa", label: "Nova tarefa", icon: CheckSquare, left: 238, top: 238 },
-  { id: "nota", label: "Nova nota", icon: NotebookPen, left: 153, top: 218 },
-  { id: "evento", label: "Novo compromisso", icon: CalendarPlus, left: 238, top: 150 },
-  { id: "gasto", label: "Lançar gasto", icon: Wallet, left: 68, top: 192 },
-  { id: "projeto", label: "Novo projeto", icon: FolderPlus, left: 153, top: 126 },
-  { id: "treino", label: "Registrar treino", icon: Dumbbell, left: 238, top: 62 },
-  { id: "foco", label: "Iniciar foco", icon: Timer, left: 68, top: 104 },
-  { id: "ia", label: "Perguntar à IA", icon: Sparkles, left: 153, top: 34 },
-  { id: "voz", label: "Ditar tarefa", icon: Mic, left: 24, top: 20 },
+  { id: "tarefa", label: "Nova tarefa", icon: CheckSquare, left: 168, top: 168 },
+  { id: "nota", label: "Nova nota", icon: NotebookPen, left: 84, top: 168 },
+  { id: "evento", label: "Novo compromisso", icon: CalendarPlus, left: 168, top: 84 },
+  { id: "gasto", label: "Lançar gasto", icon: Wallet, left: 0, top: 168 },
+  { id: "projeto", label: "Novo projeto", icon: FolderPlus, left: 84, top: 84 },
+  { id: "treino", label: "Registrar treino", icon: Dumbbell, left: 168, top: 0 },
+  { id: "foco", label: "Iniciar foco", icon: Timer, left: 0, top: 84 },
+  { id: "ia", label: "Perguntar à IA", icon: Sparkles, left: 84, top: 0 },
+  { id: "voz", label: "Ditar tarefa", icon: Mic, left: 0, top: 0 },
 ] as const;
 
 /** Botão "+" que abre os atalhos de criação rápida (com rótulo no hover) e a captura por voz. */
@@ -30,7 +30,7 @@ export function SpeedDial({ onQuickAdd, onOpenChange, scope, open }: { open: boo
   const changeOpen = (value: boolean) => {
     if (value && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setAnchor({ left: Math.max(12, Math.min(rect.right - 300, window.innerWidth - 312)), bottom: window.innerHeight - rect.top + 16 });
+      setAnchor({ left: Math.max(12, Math.min(rect.right - 220, window.innerWidth - 232)), bottom: window.innerHeight - rect.top + 22 });
     }
     onOpenChange(value);
     if (!value) triggerRef.current?.focus();
@@ -104,16 +104,16 @@ export function SpeedDial({ onQuickAdd, onOpenChange, scope, open }: { open: boo
       {open && createPortal(
         <>
           <button type="button" aria-label="Fechar menu de atalhos" className="speed-dial-backdrop fixed inset-0 z-50 cursor-default bg-black/45 backdrop-blur-[6px]" onClick={() => changeOpen(false)} />
-          <div ref={menuRef} role="menu" aria-label="Captura e atalhos" className="speed-dial-orbit fixed z-[61] h-[294px] w-[300px]" style={anchor} onKeyDown={(event) => {
+          <div ref={menuRef} role="menu" aria-label="Captura e atalhos" className="speed-dial-orbit fixed z-[61] size-[220px]" style={anchor} onKeyDown={(event) => {
             const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')];
             const index = buttons.indexOf(event.target as HTMLButtonElement);
             const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : ["ArrowRight", "ArrowDown"].includes(event.key) ? (index + 1) % buttons.length : ["ArrowLeft", "ArrowUp"].includes(event.key) ? (index + buttons.length - 1) % buttons.length : -1;
             if (next >= 0) { event.preventDefault(); buttons[next]?.focus(); }
           }}>
             {ACTIONS.map((action) => {
-              return <button key={action.id} type="button" role="menuitem" aria-label={action.label} onClick={() => { changeOpen(false); runAction(action.id); }} style={{ left: action.left, top: action.top }} className="speed-dial-bubble group absolute grid size-[52px] place-items-center rounded-full border border-white/15 bg-[#29292e]/95 text-white/85 shadow-[0_8px_30px_#0005,inset_0_1px_0_#ffffff12] outline-none transition-[background,color,box-shadow,scale] duration-150 hover:scale-110 hover:bg-white hover:text-zinc-950 focus-visible:scale-110 focus-visible:bg-white focus-visible:text-zinc-950 focus-visible:ring-4 focus-visible:ring-white/15">
+              return <button key={action.id} type="button" role="menuitem" aria-label={action.label} onClick={() => { changeOpen(false); runAction(action.id); }} style={{ left: action.left, top: action.top }} className="speed-dial-bubble group absolute grid size-[52px] place-items-center rounded-full border border-white/15 bg-[#29292e]/95 text-white/85 shadow-[0_8px_30px_#0005,inset_0_1px_0_#ffffff12] outline-none transition-[background,color,box-shadow,scale] duration-150 hover:z-40 focus-within:z-30 hover:scale-110 hover:bg-white hover:text-zinc-950 focus-visible:scale-110 focus-visible:bg-white focus-visible:text-zinc-950 focus-visible:ring-4 focus-visible:ring-white/15">
                 <action.icon className="size-[21px]" />
-                <span role="tooltip" className="pointer-events-none absolute bottom-full right-0 mb-3 whitespace-nowrap rounded-xl bg-white px-3 py-2 text-[13px] font-semibold text-zinc-950 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">{action.label}</span>
+                <span role="tooltip" className={cn(action.left == 0 ? "left-0" : "right-0", "pointer-events-none absolute bottom-full z-30 mb-3 whitespace-nowrap rounded-xl bg-white px-3 py-2 text-[13px] font-semibold text-zinc-950 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100")}>{action.label}</span>
               </button>;
             })}
           </div>

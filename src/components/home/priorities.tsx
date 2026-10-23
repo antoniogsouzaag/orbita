@@ -21,7 +21,7 @@ export function Priorities({ tasks, jev }: { tasks: PriorityTask[]; jev: boolean
       {tasks.length > 1 && <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3"><Button size="sm" variant="outline" disabled={!jev || pending} onClick={() => start(async () => {
         try { setDecision(await suggestNextActionAction()); }
         catch { setDecision({ taskId: null, source: "rules", confidence: null, message: "Não foi possível consultar agora. A ordem por prazo e prioridade foi preservada." }); }
-      })}>{pending ? <Loader2 className="animate-spin" /> : <Target />} Sugerir com Jev</Button><p className="flex-1 text-[11px] text-faint">{jev ? "Opcional: envia título, prazo e prioridade de até 20 tarefas à TypeSafe. Nenhuma ação é executada." : "A ordem atual funciona sem IA. Ative a TypeSafe em Integrações para sugestões opcionais."}</p></div>}
+      })}>{pending ? <Loader2 className="animate-spin" /> : <Target />} Sugerir com Jev</Button><p className="flex-1 text-[11px] text-faint">{jev ? "Opcional: envia título, prazo e prioridade de até 20 tarefas ao Jev da TypeSafe via OpenRouter. Nenhuma ação é executada." : "A ordem atual funciona sem IA. Ative o OpenRouter em Integrações para sugestões opcionais."}</p></div>}
       {decision && <p aria-live="polite" className="text-xs text-muted">{decision.message}{decision.confidence !== null ? ` Confiança declarada pelo modelo: ${Math.round(decision.confidence * 100)}%.` : ""}</p>}
     </div>
   </Card>;

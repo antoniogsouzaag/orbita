@@ -7,6 +7,7 @@ import { githubInbox, githubInboxConfig } from "./github-inbox";
 import { n8nInstances, n8nOverview } from "./ops";
 import { liveOps } from "./ops-live";
 import { vaultConfig, vaultHealth } from "./vault";
+import { socialChannels } from "./social";
 
 export type IntegrationHealthRow = {
   id: string;
@@ -38,7 +39,7 @@ export function integrationConfiguration(): IntegrationHealthRow[] {
     row("calendar", "Agenda · Assinaturas e feed", validToken("CALENDAR_FEED_TOKEN"), "Calendários externos são adicionados na Agenda. O feed da Órbita pode ser assinado no iPhone ou Google.", ["CALENDAR_FEED_TOKEN"], "/agenda"),
     row("context", "Agentes · Contexto e MCP", validToken("CONTEXT_TOKEN"), "GET /api/context usa CONTEXT_TOKEN. O MCP usa acessos individuais criados em Agentes, independente deste token.", ["CONTEXT_TOKEN"], "/agentes"),
     row("ai", "IA · Assistente", has("OPENAI_API_KEY") || has("ANTHROPIC_API_KEY"), "Assistente com ações em tarefas, agenda, finanças e CRM, além de consulta ao vault. Este botão verifica a configuração; converse na IA para usar o assistente.", ["OPENAI_API_KEY", "OPENAI_MODEL", "ANTHROPIC_API_KEY"], "/ia"),
-    row("jev", "Jev · Decisões opcionais", has("TYPESAFE_API_KEY"), "Seleciona uma próxima ação entre tarefas existentes, somente quando você pedir. Usa confiança mínima e preserva a ordem por regras quando houver dúvida. Não substitui o chat nem executa ações.", ["TYPESAFE_API_KEY", "JEV_MODEL"], "/"),
+    row("jev", "Jev · Decisões opcionais", has("OPENROUTER_API_KEY"), "Via OpenRouter. Seleciona uma próxima ação entre tarefas existentes, somente quando você pedir. Usa confiança mínima e preserva a ordem por regras quando houver dúvida. Não substitui o chat nem executa ações.", ["OPENROUTER_API_KEY", "OPENROUTER_JEV_MODEL"], "/"),
     row("postiz", "Postiz · Redes sociais", has("POSTIZ_API_URL") && has("POSTIZ_API_KEY"), "Canais e séries de métricas na página Redes sociais. A cobertura depende da versão instalada e das permissões de cada rede.", ["POSTIZ_API_URL", "POSTIZ_API_KEY"], "/redes"),
     row("covers", "Unsplash · Capas", has("UNSPLASH_ACCESS_KEY"), "Busca opcional de fotografias. Capas sugeridas e URLs próprias continuam disponíveis.", ["UNSPLASH_ACCESS_KEY"], "/config"),
   ];
@@ -100,7 +101,23 @@ export async function checkIntegrationHealth(): Promise<IntegrationHealthRow[]> 
           const calendars = (await listCalendars()).filter((calendar) => calendar.kind === "ics" && calendar.enabled);
           const failed = calendars.filter((calendar) => calendar.lastError);
           const waiting = calendars.filter((calendar) => !calendar.lastSyncedAt);
-          return result(failed.length || waiting.length ? "warning" : row.state, `${calendars.length} fontes externas ativas · ${failed.length} com erro · ${waiting.length} sem sincronização. Feed de saída ${validToken("CALENDAR_FEED_TOKEN") ? "configurado" : "sem token"}. Confira e sincronize na Agenda.`);
+          return result(failed.length || waiting.length ? "warning" : calendars.length ? "verified" : row.state, `${calendars.length} fontes externas ativas · ${failed.length} com erro · ${waiting.length} sem sincronização. Feed de saída ${validToken("CALENDAR_FEED_TOKEN") ? "configurado" : "sem token"}.`);
+        }
+        case "postiz": {
+          const channels = await socialChannels();
+          return result("verified", `${channels.length} canais retornados pela API do Postiz. As métricas são consultadas por canal em Redes sociais.`);
+        }
+        case "jev": {
+          const response = await fetch("https://openrouter.ai/api/v1/key", { headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` }, signal: AbortSignal.timeout(8000), cache: "no-store", redirect: "error" });
+          if (!response.ok) throw new Error("OpenRouter indisponível");
+          const key = await response.json() as { data?: { is_disabled?: boolean; limit_remaining?: number | null } };
+          if (!key.data || key.data.is_disabled) return result("error", "A credencial do OpenRouter está indisponível ou desativada.");
+          return result(key.data.limit_remaining === 0 ? "warning" : "verified", key.data.limit_remaining === 0 ? "OpenRouter respondeu, mas o limite da chave está esgotado." : "Credencial OpenRouter autenticada. Jev disponível sob demanda; este diagnóstico não executou uma decisão nem consumiu inferência.");
+        }
+        case "covers": {
+          const response = await fetch("https://api.unsplash.com/photos?per_page=1", { headers: { Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` }, signal: AbortSignal.timeout(8000), cache: "no-store", redirect: "error" });
+          if (!response.ok || !Array.isArray(await response.json())) throw new Error("Unsplash indisponível");
+          return result("verified", "Unsplash respondeu à consulta de fotografias. Nenhuma capa foi alterada.");
         }
         default:
           return row; // Preserva "configurado": nenhuma conexão externa foi testada para estas opções.

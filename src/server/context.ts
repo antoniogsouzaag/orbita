@@ -1,5 +1,4 @@
 import "server-only";
-import { sharedMemoryContext } from "./shared-memory";
 import { getVaultIndexSafe, vaultHealth } from "@/server/vault";
 import { agents, appRegistry, documentedAutomations, monitorTargets, n8nOverview, vpsList } from "./ops";
 import { liveOps } from "./ops-live";
@@ -24,7 +23,6 @@ export async function buildContext(opts: { live?: boolean } = {}) {
   }
   return {
     generatedAt: new Date().toISOString(),
-    memory: await sharedMemoryContext(),
     vault: { index, rules, notes, error: health.configured && !health.ok ? health.error : null },
     agents: ags,
     vps,
@@ -41,7 +39,6 @@ export async function buildContext(opts: { live?: boolean } = {}) {
 export function contextToMarkdown(c: Awaited<ReturnType<typeof buildContext>>): string {
   const lines: string[] = [];
   lines.push(`# Contexto operacional — AG LABS`, ``, `Gerado em ${c.generatedAt} pela Órbita a partir do vault canônico. Fonte de verdade: o vault (\`aglabs-core/ag-labs-knowledge\`).`, ``);
-  if (c.memory) lines.push(`## Memória compartilhada`, ``, c.memory, ``);
   if (c.vault.error) lines.push(`> ⚠️ Vault indisponível agora — inventário abaixo pode estar vazio. Motivo: ${c.vault.error}`, ``);
   if (c.vault.rules) lines.push(`## Regras do vault`, ``, c.vault.rules.replace(/^#.*\n/, "").trim(), ``);
   lines.push(`## Agentes (${c.agents.length})`, ``, `| Agente | Área | Função | Status | Ficha |`, `|---|---|---|---|---|`);

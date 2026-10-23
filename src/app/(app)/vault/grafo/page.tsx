@@ -1,7 +1,3 @@
-import { Network } from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/card";
 import { VaultGraph } from "@/components/vault/graph";
 import { prepareGraph } from "@/components/vault/graph-model";
 import { VaultBanner } from "@/components/vault/vault-banner";
@@ -22,7 +18,6 @@ export default async function Page() {
   const graph = prepareGraph({ nodes, links });
   return (
     <div className="mx-auto max-w-[1500px] px-4 sm:px-6">
-      <PageHeader icon={<Network />} title="Grafo do vault" description="Uma visão conectada do conhecimento pessoal e da empresa. Explore relações, encontre contexto e abra qualquer nota." actions={<Button size="sm" asChild><Link href="/vault">← Vault</Link></Button>} />
       <VaultGraph data={graph} />
     </div>
   );

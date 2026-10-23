@@ -69,7 +69,7 @@ export default async function Page() {
                   </li>
                 ))}
               </ul>
-              <p className="text-[12px] text-faint">Contexto e Status compartilham a leitura do ecossistema e da memória do vault. Administradores acessam todas as ações da IA, inclusive tarefas pessoais, agenda, finanças e CRM. As permissões pertencem ao token e podem ser ajustadas abaixo.</p>
+              <p className="text-[12px] text-faint">Contexto e Status compartilham a leitura do ecossistema e do manual da empresa no vault. Administradores acessam todas as ações da IA, inclusive tarefas pessoais, agenda, finanças e CRM. As permissões pertencem ao token e podem ser ajustadas abaixo.</p>
             </div>
           </Card>
 

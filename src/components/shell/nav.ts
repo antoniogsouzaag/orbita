@@ -57,7 +57,6 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
           { href: "/operacao", label: "Operação", icon: Gauge, dock: true, keywords: "status sites domínios monitor incidentes" },
           { href: "/operacao/automacoes", label: "Automações", icon: Workflow, keywords: "n8n workflows falhas" },
           { href: "/redes", label: "Redes sociais", icon: BarChart3, keywords: "postiz analytics canais distribuição" },
-          { href: "/github", label: "GitHub", icon: GitFork, keywords: "git commits contribuições prs propostas repositórios" },
           { href: "/agentes", label: "Agentes", icon: Bot, dock: true, keywords: "mcp claude codex tokens equipe" },
         ],
       },
@@ -66,7 +65,8 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
 };
 
 export const SHARED: NavItem[] = [
-  { href: "/vault", label: "Vault", icon: LibraryBig, dock: true, keywords: "obsidian conhecimento pessoal empresa grafo" },
+  { href: "/github", label: "GitHub", icon: GitFork, keywords: "git commits contribuições prs propostas repositórios" },
+  { href: "/vault", label: "Vault", icon: LibraryBig, dock: true, keywords: "obsidian manual inventário conhecimento empresa grafo" },
   { href: "/ia", label: "IA", icon: Sparkles, dock: true, keywords: "assistente chat" },
   { href: "/integracoes", label: "Integrações", icon: Plug, keywords: "conexões configurar" },
 ];
@@ -83,7 +83,7 @@ export const NAV: NavSection[] = [
 
 export const ALL_NAV: NavItem[] = [...NAV.flatMap((s) => s.items), SETTINGS_ITEM];
 
-const EMPRESA_PATHS = ["/empresa", "/redes", "/github", "/operacao", "/agentes", "/projetos", "/kanban"];
+const EMPRESA_PATHS = ["/empresa", "/redes", "/operacao", "/agentes", "/projetos", "/kanban"];
 const PESSOAL_PATHS = ["/tarefas", "/agenda", "/notas", "/habitos", "/metas", "/financas", "/academia", "/leitura", "/foco", "/revisao"];
 
 /** Espaço da rota atual; null = tela comum aos dois (IA, Integrações, Configurações). */
