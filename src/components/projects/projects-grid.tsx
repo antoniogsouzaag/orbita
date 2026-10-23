@@ -2,6 +2,7 @@
 
 import { FolderKanban, Pencil, Plus } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState } from "@/components/ui/card";
@@ -14,6 +15,10 @@ import { ProjectDialog } from "./project-dialog";
 export function ProjectsGrid({ projects }: { projects: ProjectWithCounts[] }) {
   const [editing, setEditing] = React.useState<Project | null>(null);
   const [open, setOpen] = React.useState(false);
+  const params = useSearchParams();
+  React.useEffect(() => {
+    if (params.get("novo") === "1") setOpen(true);
+  }, [params]);
   const active = projects.filter((p) => !p.archived);
   const archived = projects.filter((p) => p.archived);
   const card = (p: ProjectWithCounts) => {

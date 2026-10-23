@@ -14,6 +14,7 @@ import { CommandPalette } from "./command-palette";
 import { Logo } from "./logo";
 import { ALL_NAV, NAV, SETTINGS_ITEM, isActive } from "./nav";
 import { QuickAdd } from "./quick-add";
+import { SpeedDial } from "./speed-dial";
 
 export type ShellNotification = { id: string; title: string; detail?: string; href: string; tone?: "danger" | "warning" | "info" };
 
@@ -122,7 +123,7 @@ export function AppShell({
 
         <main className={cn("pb-32", !isHome && "pt-20")}>{children}</main>
 
-        <Dock pathname={pathname} hidden={sidebar} onQuick={() => ctx.openQuickAdd("tarefa")} />
+        <Dock pathname={pathname} hidden={sidebar} onQuick={(tab) => ctx.openQuickAdd(tab)} />
         <CommandPalette open={palette} onOpenChange={setPalette} onQuickAdd={ctx.openQuickAdd} />
         <QuickAdd open={quick.open} tab={quick.tab} projects={projects} onOpenChange={(open) => setQuick((q) => ({ ...q, open }))} />
       </div>
@@ -185,7 +186,7 @@ function Sidebar({ pathname, name, onCollapse, notifications, onSearch, onQuick 
   );
 }
 
-function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean; onQuick: () => void }) {
+function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean; onQuick: (tab: string) => void }) {
   const items = ALL_NAV.filter((i) => i.dock);
   return (
     <div className={cn("pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-3", hidden && "lg:hidden")}>
@@ -212,9 +213,7 @@ function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean
         </div>
         <div className="mx-1 h-6 w-px bg-border" />
         <AllApps pathname={pathname} />
-        <button onClick={onQuick} className="grid size-11 place-items-center rounded-full bg-fg text-bg shadow-soft transition hover:scale-105 active:scale-95" aria-label="Adicionar">
-          <Plus className="size-5" />
-        </button>
+        <SpeedDial onQuickAdd={onQuick} />
       </nav>
     </div>
   );
