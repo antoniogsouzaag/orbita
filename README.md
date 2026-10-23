@@ -65,7 +65,7 @@ Veja `.env.example`. As principais:
 | `SESSION_SECRET` | Assinatura da sessão (32+ caracteres) |
 | `DATABASE_URL` | Neon. Sem ela, usa PGlite local em `.data/` |
 | `VAULT_GITHUB_TOKEN`, `VAULT_GITHUB_REPO`, `VAULT_GITHUB_BRANCH` | Vault no GitHub (token fine-grained, só “Contents: Read and write” neste repositório) |
-| `OPENAI_API_KEY`, `OPENAI_MODEL` | IA (padrão `gpt-5.6-luna`). Alternativa: `ANTHROPIC_API_KEY` + `AI_PROVIDER=anthropic` |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | IA (padrão `gpt-6-luna`). Alternativa: `ANTHROPIC_API_KEY` + `AI_PROVIDER=anthropic` |
 | `OPS_TOKEN`, `CONTEXT_TOKEN`, `CALENDAR_FEED_TOKEN` | Tokens das integrações (16+ caracteres) |
 | `N8N_INSTANCES` | Opcional: API de cada n8n para listar workflows |
 | `UNSPLASH_ACCESS_KEY`, `GITHUB_USER`, `GITHUB_TOKEN` | Opcionais: capas e sequência de commits |

@@ -34,7 +34,7 @@ export function aiEnabled() {
 }
 
 export function aiModel(): string {
-  return aiProvider() === "anthropic" ? process.env.ANTHROPIC_MODEL || "claude-opus-5-5" : process.env.OPENAI_MODEL || "gpt-5.6-luna";
+  return aiProvider() === "anthropic" ? process.env.ANTHROPIC_MODEL || "claude-opus-5-5" : process.env.OPENAI_MODEL || "gpt-6-luna";
 }
 
 /** Recusa por política → a API reexecuta no modelo de reserva padrão (beta server-side fallback). */

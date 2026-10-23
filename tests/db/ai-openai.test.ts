@@ -36,7 +36,7 @@ beforeAll(async () => {
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
   process.env.OPENAI_BASE_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
   process.env.OPENAI_API_KEY = "sk-test";
-  process.env.OPENAI_MODEL = "gpt-5.6-luna";
+  process.env.OPENAI_MODEL = "gpt-6-luna";
 });
 afterAll(() => server?.close());
 
@@ -48,7 +48,7 @@ describe("IA via OpenAI", () => {
     const text = await new Response(stream).text();
     expect(text).toBe("Olá, Antonio!");
     const req = requests.at(-1) as { model: string; instructions: string; input: { role: string; content: string }[]; store: boolean };
-    expect(req.model).toBe("gpt-5.6-luna");
+    expect(req.model).toBe("gpt-6-luna");
     expect(req.store).toBe(false);
     expect(req.instructions).toContain("Órbita");
     expect(req.input.at(-1)!.content).toContain("<contexto_do_dia>");
