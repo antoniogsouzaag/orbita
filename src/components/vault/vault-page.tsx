@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowUpRight, Eye, FilePlus2, Hash, Link2, ListTree, Network, PanelLeft, PencilLine, RefreshCw, Save, Search } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Eye, FileSearch, FilePlus2, Hash, Link2, ListTree, Network, PanelLeft, PencilLine, RefreshCw, Save, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -115,6 +115,7 @@ export function VaultPage({
           <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filtrar arquivos" className="h-8 pl-8 text-[12.5px]" />
         </div>
         <Button size="icon-sm" variant="ghost" onClick={() => setCreating(true)} aria-label="Nova nota"><FilePlus2 /></Button>
+        <Button size="icon-sm" variant="ghost" asChild><Link href="/vault/revisao" aria-label="Revisar estrutura do vault"><FileSearch /></Link></Button>
         <Button size="icon-sm" variant="ghost" asChild><Link href="/vault/grafo" aria-label="Grafo"><Network /></Link></Button>
       </div>
       <div className="flex-1 overflow-y-auto px-2 pb-3"><VaultTree nodes={tree} current={file?.path ?? null} filter={filter} /></div>

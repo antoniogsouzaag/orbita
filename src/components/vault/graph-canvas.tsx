@@ -19,6 +19,7 @@ type Props = {
   focused: string | null;
   labels: boolean;
   paused: boolean;
+  nodeSize: number;
   controlsRef: React.RefObject<GraphControls | null>;
   onHover: (node: GraphNode | null) => void;
   onOpen: (id: string) => void;
@@ -31,7 +32,7 @@ function endId(endpoint: unknown): string | undefined {
   if (endpoint && typeof endpoint === "object" && "id" in endpoint) return String(endpoint.id);
 }
 
-export default function GraphCanvas({ data, groups, width, height, dark, query, hover, focused, labels, paused, controlsRef, onHover, onOpen, onFocus, onZoom }: Props) {
+export default function GraphCanvas({ data, groups, width, height, dark, query, hover, focused, labels, paused, nodeSize, controlsRef, onHover, onOpen, onFocus, onZoom }: Props) {
   const ref = React.useRef<ForceGraphMethods<GraphNode> | undefined>(undefined);
   const fitted = React.useRef(false);
   const interacted = React.useRef(false);
@@ -67,8 +68,8 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
     interacted.current = false;
     const graph = ref.current;
     if (!graph) return;
-    graph.d3Force("charge")?.strength?.(-100);
-    graph.d3Force("link")?.distance?.(65);
+    graph.d3Force("charge")?.strength?.(-170);
+    graph.d3Force("link")?.distance?.(95);
     graph.d3ReheatSimulation();
     const timer = window.setTimeout(() => {
       if (!interacted.current) fit(450);
@@ -80,7 +81,7 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
     if (!paused) ref.current?.d3ReheatSimulation();
   }, [paused]);
 
-  const nodeRadius = (node: GraphNode) => 3 + Math.min(Math.sqrt(node.degree) * 1.15, 9);
+  const nodeRadius = (node: GraphNode) => nodeSize * (2.2 + Math.min(Math.sqrt(node.degree) * 0.65, 5.5));
   const faded = (node: GraphNode) => Boolean((active && active !== node.id && !neighbors.get(active)?.has(node.id)) || (matchingIds && !matchingIds.has(node.id) && active !== node.id));
 
   return (
@@ -93,8 +94,8 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
       backgroundColor="rgba(0,0,0,0)"
       minZoom={0.15}
       maxZoom={8}
-      d3AlphaDecay={0.035}
-      d3VelocityDecay={0.38}
+      d3AlphaDecay={0.045}
+      d3VelocityDecay={0.46}
       cooldownTicks={paused ? 0 : 160}
       cooldownTime={5000}
       warmupTicks={35}
@@ -105,13 +106,14 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
       enableZoomInteraction
       linkColor={(link: CanvasLink) => {
         const connected = active && (endId(link.source) === active || endId(link.target) === active);
-        return connected ? (dark ? "rgba(167,139,250,0.65)" : "rgba(109,76,189,0.62)") : active ? (dark ? "rgba(150,160,180,0.07)" : "rgba(80,90,110,0.07)") : dark ? "rgba(158,170,192,0.20)" : "rgba(95,105,125,0.21)";
+        return connected ? (dark ? "rgba(167,139,250,0.65)" : "rgba(109,76,189,0.62)") : active ? (dark ? "rgba(150,160,180,0.07)" : "rgba(80,90,110,0.07)") : dark ? "rgba(158,170,192,0.11)" : "rgba(95,105,125,0.13)";
       }}
-      linkWidth={(link: CanvasLink) => active && (endId(link.source) === active || endId(link.target) === active) ? 1.4 : 0.65}
+      linkWidth={(link: CanvasLink) => active && (endId(link.source) === active || endId(link.target) === active) ? 1 : 0.4}
       onNodeHover={(node) => onHover(node ?? null)}
       onNodeClick={(node) => onOpen(node.id)}
       onNodeRightClick={(node, event) => { event.preventDefault(); onFocus(node.id); }}
       onNodeDrag={() => { interacted.current = true; }}
+      onNodeDragEnd={(node) => { node.fx = node.x; node.fy = node.y; }}
       onZoomEnd={({ k }) => { if (Number.isFinite(k) && k > 0) onZoom(k); }}
       onBackgroundClick={() => onHover(null)}
       onEngineStop={() => {
@@ -147,15 +149,15 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fillStyle = isActive ? (dark ? "#f0ecff" : "#5f42a8") : color;
-        ctx.fill();
-        if ((labels && (scale > 1.25 || node.degree > 5)) || isActive || isMatch || isNeighbor) {
-          const fontSize = 11 / Math.sqrt(Math.max(scale, 0.5));
+        if (node.degree === 0) { ctx.lineWidth = 1 / scale; ctx.strokeStyle = color; ctx.stroke(); } else ctx.fill();
+        if ((labels && (scale > 2 || node.degree > 14)) || isActive || isMatch || isNeighbor) {
+          const fontSize = 10 / Math.sqrt(Math.max(scale, 0.7));
           const title = node.name.length > 44 ? `${node.name.slice(0, 43)}…` : node.name;
           ctx.font = `${isActive ? "600 " : ""}${fontSize}px system-ui, sans-serif`;
           ctx.textAlign = "center";
           ctx.textBaseline = "top";
           ctx.lineWidth = 3 / scale;
-          ctx.strokeStyle = dark ? "#10141d" : "#f6f7fb";
+          ctx.strokeStyle = dark ? "#171719" : "#fafafa";
           ctx.strokeText(title, x, y + radius + 4 / scale);
           ctx.fillStyle = dark ? "#dce1ed" : "#384257";
           ctx.fillText(title, x, y + radius + 4 / scale);

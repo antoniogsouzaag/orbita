@@ -29,7 +29,7 @@ export function integrationConfiguration(): IntegrationHealthRow[] {
   return [
     row("database", "Banco de dados", true, has("DATABASE_URL") ? "Postgres configurado. Verifique a resposta do banco." : "PGlite local de desenvolvimento. Configure Postgres para persistência em produção.", ["DATABASE_URL"]),
     row("vault", "Vault · Knowledge", vault.configured, vault.local ? "Cópia local do vault configurada." : `${vault.repo} · ${vault.branch}. Cada salvamento no GitHub gera um commit.`, ["VAULT_GITHUB_TOKEN", "VAULT_GITHUB_REPO", "VAULT_GITHUB_BRANCH"], "/vault"),
-    row("github", "GitHub · PRs e propostas", gh.configured, gh.credential ? `Credencial: ${gh.credential}. ${gh.warning}` : "Configure um token de leitura para os repositórios da organização. O acesso do Knowledge também pode ser reutilizado com as permissões que ele já tem.", ["GITHUB_INBOX_TOKEN", "GITHUB_ORG"], "/integracoes/github"),
+    row("github", "GitHub · PRs e propostas", gh.configured, gh.credential ? `Credencial: ${gh.credential}. ${gh.warning}` : "Configure um token de leitura para os repositórios da organização. O acesso do Knowledge também pode ser reutilizado com as permissões que ele já tem.", ["GITHUB_INBOX_TOKEN", "GITHUB_ORG"], "/github"),
     row("crm", "CRM · AG LABS", crmConfigured(), "Resumo comercial e tarefas via MCP. O CRM aplica as próprias permissões.", ["CRM_MCP_URL", "CRM_MCP_TOKEN"], "/empresa"),
     row("n8n", "n8n · Workflows", n8nInstances().length > 0, has("N8N_INSTANCES") && !n8nInstances().length ? "N8N_INSTANCES está preenchida, mas não contém instâncias válidas com url e apiKey." : "Consulta de workflows e falhas pela API pública de cada servidor.", ["N8N_INSTANCES"], "/operacao/automacoes"),
     row("monitors", "Monitores · n8n → Órbita", validToken("OPS_TOKEN"), "Recebe resultados em /api/ops/ingest. O diagnóstico verifica se há batidas recentes registradas.", ["OPS_TOKEN"], "/operacao"),
@@ -37,7 +37,8 @@ export function integrationConfiguration(): IntegrationHealthRow[] {
     row("brief", "Resumo diário · 7h", validToken("CRON_SECRET") && has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_CHAT_ID"), "Precisa do agendador da Vercel, CRON_SECRET e Telegram. Configuração não comprova execução do resumo.", ["CRON_SECRET"], "/agenda"),
     row("calendar", "Agenda · Assinaturas e feed", validToken("CALENDAR_FEED_TOKEN"), "Calendários externos são adicionados na Agenda. O feed da Órbita pode ser assinado no iPhone ou Google.", ["CALENDAR_FEED_TOKEN"], "/agenda"),
     row("context", "Agentes · Contexto e MCP", validToken("CONTEXT_TOKEN"), "GET /api/context usa CONTEXT_TOKEN. O MCP usa acessos individuais criados em Agentes, independente deste token.", ["CONTEXT_TOKEN"], "/agentes"),
-    row("ai", "IA · Assistente", has("OPENAI_API_KEY") || has("ANTHROPIC_API_KEY"), "IA para captura, plano do dia e ações. Este diagnóstico não gera conteúdo nem consome chamadas de IA.", ["OPENAI_API_KEY", "OPENAI_MODEL", "ANTHROPIC_API_KEY"], "/ia"),
+    row("ai", "IA · Assistente", has("OPENAI_API_KEY") || has("ANTHROPIC_API_KEY"), "Assistente com ações em tarefas, agenda, finanças e CRM, além de consulta ao vault. Este botão verifica a configuração; converse na IA para usar o assistente.", ["OPENAI_API_KEY", "OPENAI_MODEL", "ANTHROPIC_API_KEY"], "/ia"),
+    row("postiz", "Postiz · Redes sociais", has("POSTIZ_API_URL") && has("POSTIZ_API_KEY"), "Canais e séries de métricas na página Redes sociais. A cobertura depende da versão instalada e das permissões de cada rede.", ["POSTIZ_API_URL", "POSTIZ_API_KEY"], "/redes"),
     row("covers", "Unsplash · Capas", has("UNSPLASH_ACCESS_KEY"), "Busca opcional de fotografias. Capas sugeridas e URLs próprias continuam disponíveis.", ["UNSPLASH_ACCESS_KEY"], "/config"),
   ];
 }
@@ -88,7 +89,7 @@ export async function checkIntegrationHealth(): Promise<IntegrationHealthRow[]> 
         case "monitors": {
           const live = await liveOps();
           const silent = live.monitors.filter((monitor) => monitor.silent);
-          return result(live.monitors.length && !silent.length ? "verified" : "warning", !live.monitors.length ? "Token configurado, mas nenhuma batida de monitor foi recebida. Conecte os POSTs do n8n abaixo." : `${live.monitors.length - silent.length}/${live.monitors.length} monitores com batida recente${silent.length ? ` · ${silent.length} em silêncio` : ""}.`);
+          return result(live.monitors.length && !silent.length ? "verified" : "warning", !live.monitors.length ? "Token configurado, mas nenhuma batida de monitor foi recebida. Confira os envios dos monitores no n8n." : `${live.monitors.length - silent.length}/${live.monitors.length} monitores com batida recente${silent.length ? ` · ${silent.length} em silêncio` : ""}.`);
         }
         case "telegram": {
           await telegramProbe();

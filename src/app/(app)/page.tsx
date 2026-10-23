@@ -64,5 +64,5 @@ export default async function HomePage() {
 
 async function PersonalHero({ data }: { data: HomeData }) {
   const commits = data.counts.open === 0 && data.subtitle.text === "0 tarefas abertas" ? await commitStreak() : null;
-  return <Hero cover={data.settings.cover} title={data.title} subtitle={commits && commits > 1 ? `🔥 ${commits} dias seguidos de commits` : data.subtitle.text} tone={data.subtitle.tone} />;
+  return <Hero cover={data.settings.cover} title={data.title} subtitle={commits && commits > 1 ? `🔥 ${commits} dias seguidos de contribuições no GitHub` : data.subtitle.text} tone={data.subtitle.tone} />;
 }

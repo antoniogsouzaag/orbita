@@ -292,7 +292,7 @@ export type OpsDomain = typeof opsDomains.$inferSelect;
 
 /* ───────────── Agentes (acesso via MCP) ───────────── */
 
-export const AGENT_SCOPES = ["contexto", "status", "tarefas", "eventos"] as const;
+export const AGENT_SCOPES = ["contexto", "status", "tarefas", "eventos", "admin"] as const;
 export type AgentScope = (typeof AGENT_SCOPES)[number];
 
 export const agentTokens = pgTable("agent_tokens", {

@@ -8,6 +8,7 @@ import { AgentAccessLink } from "@/components/agents/access-link";
 import { CopyButton } from "@/components/ops/copy-button";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
 import { agentActivitySummary, agentTasks, listAgentTokens, recentActivity } from "@/server/agents";
+import { agentReports } from "@/server/agent-reports";
 
 export const metadata = { title: "Agentes" };
 
@@ -42,6 +43,7 @@ export default async function Page() {
       <PageHeader icon={<Bot />} title="Central dos agentes" description="Time, atividade e decisões em um só lugar. O contexto vem do Knowledge; a execução fica com cada agente." actions={<AgentAccessLink />} />
 
       <AgentOperations tokens={tokens} inbox={inbox} summary={summary} />
+      <Suspense fallback={<Card className="p-5 text-xs text-muted">Consultando resumos…</Card>}><Reports /></Suspense>
       <Suspense fallback={<Card className="p-6 text-[13px] text-muted">Carregando time documentado no Knowledge…</Card>}><AgentRegistry /></Suspense>
 
       <details id="conectar-agente" className="group scroll-mt-24 rounded-2xl border border-border bg-surface/70">
@@ -67,7 +69,7 @@ export default async function Page() {
                   </li>
                 ))}
               </ul>
-              <p className="text-[12px] text-faint">O escopo contexto permite ler o vault conectado. Dados pessoais de tarefas, finanças e saúde do banco não são expostos pelo MCP. O MCP não edita o vault.</p>
+              <p className="text-[12px] text-faint">Contexto e Status compartilham a leitura do ecossistema e da memória do vault. Administradores acessam todas as ações da IA, inclusive tarefas pessoais, agenda, finanças e CRM. As permissões pertencem ao token e podem ser ajustadas abaixo.</p>
             </div>
           </Card>
 
@@ -99,4 +101,12 @@ export default async function Page() {
       </p>
     </div>
   );
+}
+
+async function Reports() {
+  const reports = await agentReports();
+  return <Card className="p-5"><h2 className="text-sm font-semibold">Resumos dos agentes · últimas 24h</h2>
+    <p className="my-2 text-xs text-muted">Cada agente envia pelo MCP em registrar_evento com tipo resumo. O último relato de cada origem entra no bom dia. Triagem detalhada e dados de clientes continuam no CRM.</p>
+    {!reports.length ? <p className="text-xs text-faint">Nenhum resumo recebido nesta janela. O recebimento pelo Léo ainda precisa ser conectado.</p> : <ul className="divide-y divide-border">{reports.map((report) => <li key={report.id} className="py-3 text-xs"><p className="font-medium">{report.subject}</p><p className="mt-1 whitespace-pre-wrap text-muted">{String(report.detail.message ?? "")}</p><p className="mt-2 text-faint">{report.source} · {report.createdAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p></li>)}</ul>}
+  </Card>;
 }

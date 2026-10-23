@@ -1,5 +1,5 @@
 import {
-  BarChart3, BookOpen, Bot, Briefcase, Building2, CalendarDays, CheckSquare, Dumbbell, FolderKanban, Gauge, Goal, Home,
+  BarChart3, BookOpen, Bot, Briefcase, Building2, CalendarDays, CheckSquare, Dumbbell, FolderKanban, Gauge, Goal, Home, GitFork,
   KanbanSquare, LibraryBig, NotebookPen, Plug, Repeat, Settings, Sparkles, Timer, User, Wallet, Workflow, type LucideIcon,
 } from "lucide-react";
 
@@ -56,6 +56,8 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
         items: [
           { href: "/operacao", label: "Operação", icon: Gauge, dock: true, keywords: "status sites domínios monitor incidentes" },
           { href: "/operacao/automacoes", label: "Automações", icon: Workflow, keywords: "n8n workflows falhas" },
+          { href: "/redes", label: "Redes sociais", icon: BarChart3, keywords: "postiz analytics canais distribuição" },
+          { href: "/github", label: "GitHub", icon: GitFork, keywords: "git commits contribuições prs propostas repositórios" },
           { href: "/agentes", label: "Agentes", icon: Bot, dock: true, keywords: "mcp claude codex tokens equipe" },
         ],
       },
@@ -81,7 +83,7 @@ export const NAV: NavSection[] = [
 
 export const ALL_NAV: NavItem[] = [...NAV.flatMap((s) => s.items), SETTINGS_ITEM];
 
-const EMPRESA_PATHS = ["/empresa", "/operacao", "/agentes", "/projetos", "/kanban"];
+const EMPRESA_PATHS = ["/empresa", "/redes", "/github", "/operacao", "/agentes", "/projetos", "/kanban"];
 const PESSOAL_PATHS = ["/tarefas", "/agenda", "/notas", "/habitos", "/metas", "/financas", "/academia", "/leitura", "/foco", "/revisao"];
 
 /** Espaço da rota atual; null = tela comum aos dois (IA, Integrações, Configurações). */

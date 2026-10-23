@@ -20,7 +20,7 @@ Botão **+** abre os atalhos rápidos, inclusive tarefa por voz. No iPhone, “E
 - **O vault é a fonte canônica.** Servidores, agentes, apps e regras ficam no vault (`aglabs-core/ag-labs-knowledge`). A Órbita lê de lá e não duplica.
 - **O GitHub é o backup do vault.** Cada salvamento no editor vira um commit; o Obsidian sincroniza pelo obsidian-git.
 - **O n8n coleta, a Órbita guarda e mostra.** Os monitores enviam links, domínios e falhas para `/api/ops/ingest`; a Órbita registra histórico, incidentes e a batida de cada monitor.
-- **Agentes entram por MCP com acesso mínimo.** Cada agente tem um token próprio com escopos. O escopo `contexto` lê o vault conectado; dados pessoais do banco não são expostos e o MCP não edita o vault.
+- **Agentes entram por MCP com perfis explícitos.** Tom, Hermes Oracle e Hermes EasyPanel usam Administrador; os demais começam em leitura (Contexto e Status). Cada agente tem seu token revogável. Admin libera as ações da IA, contexto pessoal e escrita versionada no vault; o nome nunca concede permissão.
 - **Sem acumular lixo.** Uma vez por dia a Órbita apaga o que envelheceu: atividade de agentes (30 dias), falhas de workflow e avisos (30 dias), incidentes resolvidos (90 dias) e endereços, monitores e domínios que pararam de ser enviados.
 - **Falha de uma fonte não derruba a tela.** Se o GitHub recusar o token do vault, as páginas seguem funcionando e mostram o motivo e como corrigir.
 
@@ -92,7 +92,7 @@ A **Visão geral da Empresa** segue o formato do Início: capa própria do Unspl
 
 ## Central dos agentes e diagnóstico
 
-**Agentes** reúne conexões MCP, escopos, último acesso, chamadas/falhas nas últimas 24 horas, pedidos abertos e o time documentado no Registro de Agentes do vault. O status do vault é documental; último acesso não confirma que o agente continua online. A criação e revogação de acessos ficam no painel recolhido de configuração. O escopo `contexto` permite ler o vault conectado; tarefas, finanças e saúde do banco pessoal não são expostas por MCP.
+**Agentes** reúne conexões MCP, escopos, último acesso, chamadas/falhas nas últimas 24 horas, pedidos abertos e o time documentado no Registro de Agentes do vault. O status do vault é documental; último acesso não confirma que o agente continua online. A criação e revogação de acessos ficam no painel recolhido de configuração. O escopo `contexto` permite ler o vault conectado; dados pessoais continuam indisponíveis para perfis de leitura; administradores têm contexto pessoal e as ações da IA.
 
 **Integrações → Verificar integrações** executa sondagens de leitura em banco, vault, GitHub, CRM, n8n, Telegram e consulta as batidas dos monitores. Não envia mensagens nem executa workflows. “Configurado” significa que a configuração existe; “Verificado” confirma a sondagem descrita, no horário exibido. O Telegram pode aceitar um aviso sem confirmar entrega.
 
@@ -100,7 +100,7 @@ O mesmo diagnóstico operacional está em `GET /api/integrations/status`, autent
 
 Para a consulta de workflows, crie uma chave em **Settings → n8n API → Custom** em cada servidor, com apenas `workflow:list` e `execution:list`. Salve `N8N_INSTANCES` como segredo de produção na Vercel: uma lista de objetos com `name`, `url` e `apiKey`. Use o botão **Copy** do n8n: o campo visível da chave pode conter um valor abreviado. Após salvar ou trocar as chaves, faça um novo deployment e execute o diagnóstico. Acompanhe a validade das credenciais; uma recusa da API não significa que os workflows desapareceram.
 
-**Integrações → PRs e propostas** permite filtrar por tipo, título, repositório e autor. A credencial segue a precedência `GITHUB_INBOX_TOKEN` → `GITHUB_TOKEN` → `VAULT_GITHUB_TOKEN`. O token do Knowledge pode ser reutilizado com as permissões atuais, mas só enxerga os repositórios liberados para ele. Para visão do ecossistema, prefira um `GITHUB_INBOX_TOKEN` separado, de leitura, com os repositórios desejados. A busca carrega até 100 PRs e 100 propostas e informa quando os resultados são parciais.
+**GitHub** permite filtrar por tipo, título, repositório e autor. A credencial segue a precedência `GITHUB_INBOX_TOKEN` → `GITHUB_TOKEN` → `VAULT_GITHUB_TOKEN`. O token do Knowledge pode ser reutilizado com as permissões atuais, mas só enxerga os repositórios liberados para ele. Para visão do ecossistema, prefira um `GITHUB_INBOX_TOKEN` separado, de leitura, com os repositórios desejados. A busca carrega até 100 PRs e 100 propostas e informa quando os resultados são parciais.
 
 ## CRM
 
@@ -192,3 +192,17 @@ npm run db:generate          # após mudar src/db/schema.ts
 As migrações rodam no build da Vercel (`scripts/migrate.mjs`).
 
 Stack: Next.js 16 (App Router), React 19, Tailwind v4, Drizzle ORM, Neon, jose, OpenAI SDK, MCP SDK.
+
+
+## Evolução da central — 23/10/2026
+
+- Topo transparente durante o scroll e somente um controle de sidebar. Notificações ficam no sino ao lado do avatar.
+- Automações prioriza workflows e mostra falhas em uma coluna auxiliar compacta, sem repetir a mesma URL de execução nas duas fontes.
+- **GitHub** (`/github`): inbox por repositório e autor + calendário real de contribuições (`GITHUB_USER`). Contribuições não equivalem a commits. A rota anterior redireciona.
+- **Redes sociais** (`/redes`): API Postiz de leitura (`POSTIZ_API_URL` com base HTTPS completa até `/public/v1`, `POSTIZ_API_KEY`). Exibe séries originais dos últimos 7 dias, com fonte, horário, janela e cobertura parcial explícita. Consulta até 8 canais e usa cache de uma hora; ausência de série não significa zero. A conexão do chat não fornece credenciais ao app.
+- **Revisão do vault** (`/vault/revisao`): links sem destino, notas isoladas, títulos ambíguos e metadados incompletos. A análise é determinística e não modifica notas.
+- **Memória compartilhada**: decisões duradouras explicitamente solicitadas vão para `90 - Administração/Memória Compartilhada`, com fonte e data. A IA e `contexto_operacional` recebem as últimas 12 entradas ativas, limitadas a 12 mil caracteres; notas antigas continuam pesquisáveis no vault. Não replica histórico de conversas de Hermes/OpenClaw, nem armazena dados pessoais ou de clientes no vault.
+- **Admin MCP**: todas as ações disponíveis na IA aparecem com prefixo `orbita_`, além de `contexto_pessoal`. Escrita de notas exige versão SHA e recusa conflitos. Perfil é atribuído explicitamente ao token; downgrade e revogação valem na próxima chamada. Não dá acesso a segredos, terminal ou ferramentas ainda não implementadas pela central.
+- **Resumos dos agentes**: `registrar_evento` aceita `tipo: resumo`. A central mostra o último relato por origem nas últimas 24 horas e o bom dia inclui até cinco. O Léo ainda precisa ser conectado para enviar essa triagem; nenhum recebimento é simulado.
+
+MCP é a entrada dos agentes na Órbita. A Órbita acionar Hermes/OpenClaw requer adaptadores de saída autenticados; observar contexto em Claude/Codex não cria um canal para iniciar uma sessão desktop. Telegram atual envia avisos e resumo; isso não é uma conversa bidirecional. Discord e dispatch externo dependem de configuração e validação próprias.

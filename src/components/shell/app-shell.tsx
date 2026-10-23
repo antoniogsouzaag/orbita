@@ -169,20 +169,20 @@ export function AppShell({
         <GlassFilter />
         <Wallpaper urls={wallpapers} />
         {sidebar && <button className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] lg:hidden" aria-label="Fechar navegação" onClick={toggleSidebar} />}
-        <Sidebar open={sidebar} pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} onNavigate={() => { if (window.matchMedia("(max-width: 1023px)").matches) setSidebar(false); }} notifications={unread} onNotifications={() => setNoticesOpen(true)} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />
+        <Sidebar open={sidebar} pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} onNavigate={() => { if (window.matchMedia("(max-width: 1023px)").matches) setSidebar(false); }} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />
 
         <header
           className={cn(
             "fixed inset-x-0 top-0 z-40 transition-[background,border,backdrop-filter] duration-300",
-            scrolled || !isHome ? "glass border-b border-border/60" : "border-b border-transparent",
+            "pointer-events-none border-0 bg-transparent",
           )}
         >
-          <div className="mx-auto flex h-14 max-w-[1500px] items-center gap-2 px-4 sm:px-6">
+          <div className="pointer-events-auto mx-auto flex h-14 max-w-[1500px] items-center gap-2 px-4 sm:px-6">
               <Link href="/" className={cn("brand-lockup flex items-center gap-2", sidebar && "lg:opacity-0 lg:pointer-events-none", isHome && !scrolled ? "text-white" : "text-fg")} aria-label="Início">
                 <Logo className="size-7" />
                 <span className="hidden text-[13px] font-semibold uppercase tracking-[0.22em] sm:inline">Órbita</span>
               </Link>
-            <button onClick={toggleSidebar} className={cn("rounded-lg p-1.5 transition hover:bg-white/10", sidebar && "lg:ml-[120px]", isHome && !scrolled ? "text-white/70 hover:text-white" : "text-muted hover:text-fg")} aria-label="Alternar barra lateral" aria-expanded={sidebar} aria-controls="workspace-sidebar">
+            <button onClick={toggleSidebar} className={cn("rounded-lg p-1.5 transition hover:bg-white/10", sidebar && "hidden", isHome && !scrolled ? "text-white/70 hover:text-white" : "text-muted hover:text-fg")} aria-label="Alternar barra lateral" aria-expanded={sidebar} aria-controls="workspace-sidebar">
               <PanelLeft className="size-[18px]" />
             </button>
             <div className="ml-auto flex items-center gap-1.5">
@@ -216,7 +216,7 @@ export function AppShell({
   );
 }
 
-function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, notifications, onNotifications, onSearch, onQuick }: { open: boolean; pathname: string; name: string; avatar?: string | null; onCollapse: () => void; onNavigate: () => void; notifications: number; onNotifications: () => void; onSearch: () => void; onQuick: () => void }) {
+function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearch, onQuick }: { open: boolean; pathname: string; name: string; avatar?: string | null; onCollapse: () => void; onNavigate: () => void; onSearch: () => void; onQuick: () => void }) {
   const { space, escopo } = useSpace();
   return (
     <aside id="workspace-sidebar" aria-label="Navegação principal" aria-hidden={!open} inert={!open} onClick={(event) => { if ((event.target as HTMLElement).closest("a[href]")) onNavigate(); }} className={cn("workspace-sidebar glass fixed inset-y-2 left-2 z-50 flex w-[256px] flex-col overflow-hidden rounded-[22px] border border-border shadow-soft", open && "is-open")}>
@@ -235,10 +235,7 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, notific
         <button onClick={onQuick} className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-[13px] text-muted hover:bg-surface-2 hover:text-fg">
           <Plus className="size-4" /> Captura rápida <Kbd className="ml-auto">C</Kbd>
         </button>
-        <button onClick={onNotifications} className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-[13px] text-muted transition hover:bg-surface-2 hover:text-fg">
-          <Bell className="size-4" /> Notificações
-          {notifications > 0 && <span className="ml-auto rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">{notifications}</span>}
-        </button>
+
       </div>
       <SpaceSwitch space={space} className="mx-3 mb-1" />
       <nav className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-3 py-2">

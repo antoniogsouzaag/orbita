@@ -169,7 +169,7 @@ function CrmBody({ crm }: { crm: Extract<EmpresaData["crm"], { ok: true }> }) {
 export function GithubWidget({ gh }: { gh: EmpresaData["gh"] }) {
   return (
     <Card className="h-full">
-      <CardHeader icon={<GitPullRequest />} title="PRs e propostas" meta={gh.items.length ? String(gh.items.length) : undefined} href="/integracoes/github" hrefLabel="Revisar" />
+      <CardHeader icon={<GitPullRequest />} title="PRs e propostas" meta={gh.items.length ? String(gh.items.length) : undefined} href="/github" hrefLabel="Revisar" />
       <div className="px-3 pb-3">
         {gh.items.length === 0 ? (
           <p className="px-2 pb-2 text-[13px] text-muted">

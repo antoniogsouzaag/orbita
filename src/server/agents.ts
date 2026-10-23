@@ -10,6 +10,7 @@ import { liveOps } from "./ops-live";
 import { githubInbox } from "./github-inbox";
 import { n8nOverview } from "./ops";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
+import { assistantTools, runAssistantTool } from "./assistant";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -30,6 +31,11 @@ export async function listAgentTokens() {
 export async function revokeAgentToken(id: string) {
   const db = await getDb();
   await db.update(agentTokens).set({ revoked: true }).where(eq(agentTokens.id, id));
+}
+
+export async function updateAgentScopes(id: string, scopes: AgentScope[]) {
+  const db = await getDb();
+  await db.update(agentTokens).set({ scopes }).where(and(eq(agentTokens.id, id), eq(agentTokens.revoked, false)));
 }
 
 export type AgentIdentity = { id: string; name: string; scopes: AgentScope[] };
@@ -92,8 +98,8 @@ const text = (t: string, isError = false): ToolResult => ({ content: [{ type: "t
 
 /** Monta um servidor MCP com as ferramentas permitidas pelos escopos do agente. */
 export function buildMcpServer(agent: AgentIdentity) {
-  const server = new McpServer({ name: "orbita", version: "1.0.0" }, { instructions: "Órbita: central operacional da AG LABS. Use contexto_operacional para se situar. O vault é a fonte canônica; registre pedidos para Antonio com criar_tarefa_para_antonio e relatos com registrar_evento. Dados pessoais de Antonio não estão disponíveis." });
-  const can = (s: AgentScope) => agent.scopes.includes(s);
+  const server = new McpServer({ name: "orbita", version: "1.0.0" }, { instructions: "Órbita: central operacional da AG LABS. Use contexto_operacional para se situar. O vault é a fonte canônica; registre pedidos para Antonio com criar_tarefa_para_antonio e relatos com registrar_evento. Administradores têm acesso às ações e dados da central; demais perfis acessam apenas os escopos concedidos." });
+  const can = (s: AgentScope) => agent.scopes.includes("admin") || agent.scopes.includes(s);
   const run = async (tool: string, summary: string, fn: () => Promise<ToolResult>) => {
     try {
       const r = await fn();
@@ -130,7 +136,7 @@ export function buildMcpServer(agent: AgentIdentity) {
           if (!idx) return text((await vaultHealth()).error ?? "Vault não configurado na Órbita.", true);
           const p = idx.notes.has(caminho) ? caminho : idx.resolve(caminho.replace(/\.md$/i, ""));
           const note = p ? idx.notes.get(p) : null;
-          return note ? text(`# ${note.title}\n_caminho: ${note.path}_\n\n${note.content}`) : text("Nota não encontrada.", true);
+          return note ? text(`# ${note.title}\n_caminho: ${note.path}_\n_versão: ${note.sha}_\n\n${note.content}`) : text("Nota não encontrada.", true);
         }),
     );
   }
@@ -205,7 +211,7 @@ export function buildMcpServer(agent: AgentIdentity) {
   if (can("eventos")) {
     server.registerTool(
       "registrar_evento",
-      { title: "Registrar evento operacional", description: "Registra na linha do tempo da Operação algo que aconteceu (deploy, manutenção, incidente, alerta). Não use para conversas.", inputSchema: { tipo: z.enum(["info", "alerta", "incidente"]), assunto: z.string().min(3).max(200), detalhe: z.string().max(2000).optional() } },
+      { title: "Registrar evento operacional", description: "Registra deploy, manutenção, incidente ou resumo diário. Use tipo resumo para triagem e entregas que devem entrar no bom dia; informe assunto e detalhe objetivo, sem dados sensíveis de clientes. Não use para conversas.", inputSchema: { tipo: z.enum(["info", "alerta", "incidente", "resumo"]), assunto: z.string().min(3).max(200), detalhe: z.string().max(2000).optional() } },
       async ({ tipo, assunto, detalhe }) =>
         run("registrar_evento", `registrou ${tipo}: ${assunto}`, async () => {
           const db = await getDb();
@@ -215,5 +221,21 @@ export function buildMcpServer(agent: AgentIdentity) {
     );
   }
 
+  if (can("admin")) {
+    server.registerTool("contexto_pessoal", { description: "Administrador: contexto atual de tarefas, hábitos, agenda, metas e saúde do proprietário.", inputSchema: {} }, async () => run("contexto_pessoal", "consultou o contexto pessoal", async () => {
+      const { personalContext } = await import("./ai");
+      return text(await personalContext());
+    }));
+    for (const tool of assistantTools()) {
+      server.registerTool(`orbita_${tool.name}`, {
+        title: tool.name,
+        description: `Administrador: ${tool.description}`,
+        inputSchema: tool.schema,
+      }, async (args) => run(`orbita_${tool.name}`, `executou ${tool.name}`, async () => {
+        const result = await runAssistantTool(tool.name, args);
+        return text(result.text, !result.ok);
+      }));
+    }
+  }
   return server;
 }
