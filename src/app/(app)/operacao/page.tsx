@@ -25,6 +25,9 @@ const EVENT_STYLE: Record<string, { icon: typeof XCircle; tone: string; label: s
   site_down: { icon: XCircle, tone: "text-danger", label: "Fora do ar" },
   site_up: { icon: CheckCircle2, tone: "text-success", label: "Voltou" },
   workflow_error: { icon: AlertTriangle, tone: "text-warning", label: "Falha no workflow" },
+  agente_info: { icon: Bot, tone: "text-muted", label: "Agente" },
+  agente_alerta: { icon: AlertTriangle, tone: "text-warning", label: "Alerta de agente" },
+  agente_incidente: { icon: XCircle, tone: "text-danger", label: "Incidente (agente)" },
 };
 
 export default async function Page() {

@@ -35,6 +35,7 @@ export const NAV: NavSection[] = [
       { href: "/vault", label: "Vault", icon: LibraryBig, dock: true, keywords: "obsidian conhecimento manual" },
       { href: "/operacao", label: "Operação", icon: Gauge, dock: true, keywords: "status sites domínios monitor incidentes" },
       { href: "/operacao/automacoes", label: "Automações", icon: Workflow, keywords: "n8n workflows falhas" },
+      { href: "/agentes", label: "Agentes", icon: Bot, keywords: "mcp claude codex tokens equipe" },
     ],
   },
   {

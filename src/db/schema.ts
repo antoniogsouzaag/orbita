@@ -285,3 +285,37 @@ export type OpsStatus = typeof opsStatus.$inferSelect;
 export type OpsEvent = typeof opsEvents.$inferSelect;
 export type OpsHeartbeat = typeof opsHeartbeats.$inferSelect;
 export type OpsDomain = typeof opsDomains.$inferSelect;
+
+/* ───────────── Agentes (acesso via MCP) ───────────── */
+
+export const AGENT_SCOPES = ["contexto", "status", "tarefas", "eventos"] as const;
+export type AgentScope = (typeof AGENT_SCOPES)[number];
+
+export const agentTokens = pgTable("agent_tokens", {
+  id: id(),
+  /** Nome do agente (ex.: Hermes Oracle, Tom, Claude Code). */
+  name: text("name").notNull(),
+  /** SHA-256 do token; o token em si só é mostrado na criação. */
+  tokenHash: text("token_hash").notNull().unique(),
+  prefix: text("prefix").notNull(),
+  scopes: text("scopes").array().$type<AgentScope[]>().notNull().default([]),
+  revoked: boolean("revoked").notNull().default(false),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const agentActivity = pgTable(
+  "agent_activity",
+  {
+    id: id(),
+    agent: text("agent").notNull(),
+    tool: text("tool").notNull(),
+    summary: text("summary").notNull(),
+    ok: boolean("ok").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [index("agent_activity_created_idx").on(t.createdAt)],
+);
+
+export type AgentToken = typeof agentTokens.$inferSelect;
+export type AgentActivity = typeof agentActivity.$inferSelect;

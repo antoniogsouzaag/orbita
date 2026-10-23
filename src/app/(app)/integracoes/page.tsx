@@ -21,7 +21,7 @@ export default async function Page() {
     { icon: Workflow, name: "n8n → Órbita (status ao vivo)", ok: has("OPS_TOKEN"), env: ["OPS_TOKEN"], desc: "Os monitores do n8n enviam links, domínios e falhas; a Órbita guarda histórico, incidentes e a batida de cada monitor." },
     { icon: Workflow, name: "Órbita → n8n (lista de workflows)", ok: has("N8N_INSTANCES"), env: ["N8N_INSTANCES"], desc: "Opcional: com a chave da API pública de cada n8n, a Órbita lista workflows ativos/inativos e aponta os não documentados no vault." },
     { icon: CalendarDays, name: "Agenda (feed para o iPhone)", ok: has("CALENDAR_FEED_TOKEN"), env: ["CALENDAR_FEED_TOKEN"], desc: "Gera o link .ics para assinar no iPhone/Google. Assinaturas de iCloud/Google são adicionadas na própria Agenda." },
-    { icon: Bot, name: "Contexto para agentes", ok: has("CONTEXT_TOKEN"), env: ["CONTEXT_TOKEN"], desc: "GET /api/context devolve o contexto operacional (do vault + estado ao vivo) para agentes novos." },
+    { icon: Bot, name: "Contexto para agentes", ok: has("CONTEXT_TOKEN"), env: ["CONTEXT_TOKEN"], desc: "GET /api/context devolve o contexto operacional (vault + estado ao vivo). Para conexão completa por MCP, com acesso próprio por agente, use a página Agentes." },
     { icon: ImageIcon, name: "Capas do Unsplash", ok: has("UNSPLASH_ACCESS_KEY"), env: ["UNSPLASH_ACCESS_KEY"], desc: "Opcional: busca de capas. Sem ela, há sugestões prontas e URL própria." },
     { icon: GitCommitHorizontal, name: "Sequência de commits", ok: has("GITHUB_USER"), env: ["GITHUB_USER", "GITHUB_TOKEN"], desc: "Opcional: mostra “N dias seguidos de commits” no Início." },
   ];

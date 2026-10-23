@@ -15,6 +15,13 @@
       "when": 1792727179648,
       "tag": "0001_ops_live",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792729318690,
+      "tag": "0002_agentes",
+      "breakpoints": true
     }
   ]
 }
