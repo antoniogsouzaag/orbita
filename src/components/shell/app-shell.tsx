@@ -76,14 +76,29 @@ function NavLink({ item, active, compact }: { item: NavItem; active: boolean; co
   );
 }
 
+/** Capa do espaço atual atrás de tudo, desfocada (veja .app-wallpaper em globals.css). */
+function Wallpaper({ urls }: { urls: Record<Space, string> }) {
+  const { space } = useSpace();
+  const [failed, setFailed] = React.useState<string | null>(null);
+  const url = urls[space];
+  return (
+    <div aria-hidden className="app-wallpaper">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {url && failed !== url && <img key={url} src={url} alt="" decoding="async" onError={() => setFailed(url)} />}
+    </div>
+  );
+}
+
 export function AppShell({
   children,
   avatar,
   name,
   notifications,
   projects,
+  wallpapers,
 }: {
   children: React.ReactNode;
+  wallpapers: Record<Space, string>;
   avatar?: string | null;
   name: string;
   notifications: ShellNotification[];
@@ -139,6 +154,7 @@ export function AppShell({
     <ShellContext.Provider value={ctx}>
       <div className={cn("min-h-dvh", sidebar && "lg:pl-[268px]")}>
         <GlassFilter />
+        <Wallpaper urls={wallpapers} />
         {sidebar && <Sidebar pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} notifications={notifications.length} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />}
 
         <header

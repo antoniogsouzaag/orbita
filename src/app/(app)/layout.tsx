@@ -8,6 +8,9 @@ import { listTasks } from "@/server/tasks";
 
 export const dynamic = "force-dynamic";
 
+/** Versão pequena da capa: no fundo ela vai desfocada, não precisa de resolução. */
+const small = (url: string) => (url.includes("images.unsplash.com") ? url.replace(/([?&])w=\d+/, "$1w=640").replace(/([?&])q=\d+/, "$1q=50") : url);
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireAuth();
   const now = new Date();
@@ -26,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...overdue.map((tk) => ({ id: `t-${tk.id}`, title: tk.title, detail: `Atrasada · venceu ${tk.dueDate === t ? "hoje" : tk.dueDate?.split("-").reverse().slice(0, 2).join("/")}`, href: `/tarefas?task=${tk.id}`, tone: "danger" as const })),
   ];
   return (
-    <AppShell name={settings.name} avatar={avatarV ? `/api/avatar?v=${avatarV}` : null} notifications={notifications} projects={projects.map((p) => ({ id: p.id, name: p.name, color: p.color }))}>
+    <AppShell wallpapers={{ pessoal: small(settings.cover.url), empresa: small(settings.empresaCover.url) }} name={settings.name} avatar={avatarV ? `/api/avatar?v=${avatarV}` : null} notifications={notifications} projects={projects.map((p) => ({ id: p.id, name: p.name, color: p.color }))}>
       {children}
     </AppShell>
   );

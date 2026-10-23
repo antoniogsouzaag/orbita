@@ -91,25 +91,54 @@ body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiase
 /* ───────────── Superfícies (vidro é o padrão) ───────────── */
 
 /*
- * Liquid glass: só o vidro — fundo translúcido, desfoque e brilho nas bordas internas.
- * Bordas, raios e tamanhos continuam os de cada componente. Fundo da página é liso.
+ * Fundo das telas: a capa do espaço (Pessoal ou Empresa), bem desfocada e escurecida.
+ * É ela que o vidro deixa entrever; sem nada atrás, vidro vira cinza liso.
  */
+.app-wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg);
+}
+.app-wallpaper img {
+  position: absolute;
+  inset: -10%;
+  width: 120%;
+  height: 120%;
+  max-width: none;
+  object-fit: cover;
+  filter: blur(48px) saturate(1.4);
+  opacity: 0.35;
+  transition: opacity 0.8s ease;
+}
+.dark .app-wallpaper img { opacity: 0.95; }
+.app-wallpaper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklab, var(--bg) 30%, transparent);
+}
+
+/* Liquid glass: fundo translúcido, desfoque e brilho nas bordas internas. Bordas, raios e tamanhos são os de cada componente. */
 .card {
-  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  background: color-mix(in oklab, var(--surface) 46%, transparent);
   border: 1px solid var(--border);
   border-radius: 18px;
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6);
+  backdrop-filter: blur(22px) saturate(1.6);
   box-shadow:
-    inset 1px 1px 1px -0.5px rgba(var(--rim), 0.16),
-    inset -1px -1px 1px -0.5px rgba(var(--rim), 0.1),
+    inset 1px 1px 1px -0.5px rgba(var(--rim), 0.22),
+    inset -1px -1px 1px -0.5px rgba(var(--rim), 0.14),
+    inset 0 0 18px 2px rgba(var(--rim), 0.025),
     var(--card-shadow);
 }
 .glass {
-  background: color-mix(in oklab, var(--surface) 55%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(1.7);
-  backdrop-filter: blur(24px) saturate(1.7);
-  box-shadow: inset 1px 1px 1px -0.5px rgba(var(--rim), 0.2), inset -1px -1px 1px -0.5px rgba(var(--rim), 0.12);
+  background: color-mix(in oklab, var(--surface) 34%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow: inset 1px 1px 1px -0.5px rgba(var(--rim), 0.25), inset -1px -1px 1px -0.5px rgba(var(--rim), 0.15);
 }
 .liquid {
   position: relative;
@@ -143,23 +172,25 @@ body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiase
   color: var(--accent-fg);
   background: var(--accent);
   box-shadow:
-    inset 1px 1px 1px -0.5px rgba(255, 255, 255, 0.55),
-    inset -1px -1px 1px -0.5px rgba(255, 255, 255, 0.25),
-    inset 0 0 6px 3px rgba(255, 255, 255, 0.08);
+    inset 1px 1px 1px -0.5px rgba(255, 255, 255, 0.7),
+    inset -1px -1px 1px -0.5px rgba(255, 255, 255, 0.35),
+    inset 0 0 6px 4px rgba(255, 255, 255, 0.12),
+    0 0 0 1px color-mix(in oklab, var(--accent) 70%, black 30%);
 }
 .btn-primary:hover { filter: brightness(1.06); }
 .btn-primary:active { filter: brightness(0.95); }
 .btn-secondary {
   color: var(--text);
-  background: color-mix(in oklab, var(--surface-2) 55%, transparent);
+  background: color-mix(in oklab, var(--surface-2) 42%, transparent);
   border: 1px solid var(--border);
   -webkit-backdrop-filter: blur(12px) saturate(1.6);
   backdrop-filter: blur(12px) saturate(1.6);
   box-shadow:
     inset 3px 3px 0.5px -3.5px rgba(var(--rim), 0.1),
-    inset -3px -3px 0.5px -3.5px rgba(var(--rim), 0.5),
-    inset 1px 1px 1px -0.5px rgba(var(--rim), 0.3),
-    inset -1px -1px 1px -0.5px rgba(var(--rim), 0.3);
+    inset -3px -3px 0.5px -3.5px rgba(var(--rim), 0.55),
+    inset 1px 1px 1px -0.5px rgba(var(--rim), 0.35),
+    inset -1px -1px 1px -0.5px rgba(var(--rim), 0.35),
+    inset 0 0 6px 6px rgba(var(--rim), 0.05);
 }
 .btn-secondary:hover { border-color: var(--border-strong); background: color-mix(in oklab, var(--surface-3) 65%, transparent); }
 

@@ -95,7 +95,7 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
 
   return (
     <div className="relative z-10 mx-auto -mt-28 w-full max-w-2xl px-4">
-      <div className="overflow-hidden rounded-2xl border border-border-strong bg-surface/95 shadow-soft backdrop-blur-xl">
+      <div className="glass overflow-hidden rounded-2xl border border-white/10 shadow-soft">
         <div className="flex items-center gap-1 border-b border-border px-3">
           {([
             { id: "tarefa", label: "Tarefa", icon: CheckSquare },

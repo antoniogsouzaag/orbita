@@ -9,6 +9,12 @@ const w = Number(process.env.W ?? 1440), h = Number(process.env.H ?? 900);
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: process.env.THEME === "light" ? "light" : "dark", deviceScaleFactor: 1 });
 const page = await ctx.newPage();
+// MOCK_IMAGE=arquivo.jpg: serve uma imagem local no lugar das capas do Unsplash (ambientes sem acesso externo)
+if (process.env.MOCK_IMAGE) {
+  const { readFileSync } = await import("node:fs");
+  const body = readFileSync(process.env.MOCK_IMAGE);
+  await page.route(/images\.unsplash\.com/, (route) => route.fulfill({ status: 200, contentType: "image/jpeg", body }));
+}
 page.on("pageerror", (e) => console.error("PAGEERROR", e.message));
 await page.goto(`${base}/login`);
 await page.fill('input[name="password"]', process.env.ORBITA_PASSWORD ?? "orbita-dev");

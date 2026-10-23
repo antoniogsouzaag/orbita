@@ -103,7 +103,7 @@ Os alertas de queda e de falha continuam saindo do n8n, de forma independente: s
 
 ## Aparência
 
-Superfícies em vidro (liquid glass: fundo translúcido, desfoque e brilho nas bordas internas) sobre fundo liso. Em **Configurações → Aparência** escolhem-se o modo (escuro, claro, sistema) e a cor de destaque. O componente `LiquidButton` (`src/components/ui/liquid-glass-button.tsx`) usa o mesmo vidro; o filtro SVG `#orbita-glass` é carregado uma vez no layout.
+Superfícies em vidro (liquid glass: fundo translúcido, desfoque e brilho nas bordas internas). Atrás delas fica a capa do espaço atual (Pessoal ou Empresa), bem desfocada e escurecida, como o papel de parede do iPhone; no Início e na Empresa a foto nítida do topo se dissolve nela. Em **Configurações → Aparência** escolhem-se o modo (escuro, claro, sistema) e a cor de destaque. O componente `LiquidButton` (`src/components/ui/liquid-glass-button.tsx`) usa o mesmo vidro; o filtro SVG `#orbita-glass` é carregado uma vez no layout. Para prints sem acesso ao Unsplash: `MOCK_IMAGE=foto.jpg node scripts/shots.mjs /rota`.
 
 ## IA com ações
 
