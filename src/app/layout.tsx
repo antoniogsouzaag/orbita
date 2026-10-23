@@ -23,18 +23,20 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-async function accent() {
+async function appearance() {
   try {
     const { getSettings } = await import("@/server/settings");
-    return (await getSettings()).accent;
+    const s = await getSettings();
+    return { accent: s.accent, theme: s.theme, surface: s.surface };
   } catch {
-    return "cyan";
+    return { accent: "cyan", theme: "grafite", surface: "solido" };
   }
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const a = await appearance();
   return (
-    <html lang="pt-BR" data-accent={await accent()} className={`${inter.variable} ${mono.variable} antialiased`} suppressHydrationWarning>
+    <html lang="pt-BR" data-accent={a.accent} data-theme={a.theme} data-surface={a.surface} className={`${inter.variable} ${mono.variable} antialiased`} suppressHydrationWarning>
       <body className="min-h-dvh font-sans">
         <Providers>{children}</Providers>
       </body>

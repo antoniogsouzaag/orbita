@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { Popover } from "radix-ui";
 import * as React from "react";
 import { logout } from "@/app/actions/auth";
+import { GlassFilter } from "@/components/ui/liquid-glass-button";
 import { Kbd } from "@/components/ui/misc";
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
@@ -136,6 +137,8 @@ export function AppShell({
   return (
     <ShellContext.Provider value={ctx}>
       <div className={cn("min-h-dvh", sidebar && "lg:pl-[268px]")}>
+        {!isHome && <div className="app-backdrop" aria-hidden />}
+        <GlassFilter />
         {sidebar && <Sidebar pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} notifications={notifications.length} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />}
 
         <header

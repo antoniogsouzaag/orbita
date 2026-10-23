@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, EmptyState } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/misc";
+import { StatTile } from "@/components/ui/stat";
 import type { Transaction } from "@/db/schema";
 import { today } from "@/lib/dates";
 import { cn, formatBRL } from "@/lib/utils";
@@ -36,9 +37,9 @@ export function FinancePage({ ym, rows, income, expense, categories, history }: 
         <h2 className="ml-1 text-lg font-semibold capitalize">{label}</h2>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Card className="p-4"><TrendingUp className="mb-2 size-4 text-success" /><div className="text-2xl font-bold tabular-nums text-success">{formatBRL(income)}</div><div className="text-[12px] text-muted">Entradas</div></Card>
-        <Card className="p-4"><TrendingDown className="mb-2 size-4 text-danger" /><div className="text-2xl font-bold tabular-nums text-danger">{formatBRL(expense)}</div><div className="text-[12px] text-muted">Saídas</div></Card>
-        <Card className="p-4"><Wallet className="mb-2 size-4 text-muted" /><div className={cn("text-2xl font-bold tabular-nums", balance < 0 && "text-danger")}>{formatBRL(balance)}</div><div className="text-[12px] text-muted">Saldo do mês</div></Card>
+        <StatTile icon={TrendingUp} label="Entradas" value={formatBRL(income)} tone="success" />
+        <StatTile icon={TrendingDown} label="Saídas" value={formatBRL(expense)} tone="danger" />
+        <StatTile icon={Wallet} label="Saldo do mês" value={formatBRL(balance)} tone={balance < 0 ? "danger" : "accent"} colorValue={balance < 0} />
       </div>
 
       <Card className="p-4">

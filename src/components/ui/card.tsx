@@ -54,13 +54,17 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end gap-4">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2.5">
-          {icon && <span className="text-muted [&_svg]:size-5">{icon}</span>}
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+    <div className="mb-7 flex flex-wrap items-center gap-x-4 gap-y-3">
+      <div className="flex min-w-0 items-center gap-3.5">
+        {icon && (
+          <span className="card grid size-11 shrink-0 place-items-center !rounded-2xl text-accent [&_svg]:size-[20px]">
+            {icon}
+          </span>
+        )}
+        <div className="min-w-0">
+          <h1 className="text-[26px] font-semibold leading-[1.15] tracking-[-0.025em]">{title}</h1>
+          {description && <p className="mt-1 text-[13.5px] leading-snug text-muted">{description}</p>}
         </div>
-        {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>
       {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckSquare, Hash } from "lucide-react";
+import { CheckSquare, Hash, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -142,20 +142,24 @@ export function TasksView({
               toast.success("Tarefa criada");
             });
           }}
-          className="card p-3"
+          className="card px-3 py-1.5 transition focus-within:border-accent/40"
         >
-          <Input value={value} onChange={(e) => setValue(e.target.value)} disabled={pending} placeholder={`Adicionar tarefa${view === "hoje" ? " para hoje" : ""}…  (#tag !alta amanhã 15h @projeto)`} className="h-11 border-transparent bg-transparent text-[15px] focus:ring-0" />
+          <div className="flex items-center gap-2">
+            <Plus className="ml-1 size-4 shrink-0 text-accent" />
+            <Input value={value} onChange={(e) => setValue(e.target.value)} disabled={pending} placeholder={`Adicionar tarefa${view === "hoje" ? " para hoje" : ""}…  #tag !alta amanhã 15h @projeto`} className="h-11 border-transparent bg-transparent px-1 text-[15px] focus:border-transparent focus:ring-0" />
+          </div>
           {value && <div className="px-3 pb-1"><ParsePreview value={value} projects={projects} /></div>}
         </form>
 
         {optimistic.length === 0 ? (
           <Card><EmptyState icon={<CheckSquare />} title={view === "concluidas" ? "Nada concluído ainda" : "Nenhuma tarefa aqui"} description="Tudo limpo por enquanto. ✨" /></Card>
         ) : (
-          groups.map((g) => (
-            <Card key={g.key} className="p-2">
+          <Card className="divide-y divide-border/70 overflow-hidden p-0">
+          {groups.map((g) => (
+            <section key={g.key} className="p-2">
               {g.label && (
-                <div className={cn("px-3 pb-1 pt-2 text-[12px] font-semibold uppercase tracking-wider", g.key === "0-atrasadas" ? "text-danger" : "text-faint")}>
-                  {g.label} <span className="font-normal text-faint">· {g.items.length}</span>
+                <div className={cn("flex items-center gap-2 px-3 pb-1.5 pt-2 text-[11.5px] font-semibold uppercase tracking-[0.12em]", g.key === "0-atrasadas" ? "text-danger" : "text-faint")}>
+                  {g.label} <span className="rounded-full bg-surface-2 px-1.5 py-px text-[10.5px] font-medium tracking-normal text-muted">{g.items.length}</span>
                 </div>
               )}
               {g.items.map((t) => (
@@ -163,6 +167,7 @@ export function TasksView({
                   key={t.id}
                   task={t}
                   showDate={g.key === "all" || g.key === "0-atrasadas"}
+                  showScope={scope === "todas"}
                   onOpen={() => router.push(href({ task: t.id }), { scroll: false })}
                   onToggle={() =>
                     start(async () => {
@@ -172,8 +177,9 @@ export function TasksView({
                   }
                 />
               ))}
-            </Card>
-          ))
+            </section>
+          ))}
+          </Card>
         )}
       </div>
 

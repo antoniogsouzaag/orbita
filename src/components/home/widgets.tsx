@@ -146,7 +146,8 @@ export function TasksWidget({ tasks, counts }: { tasks: HomeData["tasks"]; count
               key={t.id}
               task={t}
               compact
-              onOpen={() => router.push(`/tarefas?task=${t.id}`)}
+              showScope
+              onOpen={() => router.push(t.scope === "empresa" ? `/tarefas?escopo=empresa&task=${t.id}` : `/tarefas?task=${t.id}`)}
               onToggle={() =>
                 start(async () => {
                   setOptimistic(t.id);

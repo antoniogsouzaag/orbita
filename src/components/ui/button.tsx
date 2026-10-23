@@ -4,16 +4,16 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-[background,color,border,opacity,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-[background,color,border,opacity,transform,filter,box-shadow] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "bg-accent text-accent-fg hover:opacity-90",
-        secondary: "bg-surface-2 text-fg border border-border hover:bg-surface-3",
+        primary: "btn-primary font-semibold [&_svg]:drop-shadow-[0_1px_0_rgb(255_255_255/0.2)]",
+        secondary: "btn-secondary",
         ghost: "text-muted hover:text-fg hover:bg-surface-2",
-        outline: "border border-border-strong text-fg hover:bg-surface-2",
-        danger: "bg-danger/10 text-danger hover:bg-danger/20",
-        glass: "glass border border-white/10 text-white hover:bg-white/10",
+        outline: "border border-border-strong text-fg hover:bg-surface-2 hover:border-faint",
+        danger: "bg-danger/10 text-danger ring-1 ring-inset ring-danger/20 hover:bg-danger/15",
+        glass: "liquid border border-white/10 text-white hover:brightness-110",
       },
       size: {
         sm: "h-8 px-3 text-[13px]",

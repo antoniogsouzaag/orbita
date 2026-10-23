@@ -1,13 +1,13 @@
 "use client";
 
-import { CalendarDays, ListChecks } from "lucide-react";
+import { Briefcase, CalendarDays, Clock, ListChecks } from "lucide-react";
 import { Chip, CheckButton } from "@/components/ui/misc";
 import { relativeDay, today } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import type { TaskRow } from "@/server/tasks";
 import { PriorityIcon } from "./priority-icon";
 
-export function TaskItem({ task, onToggle, onOpen, compact, showDate = true }: { task: TaskRow; onToggle: () => void; onOpen?: () => void; compact?: boolean; showDate?: boolean }) {
+export function TaskItem({ task, onToggle, onOpen, compact, showDate = true, showScope }: { task: TaskRow; onToggle: () => void; onOpen?: () => void; compact?: boolean; showDate?: boolean; showScope?: boolean }) {
   const t = today();
   const done = task.status === "done";
   const overdue = !done && task.dueDate && task.dueDate < t;
@@ -28,7 +28,13 @@ export function TaskItem({ task, onToggle, onOpen, compact, showDate = true }: {
       {task.subtasks.total > 0 && (
         <span className="flex shrink-0 items-center gap-1 text-[12px] text-faint"><ListChecks className="size-3.5" />{task.subtasks.done}/{task.subtasks.total}</span>
       )}
+      {showScope && task.scope === "empresa" && (
+        <span className="hidden shrink-0 items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-muted sm:flex" title="Tarefa da empresa"><Briefcase className="size-3" />Empresa</span>
+      )}
       {task.project && <Chip color={task.project.color} className="hidden shrink-0 sm:inline-flex">{task.project.name}</Chip>}
+      {!showDate && task.dueTime && (
+        <span className="flex shrink-0 items-center gap-1 text-[12px] text-muted"><Clock className="size-3.5" />{task.dueTime}</span>
+      )}
       {showDate && task.dueDate && (
         <span className={cn("flex shrink-0 items-center gap-1 text-[12px]", overdue ? "text-danger" : isToday ? "text-warning" : "text-muted")}>
           <CalendarDays className="size-3.5" />

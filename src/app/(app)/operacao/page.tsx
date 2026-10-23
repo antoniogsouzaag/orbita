@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CopyButton } from "@/components/ops/copy-button";
 import { StatusBoard, type BoardItem } from "@/components/ops/status-board";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
+import { StatTile } from "@/components/ui/stat";
 import { cn } from "@/lib/utils";
 import { monitorTargets } from "@/server/ops";
 import { coherence, liveOps } from "@/server/ops-live";
@@ -71,11 +72,7 @@ export default async function Page() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {tiles.map((t) => (
-          <div key={t.label} className="card p-4">
-            <t.icon className="mb-3 size-4 text-muted" />
-            <div className={cn("text-2xl font-bold tabular-nums", t.tone)}>{t.value}</div>
-            <div className="text-[12px] text-muted">{t.label}</div>
-          </div>
+          <StatTile key={t.label} icon={t.icon} label={t.label} value={t.value} tone={t.tone === "text-danger" ? "danger" : t.tone === "text-warning" ? "warning" : t.tone === "text-success" ? "success" : "neutral"} />
         ))}
       </div>
 

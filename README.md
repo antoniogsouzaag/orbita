@@ -60,6 +60,30 @@ http_headers = { Authorization = "Bearer orb_..." }
 | `tarefas` | `criar_tarefa_para_antonio`, `minhas_tarefas` |
 | `eventos` | `registrar_evento` |
 
+## Pessoal e Empresa
+
+A Órbita tem dois espaços, alternados no topo da barra lateral (ou pelo ícone à esquerda do dock):
+
+| Espaço | O que tem |
+| --- | --- |
+| **Pessoal** | Início, tarefas pessoais, agenda, notas, hábitos, metas, finanças, academia, leitura, foco e revisão |
+| **Empresa** | Visão geral (Aguardando você, operação, atividade dos agentes), tarefas da empresa, projetos, kanban, operação, automações, agentes e vault |
+
+Cada tarefa tem um escopo (`pessoal` ou `empresa`). Pedidos de agentes e tarefas de projetos da empresa entram como `empresa`; a IA escolhe o escopo pelo pedido. A página **Empresa** junta o que espera decisão: pedidos dos agentes, tarefas vencidas e PRs/propostas abertos na `aglabs-core` (com `GITHUB_INBOX_TOKEN`).
+
+## Telegram
+
+A Órbita envia direto pela API do bot, sem passar pelo n8n:
+
+- **Bom dia às 7h** (agendador da Vercel → `GET /api/cron/brief` com `CRON_SECRET`): agenda, tarefas pessoais e da empresa, pedidos dos agentes, hábitos e operação.
+- **Aviso imediato** quando um agente abre um pedido pelo MCP.
+
+Os alertas de queda e de falha continuam saindo do n8n, de forma independente: se a Órbita cair, os alertas não param.
+
+## Aparência
+
+Em **Configurações → Aparência**: modo (escuro, claro, sistema), tema (Grafite, Meia-noite, Ameixa, Floresta, Areia; cada um com versão clara e escura), estilo das superfícies (**Sólido** ou **Vidro**, com o efeito liquid glass em cartões, barras e botões) e cor de destaque. O componente `LiquidButton` (`src/components/ui/liquid-glass-button.tsx`) usa o mesmo vidro; o filtro SVG `#orbita-glass` é carregado uma vez no layout.
+
 ## IA com ações
 
 O chat (página **IA** e “Perguntar à IA” no Início) usa o modelo de `OPENAI_MODEL` (padrão `gpt-6-luna`) com ferramentas. Ele lê o dia (tarefas, hábitos, agenda, metas), consulta o vault e a operação e também age:
@@ -93,12 +117,15 @@ Veja `.env.example`. As principais:
 | `VAULT_GITHUB_TOKEN`, `VAULT_GITHUB_REPO`, `VAULT_GITHUB_BRANCH` | Vault no GitHub (token fine-grained, só “Contents: Read and write” neste repositório) |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | IA (padrão `gpt-6-luna`). Alternativa: `ANTHROPIC_API_KEY` + `AI_PROVIDER=anthropic` |
 | `OPS_TOKEN`, `CONTEXT_TOKEN`, `CALENDAR_FEED_TOKEN` | Tokens das integrações (16+ caracteres) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Envio pelo Telegram (bom dia e pedidos dos agentes) |
+| `CRON_SECRET` | Autoriza o agendador da Vercel a chamar `/api/cron/brief` |
+| `GITHUB_INBOX_TOKEN` | Opcional: PRs e propostas da `aglabs-core` na página Empresa (fine-grained, leitura de Pull requests, Issues e Metadata) |
 | `N8N_INSTANCES` | Opcional: API de cada n8n para listar workflows |
 | `UNSPLASH_ACCESS_KEY`, `GITHUB_USER`, `GITHUB_TOKEN` | Opcionais: capas e sequência de commits |
 
 ## Segurança
 
-- Usuário único; senha com hash scrypt; 2FA TOTP opcional (Configurações).
+- Usuário único; senha com hash scrypt, trocável pelo app (desconecta os outros dispositivos); 2FA TOTP opcional (Configurações).
 - Cookie `__Host-` httpOnly, sessão de 30 dias, “sair de todos os dispositivos”.
 - Bloqueio de 5 min após 5 tentativas erradas, guardado no banco.
 - Toda Server Action chama `requireAuth()` e toda rota de API valida sessão ou token (verificado em `tests/unit/security.test.ts`).
@@ -112,6 +139,8 @@ npm install
 cp .env.example .env.local   # preencha ORBITA_PASSWORD (ou o hash) e o que for usar
 npm run dev                  # http://localhost:3000
 npm test                     # Vitest (banco PGlite em memória)
+npx tsx scripts/seed-demo.mts # dados de exemplo no banco local (apaga os dados locais)
+node scripts/shots.mjs /rota # prints das telas (Playwright)
 npm run typecheck
 npm run db:generate          # após mudar src/db/schema.ts
 ```

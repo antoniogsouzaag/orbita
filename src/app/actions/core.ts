@@ -8,7 +8,7 @@ import { AREAS, TASK_SCOPES, TASK_STATUS, checkins, goals, habitLogs, habits, no
 import { requireAuth } from "@/lib/auth";
 import { today } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
-import { setAvatar, setSetting, type AppSettings } from "@/server/settings";
+import { SURFACES, THEMES, setAvatar, setSetting, type AppSettings } from "@/server/settings";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -253,6 +253,8 @@ export async function updateSettings(patch: Partial<AppSettings>) {
     .object({
       name: z.string().trim().min(1).max(80).optional(),
       accent: z.enum(["cyan", "orange", "blue", "violet", "green", "rose", "white"]).optional(),
+      theme: z.enum(THEMES).optional(),
+      surface: z.enum(SURFACES).optional(),
       cover: z.object({ url: z.string().url().max(2000), author: z.string().max(120).optional(), authorUrl: z.string().url().max(500).optional(), source: z.string().max(40).optional(), color: z.string().max(20).optional() }).optional(),
       widgets: z.object({ order: z.array(z.string()).max(40), hidden: z.array(z.string()).max(40) }).optional(),
       focusMinutes: z.number().int().min(5).max(180).optional(),

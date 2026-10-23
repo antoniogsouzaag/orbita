@@ -22,9 +22,16 @@ export const WIDGETS = [
 ] as const;
 export type WidgetId = (typeof WIDGETS)[number]["id"];
 
+export const THEMES = ["grafite", "meia-noite", "ameixa", "floresta", "areia"] as const;
+export type ThemeId = (typeof THEMES)[number];
+export const SURFACES = ["solido", "vidro"] as const;
+export type SurfaceId = (typeof SURFACES)[number];
+
 export type AppSettings = {
   name: string;
   accent: string;
+  theme: ThemeId;
+  surface: SurfaceId;
   cover: Cover;
   widgets: { order: WidgetId[]; hidden: WidgetId[] };
   focusMinutes: number;
@@ -41,6 +48,8 @@ export const DEFAULT_COVER: Cover = {
 export const DEFAULT_SETTINGS: AppSettings = {
   name: process.env.OWNER_NAME ?? "Antonio Garcia",
   accent: "cyan",
+  theme: "grafite",
+  surface: "solido",
   cover: DEFAULT_COVER,
   widgets: {
     order: ["conquistas", "habitos", "metas", "tarefas", "agenda", "plano", "checkin", "operacao", "foco", "treino", "financas", "leitura"],

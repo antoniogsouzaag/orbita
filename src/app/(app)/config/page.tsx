@@ -1,5 +1,6 @@
 import { Database, Download, Settings } from "lucide-react";
 import { PreferencesCard } from "@/components/settings/preferences-card";
+import { AppearanceCard } from "@/components/settings/appearance-card";
 import { IphoneCard } from "@/components/settings/iphone-card";
 import { TelegramCard } from "@/components/settings/telegram-card";
 import { SecurityCard } from "@/components/settings/security-card";
@@ -21,6 +22,7 @@ export default async function Page() {
     <div className="mx-auto max-w-3xl space-y-4 px-4 sm:px-6">
       <PageHeader icon={<Settings />} title="Configurações" />
       <PreferencesCard avatar={avatarV ? `/api/avatar?v=${avatarV}` : null} name={settings.name} accent={settings.accent} focusMinutes={settings.focusMinutes} />
+      <AppearanceCard theme={settings.theme} surface={settings.surface} accent={settings.accent} />
       <SecurityCard totpEnabled={sec.totpEnabled} envTotp={Boolean(process.env.ORBITA_TOTP_SECRET)} passwordMode={passwordMode} />
       <IphoneCard url={captureUrl} info={capture} />
       <TelegramCard configured={Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID)} cron={Boolean(process.env.CRON_SECRET)} />

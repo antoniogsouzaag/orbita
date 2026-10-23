@@ -1,7 +1,8 @@
-import { Activity, AlertTriangle, ArrowUpRight, Bot, Building2, CheckCircle2, CheckSquare, GitPullRequest, Globe, HeartPulse, Inbox, Lightbulb, Users, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, Bot, Building2, CheckCircle2, CheckSquare, GitPullRequest, Globe, HeartPulse, Inbox, Lightbulb, Users, XCircle } from "lucide-react";
 import Link from "next/link";
 import { NewTaskButton } from "@/components/tasks/task-detail";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
+import { StatTile, type StatTone } from "@/components/ui/stat";
 import { relativeDay, today } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { agentTasks, recentActivity } from "@/server/agents";
@@ -41,16 +42,7 @@ export default async function Page() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {tiles.map((x) => (
-          <Link key={x.label} href={x.href} className="card group flex items-center gap-3 p-4 transition hover:border-border-strong">
-            <span className={cn("grid size-10 place-items-center rounded-xl bg-surface-2", x.tone === "danger" ? "text-danger" : x.tone === "warning" ? "text-warning" : x.tone === "success" ? "text-success" : "text-muted")}>
-              <x.icon className="size-[18px]" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[22px] font-semibold leading-none tabular-nums tracking-tight">{x.value}</span>
-              <span className="mt-1 block text-[12px] text-muted">{x.label}</span>
-            </span>
-            <ArrowUpRight className="ml-auto size-4 text-faint opacity-0 transition group-hover:opacity-100" />
-          </Link>
+          <StatTile key={x.label} icon={x.icon} label={x.label} value={x.value} href={x.href} tone={(x.tone || "neutral") as StatTone} />
         ))}
       </div>
 
