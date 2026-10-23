@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Órbita
 
-## Getting Started
+Central operacional pessoal e da AG LABS: tarefas, hábitos, metas, agenda, vault do Obsidian, status ao vivo da operação e ponto de conexão dos agentes.
 
-First, run the development server:
+Uso pessoal, um único usuário. Em produção: Vercel (região `gru1`, São Paulo) + Neon (Postgres, São Paulo).
+
+## O que tem
+
+| Área | Páginas |
+| --- | --- |
+| Núcleo | Início (capa, saudação, captura rápida, widgets), Tarefas, Projetos, Kanban, Agenda, Notas |
+| Vida | Metas, Hábitos, Academia, Finanças, Leitura, Foco |
+| Operação | Vault (editor estilo Obsidian, wikilinks, backlinks, grafo), Operação (status ao vivo), Automações, Agentes |
+| Insights | Revisão, IA (chat e plano do dia), Integrações, Configurações |
+
+Botão **+** abre os atalhos rápidos, inclusive tarefa por voz.
+
+## Princípios
+
+- **O vault é a fonte canônica.** Servidores, agentes, apps e regras ficam no vault (`aglabs-core/ag-labs-knowledge`). A Órbita lê de lá e não duplica.
+- **O GitHub é o backup do vault.** Cada salvamento no editor vira um commit; o Obsidian sincroniza pelo obsidian-git.
+- **O n8n coleta, a Órbita guarda e mostra.** Os monitores enviam links, domínios e falhas para `/api/ops/ingest`; a Órbita registra histórico, incidentes e a batida de cada monitor.
+- **Agentes entram por MCP com acesso mínimo.** Cada agente tem um token próprio com escopos; nenhum vê dados pessoais nem edita o vault.
+
+## Endpoints
+
+| Rota | Autenticação | Uso |
+| --- | --- | --- |
+| `POST /api/ops/ingest` | `Bearer OPS_TOKEN` | n8n envia status de links, domínios, falhas de workflow e batidas |
+| `GET /api/ops/alvos` | `Bearer OPS_TOKEN` | n8n lê a lista de endereços a monitorar (nota “Monitoramento de Disponibilidade”) |
+| `/api/mcp` | `Bearer orb_…` (criado em **Agentes**) | Servidor MCP (Streamable HTTP) para agentes, Claude Code e Codex |
+| `GET /api/context` | `Bearer CONTEXT_TOKEN` ou sessão | Contexto operacional em markdown/JSON |
+| `GET /api/calendar/feed.ics?token=…` | `CALENDAR_FEED_TOKEN` | Feed para assinar no iPhone |
+| `GET /api/health` | pública | Verificação de disponibilidade |
+
+### Conectar um agente
+
+Em **Agentes → Criar acesso**, escolha o nome e as permissões. O token aparece uma única vez, com os comandos prontos:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+claude mcp add --transport http orbita https://orb.aglabs.api.br/api/mcp --header "Authorization: Bearer orb_..."
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```toml
+# ~/.codex/config.toml
+[mcp_servers.orbita]
+url = "https://orb.aglabs.api.br/api/mcp"
+http_headers = { Authorization = "Bearer orb_..." }
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Escopo | Ferramentas |
+| --- | --- |
+| `contexto` | `contexto_operacional`, `buscar_no_vault`, `ler_nota_do_vault` |
+| `status` | `status_ao_vivo` |
+| `tarefas` | `criar_tarefa_para_antonio`, `minhas_tarefas` |
+| `eventos` | `registrar_evento` |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Variáveis de ambiente
 
-## Learn More
+Veja `.env.example`. As principais:
 
-To learn more about Next.js, take a look at the following resources:
+| Variável | Para quê |
+| --- | --- |
+| `ORBITA_PASSWORD_HASH` | Senha de acesso (gere com `npm run hash-password`) |
+| `SESSION_SECRET` | Assinatura da sessão (32+ caracteres) |
+| `DATABASE_URL` | Neon. Sem ela, usa PGlite local em `.data/` |
+| `VAULT_GITHUB_TOKEN`, `VAULT_GITHUB_REPO`, `VAULT_GITHUB_BRANCH` | Vault no GitHub (token fine-grained, só “Contents: Read and write” neste repositório) |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | IA (padrão `gpt-5.6-luna`). Alternativa: `ANTHROPIC_API_KEY` + `AI_PROVIDER=anthropic` |
+| `OPS_TOKEN`, `CONTEXT_TOKEN`, `CALENDAR_FEED_TOKEN` | Tokens das integrações (16+ caracteres) |
+| `N8N_INSTANCES` | Opcional: API de cada n8n para listar workflows |
+| `UNSPLASH_ACCESS_KEY`, `GITHUB_USER`, `GITHUB_TOKEN` | Opcionais: capas e sequência de commits |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Segurança
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Usuário único; senha com hash scrypt; 2FA TOTP opcional (Configurações).
+- Cookie `__Host-` httpOnly, sessão de 30 dias, “sair de todos os dispositivos”.
+- Bloqueio de 5 min após 5 tentativas erradas, guardado no banco.
+- Toda Server Action chama `requireAuth()` e toda rota de API valida sessão ou token (verificado em `tests/unit/security.test.ts`).
+- Tokens de agentes guardados só como SHA-256; revogação imediata.
+- Cabeçalhos: HSTS, `X-Frame-Options: DENY`, `nosniff`, `noindex`.
 
-## Deploy on Vercel
+## Desenvolvimento
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm install
+cp .env.example .env.local   # preencha ORBITA_PASSWORD (ou o hash) e o que for usar
+npm run dev                  # http://localhost:3000
+npm test                     # Vitest (banco PGlite em memória)
+npm run typecheck
+npm run db:generate          # após mudar src/db/schema.ts
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+As migrações rodam no build da Vercel (`scripts/migrate.mjs`).
+
+Stack: Next.js 16 (App Router), React 19, Tailwind v4, Drizzle ORM, Neon, jose, OpenAI SDK, MCP SDK.
