@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { tokenMatches } from "@/lib/auth";
 import { monitorTargets } from "@/server/ops";
+import { vaultHealth } from "@/server/vault";
 
 /**
  * Lista canônica de endereços a monitorar, lida do vault (Monitoramento de Disponibilidade).
@@ -11,6 +12,9 @@ export async function GET(req: NextRequest) {
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!tokenMatches(bearer, "OPS_TOKEN")) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const targets = await monitorTargets();
-  if (!targets) return NextResponse.json({ error: "vault indisponível" }, { status: 503 });
+  if (!targets) {
+    const h = await vaultHealth();
+    return NextResponse.json({ error: "vault indisponível", motivo: h.error ?? (h.configured ? "nota Monitoramento de Disponibilidade não encontrada" : "vault não configurado") }, { status: 503 });
+  }
   return NextResponse.json({ items: targets.map((t) => ({ nome: t.name, url: t.url, grupo: t.group, prioridade: t.priority, monitorCruzado: /monitor cruzado/i.test(t.name) })), fonte: "vault: Monitoramento de Disponibilidade", geradoEm: new Date().toISOString() });
 }
