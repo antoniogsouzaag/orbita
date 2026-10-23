@@ -41,15 +41,26 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
   const colors = React.useMemo(() => new Map(groups.map((group, index) => [group, GRAPH_COLORS[index % GRAPH_COLORS.length]])), [groups]);
   const matchingIds = React.useMemo(() => query.trim() ? new Set(data.nodes.filter((node) => matchesGraphNode(node, query)).map((node) => node.id)) : null, [data.nodes, query]);
   const active = hover ?? focused;
+  const fit = React.useCallback((duration = 350) => {
+    const graph = ref.current;
+    const bounds = graph?.getGraphBbox();
+    // The engine can stop before new nodes receive coordinates when paused.
+    if (!graph || !bounds || ![...bounds.x, ...bounds.y].every(Number.isFinite)) return false;
+    graph.zoomToFit(duration, 55);
+    return true;
+  }, []);
 
   React.useImperativeHandle(controlsRef, () => ({
-    fit: () => ref.current?.zoomToFit(350, 55),
+    fit: () => { fit(); },
     zoom: (factor) => {
       const graph = ref.current;
-      if (graph) graph.zoom(Math.min(8, Math.max(0.15, graph.zoom() * factor)), 220);
+      if (graph) {
+        const current = graph.zoom();
+        graph.zoom(Math.min(8, Math.max(0.15, (Number.isFinite(current) ? current : 1) * factor)), 220);
+      }
     },
     reheat: () => ref.current?.d3ReheatSimulation(),
-  }), []);
+  }), [fit]);
 
   React.useEffect(() => {
     fitted.current = false;
@@ -60,10 +71,10 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
     graph.d3Force("link")?.distance?.(65);
     graph.d3ReheatSimulation();
     const timer = window.setTimeout(() => {
-      if (!interacted.current) graph.zoomToFit(450, 55);
+      if (!interacted.current) fit(450);
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [graph]);
+  }, [graph, fit]);
 
   React.useEffect(() => {
     if (!paused) ref.current?.d3ReheatSimulation();
@@ -101,12 +112,11 @@ export default function GraphCanvas({ data, groups, width, height, dark, query, 
       onNodeClick={(node) => onOpen(node.id)}
       onNodeRightClick={(node, event) => { event.preventDefault(); onFocus(node.id); }}
       onNodeDrag={() => { interacted.current = true; }}
-      onZoomEnd={({ k }) => onZoom(k)}
+      onZoomEnd={({ k }) => { if (Number.isFinite(k) && k > 0) onZoom(k); }}
       onBackgroundClick={() => onHover(null)}
       onEngineStop={() => {
         if (!fitted.current && !interacted.current) {
-          fitted.current = true;
-          ref.current?.zoomToFit(450, 55);
+          fitted.current = fit(450);
         }
       }}
       nodePointerAreaPaint={(node: CanvasNode, color, ctx, scale) => {

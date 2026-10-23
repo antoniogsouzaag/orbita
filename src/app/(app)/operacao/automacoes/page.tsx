@@ -11,8 +11,9 @@ export const metadata = { title: "Automações" };
 export default async function Page() {
   const [n8n, live] = await Promise.all([n8nOverview(), liveOps()]);
   const notePath = (await getVaultIndexSafe())?.resolve("Automações Ativas") ?? null;
+  const sourcesVerified = n8n.configured && n8n.instances.every((instance) => instance.ok);
   const liveIds = new Set(n8n.instances.flatMap((i) => i.workflows.map((w) => w.id)));
-  const missing = n8n.documented.filter((d) => d.id && /^[A-Za-z0-9]{8,}$/.test(d.id) && !liveIds.has(d.id) && /n8n/i.test(d.where));
+  const missing = sourcesVerified ? n8n.documented.filter((d) => d.id && /^[A-Za-z0-9]{8,}$/.test(d.id) && !liveIds.has(d.id) && /n8n/i.test(d.where)) : [];
   const pushed = live.events.filter((e) => e.kind === "workflow_error");
   const apiErrors = n8n.instances.flatMap((i) => i.errors);
 
@@ -29,7 +30,7 @@ export default async function Page() {
       <section>
         <SectionLabel className="mb-3">Falhas recentes</SectionLabel>
         <Card className="divide-y divide-border">
-          {pushed.length + apiErrors.length === 0 && <p className="p-4 text-[13px] text-muted">Nenhuma falha registrada. ✅ {n8n.configured ? "" : "Ligue o envio dos workflows de alerta de falhas à Órbita para ver as falhas aqui."}</p>}
+          {pushed.length + apiErrors.length === 0 && <p className="p-4 text-[13px] text-muted">{sourcesVerified ? "Nenhuma falha retornada pelas consultas atuais." : "Nenhuma falha recebida por ingestão. A consulta às APIs n8n está incompleta; isso não confirma ausência de falhas."}</p>}
           {pushed.map((e) => {
             const d = e.detail as { node?: string; message?: string; executionUrl?: string };
             return (
