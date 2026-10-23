@@ -228,3 +228,60 @@ export type Transaction = typeof transactions.$inferSelect;
 export type Workout = typeof workouts.$inferSelect;
 export type Book = typeof books.$inferSelect;
 export type DayPlan = typeof dayPlans.$inferSelect;
+
+/* ───────────── Operação ao vivo (dados enviados pelo n8n) ───────────── */
+
+export const opsStatus = pgTable("ops_status", {
+  url: text("url").primaryKey(),
+  name: text("name").notNull(),
+  group: text("group"),
+  ok: boolean("ok").notNull(),
+  statusCode: integer("status_code"),
+  error: text("error"),
+  latencyMs: integer("latency_ms"),
+  /** Falhas consecutivas (queda só é confirmada a partir de 2). */
+  fails: integer("fails").notNull().default(0),
+  source: text("source").notNull(),
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+  /** Desde quando está no estado atual (no ar / fora). */
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull(),
+});
+
+export const opsEvents = pgTable(
+  "ops_events",
+  {
+    id: id(),
+    /** site_down | site_up | workflow_error | domain_alert | monitor_silent | info */
+    kind: text("kind").notNull(),
+    severity: text("severity").notNull().default("info"),
+    source: text("source").notNull(),
+    subject: text("subject").notNull(),
+    detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [index("ops_events_created_idx").on(t.createdAt)],
+);
+
+export const opsHeartbeats = pgTable("ops_heartbeats", {
+  source: text("source").primaryKey(),
+  label: text("label"),
+  lastSeen: timestamp("last_seen", { withTimezone: true }).notNull(),
+  /** Intervalo esperado entre batidas, em minutos (para detectar silêncio). */
+  everyMinutes: integer("every_minutes").notNull().default(15),
+  meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),
+});
+
+export const opsDomains = pgTable("ops_domains", {
+  domain: text("domain").primaryKey(),
+  depends: text("depends"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  error: text("error"),
+  source: text("source").notNull(),
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+});
+
+export type OpsStatus = typeof opsStatus.$inferSelect;
+export type OpsEvent = typeof opsEvents.$inferSelect;
+export type OpsHeartbeat = typeof opsHeartbeats.$inferSelect;
+export type OpsDomain = typeof opsDomains.$inferSelect;

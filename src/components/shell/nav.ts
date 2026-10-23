@@ -1,6 +1,6 @@
 import {
   BarChart3, BookOpen, Bot, CalendarDays, CheckSquare, Dumbbell, FolderKanban, Gauge, Goal, Home,
-  KanbanSquare, LibraryBig, NotebookPen, Plug, Repeat, Server, Settings, Sparkles, Timer, Wallet, Workflow, type LucideIcon,
+  KanbanSquare, LibraryBig, NotebookPen, Plug, Repeat, Settings, Sparkles, Timer, Wallet, Workflow, type LucideIcon,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; dock?: boolean; keywords?: string };
@@ -33,9 +33,8 @@ export const NAV: NavSection[] = [
     label: "Operação",
     items: [
       { href: "/vault", label: "Vault", icon: LibraryBig, dock: true, keywords: "obsidian conhecimento manual" },
-      { href: "/operacao", label: "Visão geral", icon: Gauge, dock: true, keywords: "status infra" },
-      { href: "/operacao/automacoes", label: "Automações", icon: Workflow, keywords: "n8n workflows" },
-      { href: "/operacao/infra", label: "Infra & agentes", icon: Server, keywords: "vps servidores agentes apps" },
+      { href: "/operacao", label: "Operação", icon: Gauge, dock: true, keywords: "status sites domínios monitor incidentes" },
+      { href: "/operacao/automacoes", label: "Automações", icon: Workflow, keywords: "n8n workflows falhas" },
     ],
   },
   {

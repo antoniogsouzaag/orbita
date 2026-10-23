@@ -1,72 +1,185 @@
-import { Bot, Gauge, LibraryBig, Server, Workflow, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, ArrowUpRight, Bot, CheckCircle2, Gauge, Globe, HeartPulse, Plug, Radio, XCircle } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { CopyButton } from "@/components/ops/copy-button";
-import { StatusBoard } from "@/components/ops/status-board";
+import { StatusBoard, type BoardItem } from "@/components/ops/status-board";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
-import { agents, appRegistry, documentedAutomations, n8nOverview, vpsList } from "@/server/ops";
+import { cn } from "@/lib/utils";
+import { monitorTargets } from "@/server/ops";
+import { coherence, liveOps } from "@/server/ops-live";
+import { getVaultIndex, getVaultProvider } from "@/server/vault";
 
 export const metadata = { title: "Operação" };
 
+const norm = (u: string) => u.replace(/\/+$/, "").toLowerCase();
+
+function ago(d: Date) {
+  const m = Math.round((Date.now() - d.getTime()) / 60_000);
+  if (m < 1) return "agora";
+  if (m < 60) return `há ${m} min`;
+  const h = Math.round(m / 60);
+  return h < 48 ? `há ${h}h` : `há ${Math.round(h / 24)} dias`;
+}
+
+const EVENT_STYLE: Record<string, { icon: typeof XCircle; tone: string; label: string }> = {
+  site_down: { icon: XCircle, tone: "text-danger", label: "Fora do ar" },
+  site_up: { icon: CheckCircle2, tone: "text-success", label: "Voltou" },
+  workflow_error: { icon: AlertTriangle, tone: "text-warning", label: "Falha no workflow" },
+};
+
 export default async function Page() {
-  const [ags, vps, apps, docs, n8n, h] = await Promise.all([agents(), vpsList(), appRegistry(), documentedAutomations(), n8nOverview(), headers()]);
-  const active = ags.filter((a) => /ativo/i.test(a.status)).length;
-  const wf = n8n.instances.flatMap((i) => i.workflows);
-  const errors = n8n.instances.flatMap((i) => i.errors).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-  const errors24 = errors.filter((e) => Date.now() - Date.parse(e.startedAt) < 86_400_000);
+  const [live, targets, coh, h] = await Promise.all([liveOps(), monitorTargets().catch(() => null), coherence().catch(() => null), headers()]);
+  const vaultByUrl = new Map((targets ?? []).map((t) => [norm(t.url), t]));
+  const board: BoardItem[] = live.status.map((s) => {
+    const v = vaultByUrl.get(norm(s.url));
+    return { url: s.url, name: v?.name && v.name.length < 40 ? `${s.name}` : s.name, group: v?.group ?? s.group ?? "Fora da nota do vault", ok: s.ok, unstable: s.ok && s.fails > 0, status: s.statusCode, error: s.error, ms: s.latencyMs, checkedAt: s.checkedAt.toISOString(), since: s.changedAt.toISOString(), source: live.monitors.find((m) => m.source === s.source)?.label ?? s.source };
+  });
+  const groupOrder = [...new Set((targets ?? []).map((t) => t.group))];
+  const openIncidents = live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt);
+  const wf24 = live.events.filter((e) => e.kind === "workflow_error" && Date.now() - e.createdAt.getTime() < 86_400_000);
+  const soonDomains = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - Date.now() < 45 * 86_400_000);
+  const silent = live.monitors.filter((m) => m.silent);
+
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "orbita";
-  const proto = host.startsWith("localhost") ? "http" : "https";
-  const ctxUrl = `${proto}://${host}/api/context`;
+  const base = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
+  let monitorNote: string | null = null;
+  if (getVaultProvider()) monitorNote = (await getVaultIndex()).resolve("Monitoramento de Disponibilidade");
+
   const tiles = [
-    { label: "Agentes ativos", value: `${active}/${ags.length}`, href: "/operacao/infra#agentes", icon: Bot },
-    { label: "Servidores", value: String(vps.length), href: "/operacao/infra", icon: Server },
-    { label: "Aplicações", value: String(apps.length), href: "/operacao/infra#apps", icon: LibraryBig },
-    { label: n8n.configured ? "Workflows ativos" : "Automações (vault)", value: n8n.configured ? `${wf.filter((w) => w.active).length}/${wf.length}` : String(docs.length), href: "/operacao/automacoes", icon: Workflow },
-    { label: "Falhas n8n (24h)", value: n8n.configured ? String(errors24.length) : "—", href: "/operacao/automacoes#falhas", icon: XCircle, tone: errors24.length ? "text-danger" : undefined },
+    { label: "No ar agora", value: board.length ? `${board.filter((b) => b.ok).length}/${board.length}` : "—", icon: Activity, tone: board.some((b) => !b.ok) ? "text-danger" : board.length ? "text-success" : "" },
+    { label: "Incidentes abertos", value: String(openIncidents.length), icon: XCircle, tone: openIncidents.length ? "text-danger" : "" },
+    { label: "Falhas de workflow (24h)", value: String(wf24.length), icon: AlertTriangle, tone: wf24.length ? "text-warning" : "" },
+    { label: "Domínios < 45 dias", value: String(soonDomains.length), icon: Globe, tone: soonDomains.length ? "text-warning" : "" },
+    { label: "Monitores", value: live.monitors.length ? `${live.monitors.length - silent.length}/${live.monitors.length}` : "—", icon: HeartPulse, tone: silent.length ? "text-danger" : "" },
   ];
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6">
-      <PageHeader icon={<Gauge />} title="Operação" description="Visão geral da AG LABS: disponibilidade, automações, servidores e agentes — derivada do vault." />
+      <PageHeader icon={<Gauge />} title="Operação" description="Estado ao vivo da AG LABS. O inventário (servidores, agentes, apps) está no Vault; aqui fica só o que está acontecendo agora." />
+
+      {silent.length > 0 && (
+        <div className="flex items-start gap-3 rounded-2xl border border-danger/40 bg-danger/8 p-4 text-[13.5px]">
+          <Radio className="mt-0.5 size-4 shrink-0 text-danger" />
+          <div><b>Monitor em silêncio:</b> {silent.map((m) => `${m.label} (última batida ${ago(m.lastSeen)})`).join(", ")}. Silêncio não é o mesmo que “tudo certo” — confira o n8n.</div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {tiles.map((t) => (
-          <Link key={t.label} href={t.href} className="card p-4 transition hover:border-border-strong">
+          <div key={t.label} className="card p-4">
             <t.icon className="mb-3 size-4 text-muted" />
-            <div className={`text-2xl font-bold tabular-nums ${t.tone ?? ""}`}>{t.value}</div>
+            <div className={cn("text-2xl font-bold tabular-nums", t.tone)}>{t.value}</div>
             <div className="text-[12px] text-muted">{t.label}</div>
-          </Link>
+          </div>
         ))}
       </div>
-      <StatusBoard />
+
+      {live.monitors.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {live.monitors.map((m) => (
+            <span key={m.source} className={cn("flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px]", m.silent ? "border-danger/40 text-danger" : "border-border text-muted")}>
+              <span className={cn("size-2 rounded-full", m.silent ? "bg-danger" : "animate-pulse bg-success")} />
+              {m.label} · {ago(m.lastSeen)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <StatusBoard initial={board} groupOrder={groupOrder} />
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader icon={<XCircle />} title="Últimas falhas do n8n" href="/operacao/automacoes" />
-          <div className="px-5 pb-5">
-            {!n8n.configured && <p className="text-[13px] text-muted">Configure <code>N8N_INSTANCES</code> com a URL e a chave de API dos seus n8n para ver workflows e falhas aqui.</p>}
-            {n8n.instances.filter((i) => !i.ok).map((i) => <p key={i.name} className="text-[13px] text-danger">{i.name}: {i.error}</p>)}
-            {n8n.configured && errors.length === 0 && <p className="text-[13px] text-muted">Nenhuma falha recente. ✅</p>}
-            <div className="space-y-1.5">
-              {errors.slice(0, 8).map((e) => (
-                <a key={`${e.instance}-${e.id}`} href={e.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] hover:bg-surface-2">
-                  <XCircle className="size-3.5 shrink-0 text-danger" />
-                  <span className="truncate">{e.workflowName}</span>
-                  <span className="ml-auto shrink-0 text-[11.5px] text-faint">{e.instance} · {new Date(e.startedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-                </a>
-              ))}
-            </div>
+          <CardHeader icon={<Activity />} title="Incidentes e eventos" meta="últimos 14 dias" href="/operacao/automacoes" hrefLabel="Automações" />
+          <div className="max-h-[420px] overflow-y-auto px-3 pb-4">
+            {live.events.length === 0 && <p className="px-2 text-[13px] text-muted">Nenhum evento registrado.</p>}
+            {live.events.map((e) => {
+              const st = EVENT_STYLE[e.kind] ?? { icon: Activity, tone: "text-muted", label: e.kind };
+              const d = e.detail as { url?: string; message?: string; node?: string; executionUrl?: string; error?: string; status?: number };
+              return (
+                <div key={e.id} className="flex gap-3 rounded-xl px-2 py-2 hover:bg-surface-2">
+                  <st.icon className={cn("mt-0.5 size-4 shrink-0", st.tone)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2 text-[13px]"><span className="truncate font-medium">{e.subject}</span><span className={cn("shrink-0 text-[11.5px]", st.tone)}>{st.label}</span>{e.kind === "site_down" && e.resolvedAt && <span className="text-[11px] text-faint">resolvido</span>}</div>
+                    <div className="truncate text-[12px] text-faint">{d.message ?? d.error ?? (d.status ? `HTTP ${d.status}` : d.url) ?? ""}{d.node ? ` · nó ${d.node}` : ""}</div>
+                  </div>
+                  <div className="shrink-0 text-right text-[11px] text-faint">
+                    {e.createdAt.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {d.executionUrl && <a href={d.executionUrl} target="_blank" rel="noreferrer" className="block text-accent hover:underline">execução ↗</a>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
+
         <Card>
-          <CardHeader icon={<Bot />} title="Contexto para agentes" />
-          <div className="space-y-3 px-5 pb-5 text-[13px] text-muted">
-            <p>Quando um agente novo entrar na equipe, entregue este endpoint: ele devolve em markdown as regras do vault, agentes, servidores, aplicações, automações e monitoramento — sempre atualizado a partir do vault.</p>
-            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-2 p-3 font-mono text-[12px]">
-              <span className="min-w-0 flex-1 break-all">GET {ctxUrl}?format=md&amp;live=1</span>
-              <CopyButton text={`curl -H "Authorization: Bearer $CONTEXT_TOKEN" "${ctxUrl}?format=md&live=1"`} label="Copiar curl" />
+          <CardHeader icon={<Globe />} title="Domínios" meta="vencimento (RDAP via n8n)" />
+          <div className="px-5 pb-5">
+            {live.domains.length === 0 && <p className="text-[13px] text-muted">Nenhum domínio recebido ainda. O monitor de vencimento envia a lista quando ligado à Órbita.</p>}
+            <div className="space-y-2">
+              {live.domains.map((d) => {
+                const days = d.expiresAt ? Math.ceil((d.expiresAt.getTime() - Date.now()) / 86_400_000) : null;
+                return (
+                  <div key={d.domain} className="flex items-center gap-3 text-[13px]">
+                    <span className={cn("w-16 shrink-0 rounded-md px-1.5 py-0.5 text-center text-[11.5px] font-semibold tabular-nums", days === null ? "bg-surface-2 text-faint" : days < 8 ? "bg-danger/15 text-danger" : days < 45 ? "bg-warning/15 text-warning" : "bg-success/12 text-success")}>
+                      {days === null ? "?" : days < 0 ? "vencido" : `${days}d`}
+                    </span>
+                    <span className="min-w-0 flex-1"><span className="block truncate font-medium">{d.domain}</span><span className="block truncate text-[11.5px] text-faint">{d.error ?? d.depends}</span></span>
+                    <span className="shrink-0 text-[11.5px] text-faint">{d.expiresAt?.toLocaleDateString("pt-BR") ?? ""}</span>
+                  </div>
+                );
+              })}
             </div>
-            <p className="text-[12px] text-faint">Autenticação: cabeçalho <code>Authorization: Bearer CONTEXT_TOKEN</code>. Não inclui dados pessoais, tarefas nem segredos. <Link href="/api/context?format=md" className="underline" target="_blank">Ver prévia</Link></p>
           </div>
         </Card>
       </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader icon={<CheckCircle2 />} title="Coerência vault × monitor" href={monitorNote ? `/vault?p=${encodeURIComponent(monitorNote)}` : undefined} hrefLabel="Nota no vault" />
+          <div className="space-y-3 px-5 pb-5 text-[13px]">
+            {!coh && <p className="text-muted">Conecte o vault para comparar.</p>}
+            {coh && coh.monitoredCount === 0 && <p className="text-muted">A nota do vault lista {coh.vaultCount} endereços. Assim que o n8n enviar resultados, a Órbita mostra aqui o que está fora de sincronia.</p>}
+            {coh && coh.monitoredCount > 0 && coh.notMonitored.length === 0 && coh.notInVault.length === 0 && <p className="text-success">Tudo coerente: o monitor verifica exatamente o que o vault lista ({coh.vaultCount}).</p>}
+            {coh && coh.monitoredCount > 0 && coh.notMonitored.length > 0 && (
+              <div><div className="mb-1 font-medium text-warning">No vault, mas ninguém está verificando ({coh.notMonitored.length})</div>{coh.notMonitored.map((t) => <div key={t.url} className="truncate text-[12.5px] text-muted">{t.priority} · {t.url}</div>)}</div>
+            )}
+            {coh && coh.notInVault.length > 0 && (
+              <div><div className="mb-1 font-medium text-warning">Verificado, mas fora da nota do vault ({coh.notInVault.length})</div>{coh.notInVault.map((t) => <div key={t.url} className="truncate text-[12.5px] text-muted">{t.name} · {t.url}</div>)}</div>
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader icon={<Plug />} title="Integração com o n8n" href="/integracoes" hrefLabel="Detalhes" />
+          <div className="space-y-3 px-5 pb-5 text-[13px] text-muted">
+            <p>O n8n continua coletando; a Órbita guarda o histórico e mostra o estado. A lista de endereços sai da nota do vault.</p>
+            <Endpoint method="GET" url={`${base}/api/ops/alvos`} note="lista do vault para o n8n verificar" />
+            <Endpoint method="POST" url={`${base}/api/ops/ingest`} note="n8n envia links, domínios e falhas" />
+            <p className="text-[12px] text-faint">Os dois usam <code>Authorization: Bearer OPS_TOKEN</code>.</p>
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader icon={<Bot />} title="Contexto para agentes" />
+        <div className="flex flex-wrap items-center gap-3 px-5 pb-5 text-[13px] text-muted">
+          <p className="min-w-[260px] flex-1">Para um agente novo: devolve em markdown as regras do vault, agentes, servidores, apps, automações e o estado ao vivo — sem dados pessoais nem segredos.</p>
+          <CopyButton text={`curl -H "Authorization: Bearer $CONTEXT_TOKEN" "${base}/api/context?format=md&live=1"`} label="Copiar curl" />
+          <Link href="/api/context?format=md" target="_blank" className="flex items-center gap-1 text-[12.5px] text-accent hover:underline">Prévia <ArrowUpRight className="size-3.5" /></Link>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function Endpoint({ method, url, note }: { method: string; url: string; note: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-2 px-3 py-2 font-mono text-[12px]">
+      <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[10.5px] font-bold text-fg">{method}</span>
+      <span className="min-w-0 flex-1 break-all text-fg">{url}</span>
+      <span className="font-sans text-[11.5px] text-faint">{note}</span>
+      <CopyButton text={url} label="" className="px-1.5" />
     </div>
   );
 }

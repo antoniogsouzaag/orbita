@@ -1,11 +1,13 @@
 import "server-only";
 import { getVaultIndex, getVaultProvider } from "@/server/vault";
-import { agents, appRegistry, checkTargets, documentedAutomations, monitorTargets, n8nOverview, vpsList } from "./ops";
+import { agents, appRegistry, documentedAutomations, monitorTargets, n8nOverview, vpsList } from "./ops";
+import { liveOps } from "./ops-live";
 
 /** Pacote de contexto operacional para agentes (sem dados pessoais nem segredos). */
 export async function buildContext(opts: { live?: boolean } = {}) {
   const [ags, vps, apps, autos, targets] = await Promise.all([agents(), vpsList(), appRegistry(), documentedAutomations(), monitorTargets()]);
-  const status = opts.live && targets ? await checkTargets(targets) : null;
+  const live = opts.live ? await liveOps() : null;
+  const status = live ? live.status.map((s) => ({ url: s.url, ok: s.ok, status: s.statusCode, error: s.error, checkedAt: s.checkedAt.toISOString() })) : null;
   const n8n = opts.live ? await n8nOverview() : null;
   let index: string | null = null;
   let rules: string | null = null;
@@ -18,7 +20,19 @@ export async function buildContext(opts: { live?: boolean } = {}) {
     rules = guia?.body ?? null;
     notes = [...idx.notes.values()].map((n) => ({ path: n.path, title: n.title, type: String(n.frontmatter.type ?? ""), status: String(n.frontmatter.status ?? "") }));
   }
-  return { generatedAt: new Date().toISOString(), vault: { index, rules, notes }, agents: ags, vps, apps, automations: autos, monitoring: targets, status, n8n };
+  return {
+    generatedAt: new Date().toISOString(),
+    vault: { index, rules, notes },
+    agents: ags,
+    vps,
+    apps,
+    automations: autos,
+    monitoring: targets,
+    status,
+    incidents: live ? live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt).map((e) => ({ subject: e.subject, since: e.createdAt.toISOString() })) : null,
+    monitors: live ? live.monitors.map((m) => ({ label: m.label, lastSeen: m.lastSeen.toISOString(), silent: m.silent })) : null,
+    n8n,
+  };
 }
 
 export function contextToMarkdown(c: Awaited<ReturnType<typeof buildContext>>): string {
@@ -37,8 +51,16 @@ export function contextToMarkdown(c: Awaited<ReturnType<typeof buildContext>>): 
     lines.push(``, `## Monitoramento (${c.monitoring.length} endereços)`, ``);
     for (const m of c.monitoring) {
       const s = c.status?.find((x) => x.url === m.url);
-      lines.push(`- ${m.priority} · ${m.name}: ${m.url}${s ? ` → ${s.ok ? "✅" : "❌"} ${s.status || s.error}` : ""}`);
+      lines.push(`- ${m.priority} · ${m.name}: ${m.url}${s ? ` → ${s.ok ? "✅" : "❌"} ${s.status ?? s.error ?? ""}` : ""}`);
     }
+  }
+  if (c.incidents?.length) {
+    lines.push(``, `## Incidentes abertos`, ``);
+    for (const i of c.incidents) lines.push(`- ❌ ${i.subject} desde ${i.since}`);
+  }
+  if (c.monitors?.length) {
+    lines.push(``, `## Monitores`, ``);
+    for (const m of c.monitors) lines.push(`- ${m.silent ? "⚠️ em silêncio" : "✅"} ${m.label} — última batida ${m.lastSeen}`);
   }
   if (c.n8n?.configured) {
     lines.push(``, `## n8n (ao vivo)`, ``);
