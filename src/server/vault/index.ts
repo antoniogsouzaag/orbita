@@ -51,7 +51,9 @@ function parseNote(entry: VaultEntry, raw: string, resolve: (t: string) => strin
   let body = raw;
   try {
     const parsed = matter(raw);
-    fm = JSON.parse(JSON.stringify(parsed.data ?? {}));
+    fm = JSON.parse(JSON.stringify(parsed.data ?? {}), (_k, v) =>
+      typeof v === "string" && /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/.test(v) ? v.slice(0, 10) : v,
+    );
     body = parsed.content;
   } catch {}
   const links = new Set<string>();
