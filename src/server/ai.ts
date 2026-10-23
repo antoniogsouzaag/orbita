@@ -1,6 +1,8 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { formatLong, localHour, localTime, shiftDate, today, zonedToUtc, localDate } from "@/lib/dates";
 import { eventsBetween } from "@/server/calendar";
@@ -12,15 +14,41 @@ import { getSettings } from "@/server/settings";
 import { listTasks, taskCounts } from "@/server/tasks";
 import { getVaultIndex, getVaultProvider, searchVault } from "@/server/vault";
 
-export const AI_MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
+/**
+ * Provedor de IA: OpenAI (padrão quando OPENAI_API_KEY existe) ou Anthropic.
+ * Trocar de modelo/provedor é só mudar variáveis de ambiente.
+ */
+export type AiProvider = "openai" | "anthropic";
+
+export function aiProvider(): AiProvider | null {
+  const forced = process.env.AI_PROVIDER as AiProvider | undefined;
+  if (forced === "openai" && process.env.OPENAI_API_KEY) return "openai";
+  if (forced === "anthropic" && process.env.ANTHROPIC_API_KEY) return "anthropic";
+  if (process.env.OPENAI_API_KEY) return "openai";
+  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  return null;
+}
+
+export function aiEnabled() {
+  return aiProvider() !== null;
+}
+
+export function aiModel(): string {
+  return aiProvider() === "anthropic" ? process.env.ANTHROPIC_MODEL || "claude-opus-5-5" : process.env.OPENAI_MODEL || "gpt-5.6-luna";
+}
+
 /** Recusa por política → a API reexecuta no modelo de reserva padrão (beta server-side fallback). */
 const FALLBACK = { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const };
 
-let client: Anthropic | null | undefined;
-export function aiClient(): Anthropic | null {
-  if (client !== undefined) return client;
-  client = process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
-  return client;
+let anthropic: Anthropic | null = null;
+let openai: OpenAI | null = null;
+function anthropicClient() {
+  anthropic ??= new Anthropic();
+  return anthropic;
+}
+function openaiClient() {
+  openai ??= new OpenAI();
+  return openai;
 }
 
 const SYSTEM = `Você é a assistente da Órbita, a central operacional pessoal e empresarial de Antonio Garcia, fundador da AG LABS.
@@ -85,38 +113,70 @@ export async function vaultContext(question: string): Promise<string> {
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
+function errorText(e: unknown) {
+  if (e instanceof OpenAI.APIError) return e.status === 404 ? `Modelo “${aiModel()}” não encontrado na OpenAI — confira OPENAI_MODEL` : e.status === 401 ? "Chave da OpenAI inválida" : e.status === 429 ? "Limite ou saldo da OpenAI atingido" : `Erro da OpenAI (${e.status ?? "rede"})`;
+  if (e instanceof Anthropic.APIError) return `Erro da API (${e.status ?? "rede"})`;
+  return "Falha ao gerar a resposta";
+}
+
 /** Resposta em streaming (texto puro) para a pergunta, com contexto do dia + vault. */
 export async function askStream(history: ChatTurn[]): Promise<ReadableStream<Uint8Array>> {
-  const c = aiClient();
-  if (!c) throw new Error("ANTHROPIC_API_KEY não configurada");
+  const provider = aiProvider();
+  if (!provider) throw new Error("IA não configurada");
   const question = history.at(-1)?.content ?? "";
   const [personal, vault] = await Promise.all([personalContext(), vaultContext(question)]);
   const context = `<contexto_do_dia>\n${personal}\n</contexto_do_dia>${vault ? `\n<vault>\n${vault}\n</vault>` : ""}`;
-  const messages: Anthropic.Beta.BetaMessageParam[] = history.map((m, i) =>
-    i === history.length - 1 ? { role: "user", content: `${context}\n\n<pergunta>\n${m.content}\n</pergunta>` } : { role: m.role, content: m.content },
-  );
-  const stream = c.beta.messages.stream({
-    model: AI_MODEL,
+  const turns = history.map((m, i) => (i === history.length - 1 ? { role: "user" as const, content: `${context}\n\n<pergunta>\n${m.content}\n</pergunta>` } : m));
+  const enc = new TextEncoder();
+
+  if (provider === "openai") {
+    const controller = new AbortController();
+    return new ReadableStream({
+      async start(out) {
+        try {
+          const stream = await openaiClient().responses.create(
+            { model: aiModel(), instructions: SYSTEM, input: turns, stream: true, store: false, reasoning: { effort: "low" }, prompt_cache_key: "orbita-ask" },
+            { signal: controller.signal },
+          );
+          for await (const ev of stream) {
+            if (ev.type === "response.output_text.delta") out.enqueue(enc.encode(ev.delta));
+            else if (ev.type === "response.refusal.delta") out.enqueue(enc.encode(ev.delta));
+            else if (ev.type === "response.incomplete") out.enqueue(enc.encode("\n\n_(resposta cortada)_"));
+            else if (ev.type === "response.failed" || ev.type === "error") out.enqueue(enc.encode("\n\n⚠️ A IA não conseguiu terminar a resposta."));
+          }
+        } catch (e) {
+          out.enqueue(enc.encode(`\n\n⚠️ ${errorText(e)}.`));
+        } finally {
+          out.close();
+        }
+      },
+      cancel() {
+        controller.abort();
+      },
+    });
+  }
+
+  const stream = anthropicClient().beta.messages.stream({
+    model: aiModel(),
     max_tokens: 16000,
     system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
     output_config: { effort: "low" },
-    messages,
+    messages: turns,
     ...FALLBACK,
   });
-  const enc = new TextEncoder();
   return new ReadableStream({
-    async start(controller) {
+    async start(out) {
       try {
         for await (const ev of stream) {
-          if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") controller.enqueue(enc.encode(ev.delta.text));
+          if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") out.enqueue(enc.encode(ev.delta.text));
         }
         const final = await stream.finalMessage();
-        if (final.stop_reason === "refusal") controller.enqueue(enc.encode("\n\n_Não posso ajudar com esse pedido._"));
-        if (final.stop_reason === "max_tokens") controller.enqueue(enc.encode("\n\n_(resposta cortada por tamanho)_"));
+        if (final.stop_reason === "refusal") out.enqueue(enc.encode("\n\n_Não posso ajudar com esse pedido._"));
+        if (final.stop_reason === "max_tokens") out.enqueue(enc.encode("\n\n_(resposta cortada por tamanho)_"));
       } catch (e) {
-        controller.enqueue(enc.encode(`\n\n⚠️ ${e instanceof Anthropic.APIError ? `Erro da API (${e.status ?? "rede"})` : "Falha ao gerar a resposta"}.`));
+        out.enqueue(enc.encode(`\n\n⚠️ ${errorText(e)}.`));
       } finally {
-        controller.close();
+        out.close();
       }
     },
     cancel() {
@@ -134,32 +194,53 @@ const PlanSchema = z.object({
         end: z.string().describe("Fim no formato HH:MM"),
         title: z.string().describe("O que fazer neste bloco"),
         kind: z.enum(["foco", "tarefa", "reunião", "hábito", "treino", "pausa", "rotina", "revisão"]),
-        note: z.string().optional(),
+        note: z.string().nullable().describe("Observação curta ou null"),
       }),
     )
     .describe("Blocos em ordem cronológica, sem sobreposição"),
 });
 
+function planPrompt(personal: string, opts: { prompt: string; from: number; to: number }) {
+  return `<contexto_do_dia>\n${personal}\n</contexto_do_dia>\n\nMonte o plano de hoje entre ${String(opts.from).padStart(2, "0")}:00 e ${String(opts.to).padStart(2, "0")}:00 em blocos realistas.
+Respeite os compromissos da agenda nos horários exatos, priorize tarefas atrasadas e de prioridade alta, encaixe os hábitos pendentes e inclua pausas curtas. Não agende nada antes do horário atual se o dia já começou.${opts.prompt ? `\nObservação do usuário: ${opts.prompt}` : ""}`;
+}
+
 export async function planDay(opts: { prompt: string; from: number; to: number }) {
-  const c = aiClient();
-  if (!c) throw new Error("ANTHROPIC_API_KEY não configurada");
+  const provider = aiProvider();
+  if (!provider) throw new Error("IA não configurada");
   const personal = await personalContext();
-  const res = await c.beta.messages.parse({
-    model: AI_MODEL,
-    max_tokens: 16000,
-    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-    output_config: { effort: "medium", format: betaZodOutputFormat(PlanSchema) },
-    messages: [
-      {
-        role: "user",
-        content: `<contexto_do_dia>\n${personal}\n</contexto_do_dia>\n\nMonte o plano de hoje entre ${String(opts.from).padStart(2, "0")}:00 e ${String(opts.to).padStart(2, "0")}:00 em blocos realistas.
-Respeite os compromissos da agenda nos horários exatos, priorize tarefas atrasadas e de prioridade alta, encaixe os hábitos pendentes e inclua pausas curtas. Não agende nada antes do horário atual se o dia já começou.${opts.prompt ? `\nObservação do usuário: ${opts.prompt}` : ""}`,
-      },
-    ],
-    ...FALLBACK,
-  });
-  if (res.stop_reason === "refusal") throw new Error("A IA recusou montar o plano.");
-  if (!res.parsed_output) throw new Error("A IA não devolveu um plano válido.");
-  const blocks = res.parsed_output.blocks.filter((b) => /^\d{2}:\d{2}$/.test(b.start) && /^\d{2}:\d{2}$/.test(b.end)).sort((a, b) => a.start.localeCompare(b.start));
-  return { summary: res.parsed_output.summary, blocks };
+  let parsed: z.infer<typeof PlanSchema> | null = null;
+  try {
+    if (provider === "openai") {
+      const res = await openaiClient().responses.parse({
+        model: aiModel(),
+        instructions: SYSTEM,
+        input: planPrompt(personal, opts),
+        text: { format: zodTextFormat(PlanSchema, "plano_do_dia") },
+        reasoning: { effort: "medium" },
+        store: false,
+      });
+      parsed = res.output_parsed;
+    } else {
+      const res = await anthropicClient().beta.messages.parse({
+        model: aiModel(),
+        max_tokens: 16000,
+        system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+        output_config: { effort: "medium", format: betaZodOutputFormat(PlanSchema) },
+        messages: [{ role: "user", content: planPrompt(personal, opts) }],
+        ...FALLBACK,
+      });
+      if (res.stop_reason === "refusal") throw new Error("A IA recusou montar o plano.");
+      parsed = res.parsed_output;
+    }
+  } catch (e) {
+    if (e instanceof OpenAI.APIError || e instanceof Anthropic.APIError) throw new Error(errorText(e));
+    throw e;
+  }
+  if (!parsed) throw new Error("A IA não devolveu um plano válido.");
+  const blocks = parsed.blocks
+    .filter((b) => /^\d{2}:\d{2}$/.test(b.start) && /^\d{2}:\d{2}$/.test(b.end))
+    .map((b) => ({ ...b, note: b.note ?? undefined }))
+    .sort((a, b) => a.start.localeCompare(b.start));
+  return { summary: parsed.summary, blocks };
 }

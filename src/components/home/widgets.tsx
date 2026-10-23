@@ -319,7 +319,7 @@ export function PlanWidget({ plan, aiEnabled }: { plan: HomeData["plan"]; aiEnab
                 {loading ? <Loader2 className="animate-spin" /> : <Sparkles />} Planejar meu dia
               </Button>
             </div>
-            {!aiEnabled && <p className="mt-2 text-[12px] text-faint">Configure a chave da Anthropic em <Link href="/integracoes" className="underline">Integrações</Link>.</p>}
+            {!aiEnabled && <p className="mt-2 text-[12px] text-faint">Configure a chave da IA em <Link href="/integracoes" className="underline">Integrações</Link>.</p>}
           </>
         )}
       </div>

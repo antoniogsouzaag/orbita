@@ -1,4 +1,5 @@
 import "server-only";
+import { aiEnabled } from "@/server/ai";
 import { listGoals } from "@/server/goals";
 import { eventsBetween, syncStaleCalendars } from "@/server/calendar";
 import { getCheckin } from "@/server/checkins";
@@ -124,7 +125,7 @@ export async function loadHome() {
     finance: { income: finance.income, expense: finance.expense, balance: finance.balance, top: finance.categories[0] ?? null },
     books: books.filter((b) => b.status === "lendo"),
     cards,
-    aiEnabled: Boolean(process.env.ANTHROPIC_API_KEY),
+    aiEnabled: aiEnabled(),
   };
 }
 
