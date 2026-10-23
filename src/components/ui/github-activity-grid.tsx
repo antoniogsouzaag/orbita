@@ -17,9 +17,12 @@ export function GitHubActivityGrid({ days }: { days: ActivityDay[] }) {
     </div>
     <div className="overflow-x-auto pb-2"><div className="flex min-w-max gap-[3px]">
       {weeks.map((week, index) => {
-        const first = week.find((day) => day && new Date(`${day.date}T12:00:00Z`).getUTCDate() <= 7);
+        const first = week.find((day) => day !== null);
+        const previous = weeks[index - 1]?.find((day) => day !== null);
+        const month = first ? new Date(`${first.date}T12:00:00Z`).getUTCMonth() : -1;
+        const showMonth = first && (!previous || month !== new Date(`${previous.date}T12:00:00Z`).getUTCMonth());
         return <div key={index} className="relative flex flex-col gap-[3px] pt-5">
-          {first && <span className="absolute top-0 text-[9px] text-faint">{months[new Date(`${first.date}T12:00:00Z`).getUTCMonth()]}</span>}
+          {showMonth && <span className="absolute top-0 text-[9px] text-faint">{months[month]}</span>}
           {week.map((day, i) => day ? <span key={day.date} tabIndex={0} title={`${day.count} contribuições · ${day.date}`} aria-label={`${day.count} contribuições em ${day.date}`} className={`block size-[11px] rounded-[3px] outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent ${colors[day.count <= 0 ? 0 : Math.min(4, Math.ceil(day.count / max * 4))]}`} /> : <span key={`pad-${i}`} className="size-[11px]" />)}
         </div>;
       })}
