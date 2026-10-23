@@ -2,7 +2,11 @@
 
 Entrada canônica da central: `/documentacao` (mesmo contrato de `orbita://manual` e `documentacao_canonica` no MCP). Este guia complementa o manual com a configuração específica dos runtimes.
 
-Este guia distingue as capacidades existentes das conexões que cada gestor ainda precisa configurar. Não provisiona tokens, endpoints nem permissões.
+Este guia documenta os contratos de conexão e os critérios de validação por gestor. O estado de cada acesso e sua comunicação funcional devem ser conferidos no ambiente correspondente; a configuração descrita aqui não comprova uma execução.
+
+Verificação registrada: [ativação do Hermes Oracle em 23/10/2026](hermes-oracle-ativacao-2026-10-23.md), com leitura funcional e atividade correlacionada na central.
+
+Verificação registrada: [ativação do Hermes Oracle em 23/10/2026](hermes-oracle-ativacao-2026-10-23.md), com leitura funcional e atividade correlacionada na central.
 
 ## Dois sentidos independentes
 
@@ -16,13 +20,15 @@ Um servidor MCP na Órbita não é um canal de despacho bidirecional. Também n�
 ## Conectar Hermes Oracle ou Hermes EasyPanel
 
 1. O proprietário cria um acesso individual em **Agentes**, com nome inequívoco e perfil explícito. A política canônica concede Administrador a Oracle, EasyPanel e Tom; outros agentes começam em leitura. Administrador inclui dados pessoais e escrita: não é apenas status da infraestrutura.
-2. No ambiente do gestor, adicionar o servidor HTTP pelo configurador do Hermes. Na versão conferida, o comando de entrada é:
+2. No painel do gestor, conferir o perfil selecionado e abrir **MCP → Add Server**. Na interface Hermes **v0.21.5** conferida, preencher nome `orbita`, URL `https://orb.aglabs.api.br/api/mcp` e selecionar **Auth → Bearer token**. Inserir somente `orb_…` no campo mascarado de token. O formulário acrescenta o prefixo `Bearer`; não preencher um cabeçalho genérico nesse campo.
+
+   O Hermes salva o segredo em `MCP_ORBITA_API_KEY` no `.env` do perfil e mantém em `config.yaml` apenas a referência `Authorization: Bearer ${MCP_ORBITA_API_KEY}`. Esse comportamento está no código oficial da tag **`v2026.9.24`**, correspondente à versão v0.21.5. O token da Órbita é um Bearer estático, não OAuth. Como alternativa no CLI:
 
    ```bash
    hermes mcp add orbita --url https://orb.aglabs.api.br/api/mcp --auth header
    ```
 
-   Conferir `hermes mcp add --help` na instalação antes de executar. No CLI conferido, confirmar autenticação e inserir somente o token `orb_…` no campo mascarado **API key / Bearer token**; o Hermes acrescenta `Bearer` e salva o segredo no `.env` do perfil, com referência na configuração. Se cadastrar manualmente pelo painel, o cabeçalho é `Authorization` e seu valor completo é `Bearer` seguido do token. Nunca colocar o segredo em conversa, issue, Git ou argumento de shell. O token da Órbita é um Bearer estático, não OAuth.
+   Conferir `hermes mcp add --help` na instalação antes de executar. No CLI, inserir também somente `orb_…` no campo mascarado **API key / Bearer token**. Nunca colocar o segredo em conversa, issue, Git ou argumento de shell.
 3. Usar o perfil correto e proteger o arquivo de credenciais/configuração gerado. Não editar configuração de outro gestor ou perfil a partir desta integração. Se a interface utilizada não oferecer entrada segura, interromper e combinar um meio protegido com o proprietário.
 4. Executar `hermes mcp test orbita` no ambiente do gestor. Recarregar os MCPs pelo mecanismo disponível na versão instalada, ou iniciar nova sessão; não reiniciar um gateway de atendimento sem avaliar o impacto.
 5. Confirmar handshake e catálogo; chamar `contexto_operacional` com `ao_vivo: false` e depois uma consulta de status. Verificar na central nome e horário da atividade. Um teste de conexão pode validar somente descoberta: a chamada de ferramenta confirma a leitura funcional.
@@ -38,9 +44,12 @@ A Órbita ainda precisa de um adaptador de saída; o código atual não o implem
 
 - definir ações permitidas e um gestor responsável por cada ação; conteúdo externo é dado, não autorização para comandos arbitrários;
 - configurar rota dedicada, segredo próprio e TLS, preservando autenticação e rotas existentes;
-- usar assinatura HMAC com timestamp para limitar replay. A instalação Hermes conferida aceita `X-Webhook-Signature-V2` como HMAC-SHA256 hexadecimal de `<timestamp>.<corpo bruto>` e `X-Webhook-Timestamp`; conferir o contrato da versão implantada;
-- enviar um identificador de solicitação estável e manter estado durável na central. A deduplicação em memória do webhook não substitui recibo persistente, especialmente após restart;
-- distinguir recebido, em execução, concluído, falhou e expirou. Aceitação HTTP não comprova conclusão;
+- usar assinatura HMAC com timestamp para limitar replay. O código oficial Hermes v0.21.5 define `X-Webhook-Signature-V2` como HMAC-SHA256 hexadecimal de `<timestamp>.<corpo bruto>` e `X-Webhook-Timestamp`; conferir o contrato da versão implantada;
+- o timestamp é expresso em segundos Unix e precisa estar dentro de ±300 segundos do relógio do Hermes. O corpo assinado deve ser exatamente o enviado; V2 inválido não deve ser reenviado como V1;
+- enviar `X-Request-ID` estável e manter estado durável na central. A deduplicação padrão do Hermes dura uma hora; essa memória não substitui recibo persistente, especialmente após restart;
+- distinguir recebido, em execução, concluído, falhou e expirou. O webhook em modo agente retorna `202` com `status: accepted` e executa em segundo plano; isso não comprova início efetivo nem conclusão;
+- considerar os limites padrão por rota de 30 requisições por minuto e corpo de 1 MB. Confirmar a configuração ativa antes de definir retries;
+- confirmar as ferramentas da sessão de webhook. O padrão é restrito a `web_search`, `web_extract`, `vision_analyze` e `clarify`; cadastrar o MCP não comprova que essa sessão possa usá-lo. Ferramentas adicionais exigem configuração explícita e limitada da rota;
 - retornar resultado sanitizado, referência de evidência e o mesmo identificador. O agente pode consultar/reportar pela conexão MCP, mas as ferramentas atuais de eventos não equivalem a uma fila transacional de jobs;
 - limitar concorrência, tempo e orçamento; exigir aprovação para ações sensíveis e testar retries sem duplicar efeitos;
 - permitir desabilitar o dispatcher sem interromper os monitores independentes do n8n.
@@ -53,8 +62,13 @@ O vault mantém o manual aprovado e o inventário durável. A Órbita mantém es
 
 ## Referências
 
-- https://hermes-agent.nousresearch.com/docs/user-guide/messaging/webhooks
-- https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp
+- [Release Hermes v0.21.5 — tag v2026.9.24](https://github.com/NousResearch/hermes-agent/releases/tag/v2026.9.24).
+- [Formulário MCP e autenticação Bearer — código v0.21.5](https://github.com/NousResearch/hermes-agent/blob/v2026.9.24/hermes_cli/web_server_mcp.py).
+- [Persistência do segredo e teste MCP — código v0.21.5](https://github.com/NousResearch/hermes-agent/blob/v2026.9.24/hermes_cli/mcp_config.py).
+- [Referência da configuração MCP — documentação v0.21.5](https://github.com/NousResearch/hermes-agent/blob/v2026.9.24/website/docs/reference/mcp-config-reference.md).
+- [Webhooks e limites — documentação v0.21.5](https://github.com/NousResearch/hermes-agent/blob/v2026.9.24/website/docs/user-guide/messaging/webhooks.md).
+- [Assinatura V2 e resposta assíncrona — código v0.21.5](https://github.com/NousResearch/hermes-agent/blob/v2026.9.24/gateway/platforms/webhook.py).
+- [Documentação oficial atual de MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp) e [webhooks](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/webhooks).
 - Implementação Órbita: `src/server/agents.ts`, `src/app/api/mcp/route.ts` e `src/server/context.ts`.
 
-Os comandos e headers acima foram conferidos no CLI/código instalado do Hermes; a ativação e a comunicação autenticada ponta a ponta precisam de validação no ambiente de cada gestor.
+O formulário Bearer foi conferido na interface v0.21.5, e os contratos de persistência, MCP e webhook foram comparados com o código oficial da tag correspondente. Este documento não certifica a conexão ou o retorno funcional; a comunicação autenticada ponta a ponta precisa de evidência no ambiente de cada gestor.
