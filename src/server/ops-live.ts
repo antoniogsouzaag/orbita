@@ -62,10 +62,14 @@ export async function ingest(p: IngestPayload) {
   const now = new Date();
   const counters = { links: 0, domains: 0, events: 0 };
 
-  await db
-    .insert(opsHeartbeats)
-    .values({ source: p.source, label: p.label ?? p.source, lastSeen: now, everyMinutes: p.everyMinutes ?? 15 })
-    .onConflictDoUpdate({ target: opsHeartbeats.source, set: { lastSeen: now, ...(p.label ? { label: p.label } : {}), ...(p.everyMinutes ? { everyMinutes: p.everyMinutes } : {}) } });
+  // Só execuções de monitor (com links ou domínios) contam como batida; alertas avulsos de falha não,
+  // senão a fonte "alerta de falhas" apareceria como monitor em silêncio.
+  if (p.links || p.domains) {
+    await db
+      .insert(opsHeartbeats)
+      .values({ source: p.source, label: p.label ?? p.source, lastSeen: now, everyMinutes: p.everyMinutes ?? 15 })
+      .onConflictDoUpdate({ target: opsHeartbeats.source, set: { lastSeen: now, ...(p.label ? { label: p.label } : {}), ...(p.everyMinutes ? { everyMinutes: p.everyMinutes } : {}) } });
+  }
 
   for (const l of p.links ?? []) {
     const [prev] = await db.select().from(opsStatus).where(eq(opsStatus.url, l.url));

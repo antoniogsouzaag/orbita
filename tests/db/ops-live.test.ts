@@ -47,6 +47,9 @@ describe("ingestão de status (n8n → Órbita)", () => {
     expect(live.events.some((e) => e.kind === "workflow_error" && e.subject === "Comentários do Instagram")).toBe(true);
     const m = live.monitors.find((x) => x.source === "n8n-vps03")!;
     expect(m).toMatchObject({ label: "ping my links", silent: false });
+    // alerta avulso de falha não vira "monitor" (não pode acusar silêncio)
+    expect(live.monitors.some((x) => x.source === "n8n-vps01-erros")).toBe(false);
+    expect(live.monitors.some((x) => x.source === "n8n-vps03-dominios")).toBe(true);
   });
 
   it("rejeita payload inválido", () => {
