@@ -1,12 +1,14 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { agentActivity, agentTokens, opsEvents, tasks, type AgentScope } from "@/db/schema";
 import { buildContext, contextToMarkdown } from "./context";
 import { liveOps } from "./ops-live";
+import { githubInbox } from "./github-inbox";
+import { n8nOverview } from "./ops";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -52,6 +54,18 @@ export async function recentActivity(limit = 60) {
   return db.select().from(agentActivity).orderBy(desc(agentActivity.createdAt)).limit(limit);
 }
 
+/** Métricas completas da janela, independentes do limite de linhas da atividade. */
+export async function agentActivitySummary() {
+  const db = await getDb();
+  const since = new Date(Date.now() - 24 * 3_600_000);
+  const rows = await db.select({
+    agent: agentActivity.agent,
+    calls: sql<number>`count(*)`.mapWith(Number),
+    failures: sql<number>`count(*) filter (where not ${agentActivity.ok})`.mapWith(Number),
+  }).from(agentActivity).where(gte(agentActivity.createdAt, since)).groupBy(agentActivity.agent);
+  return { since: since.toISOString(), rows };
+}
+
 /** Tarefas que os agentes abriram para Antonio (tag "agente:<nome>"). */
 export async function agentTasks(agent?: string) {
   const db = await getDb();
@@ -64,10 +78,11 @@ function slug(s: string) {
 }
 
 /** Aviso imediato no Telegram quando um agente pede algo a Antonio. */
-async function notifyAgentAsk(agent: string, title: string, prio: string | null) {
+async function notifyAgentAsk(agent: string, title: string, prio: string | null): Promise<boolean> {
   const { escHtml, sendTelegram, telegramConfigured } = await import("./telegram");
-  if (!telegramConfigured()) return;
-  await sendTelegram(`🤖 <b>${escHtml(agent)}</b> pediu${prio === "alta" ? " (prioridade alta)" : ""}:\n${escHtml(title)}\n\n<a href="${process.env.APP_URL ?? "https://orb.aglabs.api.br"}/empresa">Ver na Órbita</a>`).catch(() => {});
+  if (!telegramConfigured()) return false;
+  const result = await sendTelegram(`🤖 <b>${escHtml(agent)}</b> pediu${prio === "alta" ? " (prioridade alta)" : ""}:\n${escHtml(title)}\n\n<a href="${process.env.APP_URL ?? "https://orb.aglabs.api.br"}/empresa">Ver na Órbita</a>`).catch(() => ({ ok: false }));
+  return result.ok;
 }
 
 /* ───────────── Servidor MCP ───────────── */
@@ -122,6 +137,27 @@ export function buildMcpServer(agent: AgentIdentity) {
 
   if (can("status")) {
     server.registerTool(
+      "pendencias_github",
+      { title: "PRs e propostas pendentes", description: "Lê PRs abertos e propostas sem decisão nos repositórios visíveis ao token da Órbita. Não aprova nem altera nada.", inputSchema: {} },
+      async () => run("pendencias_github", "consultou PRs e propostas", async () => {
+        const inbox = await githubInbox();
+        if (!inbox.configured) return text("GitHub não configurado na Órbita.", true);
+        if (inbox.error) return text(inbox.error, true);
+        return text([`Organização: ${inbox.org}. ${inbox.items.length} de ${inbox.total} resultados${inbox.truncated ? " (consulta parcial)" : ""}.`, inbox.warning, ...inbox.items.map((item) => `- ${item.kind === "pr" ? item.draft ? "PR rascunho" : "PR" : "Proposta"}: ${item.repo} #${item.number} — ${item.title}\n  ${item.url}`)].join("\n"));
+      }),
+    );
+    server.registerTool(
+      "automacoes_operacionais",
+      { title: "Automações e falhas", description: "Lê workflows ativos/inativos e falhas recentes das instâncias n8n conectadas. Não executa nem modifica workflows.", inputSchema: {} },
+      async () => run("automacoes_operacionais", "consultou automações e falhas", async () => {
+        const overview = await n8nOverview();
+        if (!overview.configured) return text("Instâncias n8n não configuradas na Órbita (N8N_INSTANCES).", true);
+        return text(overview.instances.map((instance) => instance.ok
+          ? `${instance.name}: ${instance.workflows.filter((workflow) => workflow.active).length}/${instance.workflows.length} workflows ativos. ${instance.errors.length} falhas recentes.\n${instance.errors.slice(0, 10).map((error) => `- ${error.workflowName} · ${error.startedAt} · ${error.url}`).join("\n")}`
+          : `${instance.name}: não foi possível consultar a instância.`).join("\n\n"));
+      }),
+    );
+    server.registerTool(
       "status_ao_vivo",
       { title: "Status ao vivo", description: "Endereços fora do ar, incidentes abertos, domínios perto de vencer e saúde dos monitores.", inputSchema: {} },
       async () =>
@@ -151,8 +187,8 @@ export function buildMcpServer(agent: AgentIdentity) {
             .insert(tasks)
             .values({ title: titulo, notes: `${detalhes ?? ""}\n\n— aberta por ${agent.name} via MCP`.trim(), priority: prioridade === "alta" ? 3 : prioridade === "media" ? 2 : prioridade === "baixa" ? 1 : 0, dueDate: prazo ?? null, tags: ["agente", `agente:${slug(agent.name)}`], scope: "empresa" })
             .returning({ id: tasks.id });
-          await notifyAgentAsk(agent.name, titulo, prioridade ?? null);
-          return text(`Tarefa criada (${t.id}). Antonio verá na Órbita e recebe aviso no Telegram.`);
+          const notified = await notifyAgentAsk(agent.name, titulo, prioridade ?? null);
+          return text(`Tarefa criada (${t.id}). Antonio verá na Órbita.${notified ? " O Telegram aceitou o aviso (entrega não confirmada)." : " Aviso no Telegram não confirmado; a tarefa continua salva."}`);
         }),
     );
     server.registerTool(

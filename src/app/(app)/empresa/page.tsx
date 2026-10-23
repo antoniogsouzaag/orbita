@@ -5,23 +5,27 @@ import { Hero } from "@/components/home/hero";
 import { AgendaWidget, GoalsWidget, TasksWidget } from "@/components/home/widgets";
 import { SectionLabel } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { loadEmpresa } from "@/server/empresa";
+import { cache, Suspense } from "react";
+import { loadEmpresaLocal } from "@/server/empresa";
+import { crmOverview } from "@/server/crm";
+import { githubInbox } from "@/server/github-inbox";
 import { EMPRESA_WIDGETS, type EmpresaWidgetId } from "@/server/settings";
 
 export const metadata = { title: "Empresa" };
 
 const SPAN: Partial<Record<EmpresaWidgetId, string>> = { aguardando: "md:col-span-2", crm: "md:col-span-2 xl:col-span-1" };
+const getCrm = cache(() => crmOverview());
 
 export default async function Page() {
-  const data = await loadEmpresa();
+  const data = await loadEmpresaLocal();
   const { settings } = data;
 
   const render: Record<EmpresaWidgetId, () => React.ReactNode> = {
-    aguardando: () => <WaitingWidget asks={data.asks} due={data.due} crmMine={data.crmMine} crmTasksUrl={data.crmTasksUrl} today={data.today} />,
+    aguardando: () => <Suspense fallback={<WaitingWidget asks={data.asks} due={data.due} crmMine={data.crmMine} crmTasksUrl={data.crmTasksUrl} today={data.today} />}><WaitingCard data={data} /></Suspense>,
     operacao: () => <OperationWidget ops={data.ops} />,
     tarefas: () => <TasksWidget tasks={data.tasks} counts={data.counts} href="/tarefas?escopo=empresa" showScope={false} />,
-    crm: () => <CrmWidget crm={data.crm} />,
-    github: () => <GithubWidget gh={data.gh} />,
+    crm: () => <Suspense fallback={<ProviderLoading title="Conectando ao CRM" />}><CrmCard /></Suspense>,
+    github: () => <Suspense fallback={<ProviderLoading title="Atualizando PRs e propostas" />}><GithubCard /></Suspense>,
     agentes: () => <AgentsWidget activity={data.activity} />,
     projetos: () => <ProjectsWidget projects={data.projects} />,
     incidentes: () => <IncidentsWidget incidents={data.incidents} />,
@@ -53,4 +57,17 @@ export default async function Page() {
       </div>
     </>
   );
+}
+
+function ProviderLoading({ title }: { title: string }) {
+  return <div role="status" className="card h-full min-h-48 space-y-4 p-5"><p className="text-sm font-medium">{title}</p><div className="loading-shimmer h-12 rounded-xl" /><div className="loading-shimmer h-3 w-2/3 rounded" /></div>;
+}
+
+async function CrmCard() { return <CrmWidget crm={await getCrm()} />; }
+async function GithubCard() { return <GithubWidget gh={await githubInbox()} />; }
+
+async function WaitingCard({ data }: { data: Awaited<ReturnType<typeof loadEmpresaLocal>> }) {
+  const crm = await getCrm();
+  const mine = crm.configured && crm.ok ? crm.mine.filter((item) => item.prazo && item.prazo <= data.today) : [];
+  return <WaitingWidget asks={data.asks} due={data.due} crmMine={mine} crmTasksUrl={data.crmTasksUrl} today={data.today} />;
 }

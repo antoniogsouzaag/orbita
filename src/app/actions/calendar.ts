@@ -6,46 +6,32 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { calendars, events } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
-import { shiftDate, zonedToUtc } from "@/lib/dates";
-import { syncCalendar } from "@/server/calendar";
+import { eventFormSchema, eventRange } from "@/lib/calendar";
+import { syncCalendar, syncStaleCalendars } from "@/server/calendar";
 
-const eventSchema = z.object({
-  title: z.string().trim().min(1).max(300),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
-  endTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
-  allDay: z.boolean().optional(),
-  location: z.string().max(300).nullable().optional(),
-  description: z.string().max(5000).nullable().optional(),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
-});
-
-function toRange(v: z.infer<typeof eventSchema>) {
-  const allDay = v.allDay || !v.startTime;
-  if (allDay) {
-    const start = new Date(`${v.date}T00:00:00Z`);
-    const end = new Date(`${shiftDate(v.endDate ?? v.date, 1)}T00:00:00Z`);
-    return { startAt: start, endAt: end, allDay: true };
-  }
-  const startAt = zonedToUtc(v.date, v.startTime!);
-  let endAt = v.endTime ? zonedToUtc(v.endDate ?? v.date, v.endTime) : new Date(startAt.getTime() + 3_600_000);
-  if (endAt <= startAt) endAt = new Date(startAt.getTime() + 3_600_000);
-  return { startAt, endAt, allDay: false };
+async function requireEditableEvent(id: string) {
+  const db = await getDb();
+  const [event] = await db.select({ id: events.id, calendarId: events.calendarId, kind: calendars.kind }).from(events).leftJoin(calendars, eq(events.calendarId, calendars.id)).where(eq(events.id, z.string().uuid().parse(id)));
+  if (!event) throw new Error("Evento não encontrado");
+  if (event.calendarId && event.kind !== "local") throw new Error("Este evento pertence a um calendário assinado. Edite-o na origem.");
 }
 
-export async function saveEvent(id: string | null, data: z.input<typeof eventSchema>) {
+export async function saveEvent(id: string | null, data: z.input<typeof eventFormSchema>) {
   await requireAuth();
-  const v = eventSchema.parse(data);
+  const v = eventFormSchema.parse(data);
   const db = await getDb();
-  const values = { title: v.title, location: v.location ?? null, description: v.description ?? null, color: v.color ?? null, ...toRange(v) };
-  if (id) await db.update(events).set(values).where(eq(events.id, z.string().uuid().parse(id)));
+  const values = { title: v.title, location: v.location ?? null, description: v.description ?? null, color: v.color ?? null, ...eventRange(v) };
+  if (id) {
+    await requireEditableEvent(id);
+    await db.update(events).set(values).where(eq(events.id, id));
+  }
   else await db.insert(events).values(values);
   revalidatePath("/", "layout");
 }
 
 export async function deleteEvent(id: string) {
   await requireAuth();
+  await requireEditableEvent(id);
   const db = await getDb();
   await db.delete(events).where(eq(events.id, z.string().uuid().parse(id)));
   revalidatePath("/", "layout");
@@ -79,6 +65,13 @@ export async function resyncCalendar(id: string) {
     revalidatePath("/", "layout");
     return { count: 0, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+export async function resyncCalendars() {
+  await requireAuth();
+  const report = await syncStaleCalendars(0);
+  revalidatePath("/", "layout");
+  return report;
 }
 
 export async function updateCalendar(id: string, data: { enabled?: boolean; color?: string; name?: string }) {

@@ -6,6 +6,6 @@ import { syncStaleCalendars } from "@/server/calendar";
 export async function GET(req: NextRequest) {
   const authorized = (await isAuthenticated()) || tokenMatches(req.nextUrl.searchParams.get("token") ?? req.headers.get("authorization")?.replace(/^Bearer /, ""), "CONTEXT_TOKEN") || tokenMatches(req.headers.get("authorization")?.replace(/^Bearer /, ""), "CRON_SECRET");
   if (!authorized) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  await syncStaleCalendars(0);
-  return NextResponse.json({ ok: true });
+  const report = await syncStaleCalendars(0);
+  return NextResponse.json({ ok: report.failed === 0, ...report }, { status: report.failed ? 207 : 200 });
 }

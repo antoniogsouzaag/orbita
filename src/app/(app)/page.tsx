@@ -9,10 +9,16 @@ import { cn } from "@/lib/utils";
 import { loadHome } from "@/server/home";
 import { listProjects } from "@/server/projects";
 import { WIDGETS, type WidgetId } from "@/server/settings";
+import { Suspense } from "react";
+import { after } from "next/server";
+import { syncStaleCalendars } from "@/server/calendar";
+import { commitStreak } from "@/server/github";
+import type { HomeData } from "@/server/home";
 
 const SPAN: Partial<Record<WidgetId, string>> = { conquistas: "md:col-span-2", plano: "md:col-span-2", metas: "md:col-span-2 xl:col-span-1" };
 
 export default async function HomePage() {
+  after(() => syncStaleCalendars(60).then(() => undefined).catch(() => {}));
   const [data, projects] = await Promise.all([loadHome(), listProjects()]);
   const { settings } = data;
 
@@ -35,7 +41,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <Hero cover={settings.cover} title={data.title} subtitle={data.subtitle.text} tone={data.subtitle.tone} />
+      <Suspense fallback={<Hero cover={settings.cover} title={data.title} subtitle={data.subtitle.text} tone={data.subtitle.tone} />}><PersonalHero data={data} /></Suspense>
       <Capture projects={projects.map((p) => ({ id: p.id, name: p.name, color: p.color }))} aiEnabled={data.aiEnabled} />
       <div className="mx-auto mt-12 max-w-6xl px-4 sm:px-6">
         <div className="mb-4 flex items-center">
@@ -54,4 +60,9 @@ export default async function HomePage() {
       </div>
     </>
   );
+}
+
+async function PersonalHero({ data }: { data: HomeData }) {
+  const commits = data.counts.open === 0 && data.subtitle.text === "0 tarefas abertas" ? await commitStreak() : null;
+  return <Hero cover={data.settings.cover} title={data.title} subtitle={commits && commits > 1 ? `🔥 ${commits} dias seguidos de commits` : data.subtitle.text} tone={data.subtitle.tone} />;
 }

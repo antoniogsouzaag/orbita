@@ -1,9 +1,8 @@
 import "server-only";
 import { aiEnabled } from "@/server/ai";
 import { listGoals } from "@/server/goals";
-import { eventsBetween, syncStaleCalendars } from "@/server/calendar";
+import { eventsBetween } from "@/server/calendar";
 import { getCheckin } from "@/server/checkins";
-import { commitStreak } from "@/server/github";
 import { habitLogDates, listHabits } from "@/server/habits";
 import { financeMonth, focusStats, getDayPlan, listBooks, listWorkouts } from "@/server/life";
 import { getSettings } from "@/server/settings";
@@ -57,13 +56,12 @@ export function groupAgenda(events: Awaited<ReturnType<typeof eventsBetween>>, n
 }
 
 export async function loadHome() {
-  syncStaleCalendars(60).catch(() => {});
   const t = today();
   const now = new Date();
-  const [settings, counts, tasks, habits, goals, events, checkin, plan, focus, workouts, finance, books, logs, completions, commits] = await Promise.all([
+  const [settings, counts, tasks, habits, goals, events, checkin, plan, focus, workouts, finance, books, logs, completions] = await Promise.all([
     getSettings(),
-    taskCounts(),
-    homeTasks(7),
+    taskCounts("pessoal"),
+    homeTasks(7, "pessoal"),
     listHabits({ days: 400 }),
     listGoals("ativa"),
     eventsBetween(zonedToUtc(t), zonedToUtc(shiftDate(t, 8))),
@@ -75,7 +73,6 @@ export async function loadHome() {
     listBooks(),
     habitLogDates(shiftDate(t, -400)),
     completedOnDays(shiftDate(t, -400)),
-    commitStreak(),
   ]);
 
   // Sequências por área + sequência geral da Órbita
@@ -110,7 +107,6 @@ export async function loadHome() {
   if (next) subtitle = { text: `Próximo: ${next.title} · ${relativeDay(localDate(next.startAt))} ${localTime(next.startAt)}` };
   else if (counts.overdue > 0) subtitle = { text: `⚠ ${counts.overdue} ${counts.overdue === 1 ? "tarefa atrasada" : "tarefas atrasadas"}`, tone: "warning" };
   else if (hour >= 17 && pendingHabits > 0) subtitle = { text: `Faltam ${pendingHabits} ${pendingHabits === 1 ? "hábito" : "hábitos"} hoje` };
-  else if (commits && commits > 1) subtitle = { text: `🔥 ${commits} dias seguidos de commits` };
 
   return {
     settings,
@@ -121,7 +117,7 @@ export async function loadHome() {
     habits: [...scheduled, ...habits.filter((h) => !h.scheduledToday)],
     habitsDone: scheduled.filter((h) => h.doneToday).length,
     habitsTotal: scheduled.length,
-    goals,
+    goals: goals.filter((g) => g.area !== "empresa"),
     agenda,
     checkin,
     plan,

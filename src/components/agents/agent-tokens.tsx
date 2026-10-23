@@ -14,7 +14,7 @@ export type TokenRow = { id: string; name: string; prefix: string; scopes: strin
 
 const SCOPES: { id: string; label: string; desc: string }[] = [
   { id: "contexto", label: "Contexto", desc: "Ler o contexto operacional e buscar/ler notas do vault" },
-  { id: "status", label: "Status", desc: "Ver sites fora do ar, incidentes, domínios e monitores" },
+  { id: "status", label: "Status", desc: "Ver operação, PRs, propostas e falhas das automações" },
   { id: "tarefas", label: "Tarefas", desc: "Abrir tarefas para você e acompanhar as que abriu" },
   { id: "eventos", label: "Eventos", desc: "Registrar deploys, manutenções e incidentes na Operação" },
 ];
@@ -56,7 +56,7 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
           }}
         >
           <div className="flex flex-wrap gap-2">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do agente (ex.: Hermes Oracle, Claude Code)" className="h-9 min-w-[240px] flex-1" maxLength={60} />
+            <Input aria-label="Nome do agente" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do agente (ex.: Hermes Oracle, Claude Code)" className="h-9 min-w-0 flex-1 basis-56" maxLength={60} />
             <Button size="sm" variant="primary" className="h-9" disabled={pending || name.trim().length < 2 || scopes.length === 0}>
               <Plus /> Criar acesso
             </Button>
@@ -75,7 +75,7 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
               );
             })}
           </div>
-          <p className="text-[12px] text-faint">Dê só o necessário. Nenhum agente acessa finanças, saúde, humor, notas pessoais ou edita o vault.</p>
+          <p className="text-[12px] text-faint">Cada escopo libera só as ferramentas descritas. Contexto permite ler o vault conectado; compartilhe esse acesso apenas com agentes de confiança. Dados pessoais do banco não ficam disponíveis, e o MCP não edita o vault.</p>
         </form>
 
         {created && (

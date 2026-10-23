@@ -113,18 +113,18 @@ body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiase
   opacity: 0.35;
   transition: opacity 0.8s ease;
 }
-.dark .app-wallpaper img { opacity: 0.95; }
+.dark .app-wallpaper img { opacity: 0.46; }
 .app-wallpaper::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: color-mix(in oklab, var(--bg) 30%, transparent);
+  background: color-mix(in oklab, var(--bg) 48%, transparent);
 }
 
 /* Liquid glass: fundo translúcido, desfoque e brilho nas bordas internas. Bordas, raios e tamanhos são os de cada componente. */
 .card {
-  background: color-mix(in oklab, var(--surface) 46%, transparent);
-  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface) 78%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border-strong) 75%, transparent);
   border-radius: 18px;
   -webkit-backdrop-filter: blur(22px) saturate(1.6);
   backdrop-filter: blur(22px) saturate(1.6);
@@ -135,10 +135,37 @@ body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiase
     var(--card-shadow);
 }
 .glass {
-  background: color-mix(in oklab, var(--surface) 34%, transparent);
+  background: color-mix(in oklab, var(--surface) 65%, transparent);
   -webkit-backdrop-filter: blur(24px) saturate(1.8);
   backdrop-filter: blur(24px) saturate(1.8);
   box-shadow: inset 1px 1px 1px -0.5px rgba(var(--rim), 0.25), inset -1px -1px 1px -0.5px rgba(var(--rim), 0.15);
+}
+
+/* The cover remains edge to edge; navigation floats above the same canvas. */
+.app-frame { isolation: isolate; }
+.workspace-sidebar {
+  transform: translateX(calc(-100% - 16px));
+  opacity: 0;
+  visibility: hidden;
+  transition: transform 360ms cubic-bezier(.22,1,.36,1), opacity 220ms ease, visibility 360ms;
+  background: color-mix(in oklab, var(--surface) 74%, transparent);
+}
+.workspace-sidebar.is-open { transform: translateX(0); opacity: 1; visibility: visible; }
+.brand-lockup { transition: opacity 180ms ease; }
+.app-frame main { transition: padding 360ms cubic-bezier(.22,1,.36,1); }
+.app-frame main > div { animation: page-enter 260ms ease-out; }
+@media (min-width: 1024px) {
+  .sidebar-open main { padding-left: 268px; }
+  .sidebar-open .home-hero { width: calc(100% + 268px); margin-left: -268px; }
+  .sidebar-open .home-hero > .relative { padding-left: 288px; max-width: 1280px; }
+}
+@keyframes page-enter { from { opacity: .4; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.loading-shimmer { background: linear-gradient(100deg, var(--surface-2) 25%, var(--surface-3) 45%, var(--surface-2) 65%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+html { scroll-padding-top: 80px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 .liquid {
   position: relative;

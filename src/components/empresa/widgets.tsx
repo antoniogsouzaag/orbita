@@ -169,17 +169,18 @@ function CrmBody({ crm }: { crm: Extract<EmpresaData["crm"], { ok: true }> }) {
 export function GithubWidget({ gh }: { gh: EmpresaData["gh"] }) {
   return (
     <Card className="h-full">
-      <CardHeader icon={<GitPullRequest />} title="PRs e propostas" meta={gh.items.length ? String(gh.items.length) : undefined} />
+      <CardHeader icon={<GitPullRequest />} title="PRs e propostas" meta={gh.items.length ? String(gh.items.length) : undefined} href="/integracoes/github" hrefLabel="Revisar" />
       <div className="px-3 pb-3">
         {gh.items.length === 0 ? (
           <p className="px-2 pb-2 text-[13px] text-muted">
-            {gh.configured ? (gh.error ? `Não consegui ler: ${gh.error}` : "Nenhum PR ou proposta esperando.") : "Configure GITHUB_INBOX_TOKEN para ver PRs e propostas da aglabs-core."}
+            {gh.configured ? (gh.error ? `Não consegui ler: ${gh.error}` : "Nenhum PR ou proposta visível ao token atual.") : "Configure o acesso ao GitHub em Integrações para acompanhar os PRs."}
           </p>
         ) : (
           gh.items.slice(0, 7).map((i) => (
             <Row key={i.url} href={i.url} external title={i.title} meta={`${i.repo} #${i.number} · ${ago(i.updatedAt)}`} badge={i.kind === "pr" ? (i.draft ? "rascunho" : "PR") : "proposta"} badgeIcon={i.kind === "proposta" ? <Lightbulb className="size-3" /> : <GitPullRequest className="size-3" />} />
           ))
         )}
+        {gh.configured && !gh.error && <p className="px-2 pt-2 text-[11px] leading-relaxed text-faint">{gh.credential === "VAULT_GITHUB_TOKEN" ? "Usando o token do Knowledge · cobertura limitada aos repositórios permitidos." : "Repositórios visíveis ao token configurado."}{gh.truncated ? " Consulta parcial." : ""}</p>}
       </div>
     </Card>
   );

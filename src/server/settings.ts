@@ -80,11 +80,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 export async function getSettings(): Promise<AppSettings> {
   const db = await getDb();
-  const rows = await db.select().from(settings);
+  const rows = await db.select().from(settings).where(inArray(settings.key, Object.keys(DEFAULT_SETTINGS)));
   // só as chaves de preferência (a tabela também guarda segurança e a foto, que não devem vazar daqui)
   const keys = new Set(Object.keys(DEFAULT_SETTINGS));
   const map = Object.fromEntries(rows.filter((r) => keys.has(r.key)).map((r) => [r.key, r.value])) as Partial<AppSettings>;
-  const merged = { ...DEFAULT_SETTINGS, ...map };
+  const merged = structuredClone({ ...DEFAULT_SETTINGS, ...map });
   // garante que widgets novos apareçam para quem já tinha uma ordem salva
   const known = new Set(merged.widgets.order);
   for (const w of DEFAULT_SETTINGS.widgets.order) if (!known.has(w)) merged.widgets.order.push(w);

@@ -1,33 +1,17 @@
-import { Bot, CalendarDays, CheckCircle2, Circle, Database, GitCommitHorizontal, GitPullRequest, Image as ImageIcon, LibraryBig, Plug, Send, Sparkles, Workflow } from "lucide-react";
+import { Plug, Workflow } from "lucide-react";
 import { headers } from "next/headers";
+import { IntegrationHealth } from "@/components/agents/integration-health";
 import { CopyButton } from "@/components/ops/copy-button";
 import { Card, PageHeader } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { vaultConfig, vaultHealth } from "@/server/vault";
+import { integrationConfiguration } from "@/server/integrations";
 
 export const metadata = { title: "Integrações" };
-
-const has = (k: string) => Boolean(process.env[k]);
 
 export default async function Page() {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "orbita";
   const base = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
-  const v = vaultConfig();
-  const vh = await vaultHealth();
-  const items = [
-    { icon: Database, name: "Banco de dados", ok: has("DATABASE_URL"), env: ["DATABASE_URL"], desc: "Neon (Postgres). Sem ele, o app usa um banco local só para desenvolvimento." },
-    { icon: LibraryBig, name: "Vault (Obsidian no GitHub)", ok: vh.ok, problem: vh.configured && !vh.ok ? vh.error : null, env: ["VAULT_GITHUB_TOKEN", "VAULT_GITHUB_REPO", "VAULT_GITHUB_BRANCH"], desc: `Lê e grava ${v.repo} (${v.branch}). Cada salvamento é um commit — o GitHub segue como cópia na nuvem e o Obsidian sincroniza pelo obsidian-git. Token fine-grained: só este repositório, permissão “Contents: Read and write”.` },
-    { icon: Sparkles, name: "IA (OpenAI)", ok: has("OPENAI_API_KEY") || has("ANTHROPIC_API_KEY"), env: ["OPENAI_API_KEY", "OPENAI_MODEL"], desc: "Perguntar à IA, chat e Plano do dia. Modelo padrão: gpt-6-luna (troque em OPENAI_MODEL). Também aceita Claude com ANTHROPIC_API_KEY + AI_PROVIDER=anthropic." },
-    { icon: Workflow, name: "n8n → Órbita (status ao vivo)", ok: has("OPS_TOKEN"), env: ["OPS_TOKEN"], desc: "Os monitores do n8n enviam links, domínios e falhas; a Órbita guarda histórico, incidentes e a batida de cada monitor." },
-    { icon: Workflow, name: "Órbita → n8n (lista de workflows)", ok: has("N8N_INSTANCES"), env: ["N8N_INSTANCES"], desc: "Opcional: com a chave da API pública de cada n8n, a Órbita lista workflows ativos/inativos e aponta os não documentados no vault." },
-    { icon: CalendarDays, name: "Agenda (feed para o iPhone)", ok: has("CALENDAR_FEED_TOKEN"), env: ["CALENDAR_FEED_TOKEN"], desc: "Gera o link .ics para assinar no iPhone/Google. Assinaturas de iCloud/Google são adicionadas na própria Agenda." },
-    { icon: Bot, name: "Contexto para agentes", ok: has("CONTEXT_TOKEN"), env: ["CONTEXT_TOKEN"], desc: "GET /api/context devolve o contexto operacional (vault + estado ao vivo). Para conexão completa por MCP, com acesso próprio por agente, use a página Agentes." },
-    { icon: Send, name: "Telegram (bom dia e pedidos dos agentes)", ok: has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_CHAT_ID"), env: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "CRON_SECRET"], desc: "Envio direto pelo bot, sem n8n. CRON_SECRET autoriza o agendador da Vercel a disparar o resumo das 7h." },
-    { icon: GitPullRequest, name: "GitHub — Aguardando você", ok: has("GITHUB_INBOX_TOKEN") || has("GITHUB_TOKEN"), env: ["GITHUB_INBOX_TOKEN"], desc: "Lista PRs abertos e propostas sem decisão da aglabs-core na página Empresa. Token fine-grained da organização com leitura de Pull requests, Issues e Metadata." },
-    { icon: ImageIcon, name: "Capas do Unsplash", ok: has("UNSPLASH_ACCESS_KEY"), env: ["UNSPLASH_ACCESS_KEY"], desc: "Opcional: busca de capas. Sem ela, há sugestões prontas e URL própria." },
-    { icon: GitCommitHorizontal, name: "Sequência de commits", ok: has("GITHUB_USER"), env: ["GITHUB_USER", "GITHUB_TOKEN"], desc: "Opcional: mostra “N dias seguidos de commits” no Início." },
-  ];
+  const integrations = integrationConfiguration();
 
   const ingestExample = `{
   "source": "n8n-vps03-ping",
@@ -37,22 +21,9 @@ export default async function Page() {
 }`;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-4 sm:px-6">
-      <PageHeader icon={<Plug />} title="Integrações" description="O que está conectado. Os valores ficam nas variáveis de ambiente da Vercel — nunca aparecem aqui." />
-      <div className="grid gap-3 md:grid-cols-2">
-        {items.map((i) => (
-          <Card key={i.name} className="p-4">
-            <div className="flex items-center gap-2">
-              <i.icon className="size-4 text-muted" />
-              <span className="font-medium">{i.name}</span>
-              <span className={cn("ml-auto flex items-center gap-1 text-[12px]", i.ok ? "text-success" : "problem" in i && i.problem ? "text-danger" : "text-faint")}>{i.ok ? <CheckCircle2 className="size-3.5" /> : <Circle className="size-3.5" />}{i.ok ? "conectado" : "problem" in i && i.problem ? "com erro" : "não configurado"}</span>
-            </div>
-            {"problem" in i && i.problem && <p className="mt-2 rounded-lg bg-danger/10 px-2.5 py-1.5 text-[12.5px] text-danger">{i.problem}</p>}
-            <p className="mt-2 text-[12.5px] text-muted">{i.desc}</p>
-            <div className="mt-2 flex flex-wrap gap-1">{i.env.map((e) => <code key={e} className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-faint">{e}</code>)}</div>
-          </Card>
-        ))}
-      </div>
+    <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-6">
+      <PageHeader icon={<Plug />} title="Integrações" description="Conexões, diagnóstico e próximos passos para manter o ecossistema em sincronia." />
+      <IntegrationHealth initial={integrations} />
 
       <Card className="space-y-4 p-5 text-[13px] text-muted">
         <div className="flex items-center gap-2 text-[14px] font-semibold text-fg"><Workflow className="size-4" /> Como ligar os monitores do n8n</div>

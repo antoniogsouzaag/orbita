@@ -20,7 +20,7 @@ Botão **+** abre os atalhos rápidos, inclusive tarefa por voz. No iPhone, “E
 - **O vault é a fonte canônica.** Servidores, agentes, apps e regras ficam no vault (`aglabs-core/ag-labs-knowledge`). A Órbita lê de lá e não duplica.
 - **O GitHub é o backup do vault.** Cada salvamento no editor vira um commit; o Obsidian sincroniza pelo obsidian-git.
 - **O n8n coleta, a Órbita guarda e mostra.** Os monitores enviam links, domínios e falhas para `/api/ops/ingest`; a Órbita registra histórico, incidentes e a batida de cada monitor.
-- **Agentes entram por MCP com acesso mínimo.** Cada agente tem um token próprio com escopos; nenhum vê dados pessoais nem edita o vault.
+- **Agentes entram por MCP com acesso mínimo.** Cada agente tem um token próprio com escopos. O escopo `contexto` lê o vault conectado; dados pessoais do banco não são expostos e o MCP não edita o vault.
 - **Sem acumular lixo.** Uma vez por dia a Órbita apaga o que envelheceu: atividade de agentes (30 dias), falhas de workflow e avisos (30 dias), incidentes resolvidos (90 dias) e endereços, monitores e domínios que pararam de ser enviados.
 - **Falha de uma fonte não derruba a tela.** Se o GitHub recusar o token do vault, as páginas seguem funcionando e mostram o motivo e como corrigir.
 
@@ -56,7 +56,7 @@ http_headers = { Authorization = "Bearer orb_..." }
 | Escopo | Ferramentas |
 | --- | --- |
 | `contexto` | `contexto_operacional`, `buscar_no_vault`, `ler_nota_do_vault` |
-| `status` | `status_ao_vivo` |
+| `status` | `status_ao_vivo`, `pendencias_github`, `automacoes_operacionais` |
 | `tarefas` | `criar_tarefa_para_antonio`, `minhas_tarefas` |
 | `eventos` | `registrar_evento` |
 
@@ -67,7 +67,15 @@ A Órbita tem dois espaços, alternados no topo da barra lateral (ou pelo ícone
 | Espaço | O que tem |
 | --- | --- |
 | **Pessoal** | Início, tarefas pessoais, agenda, notas, hábitos, metas, finanças, academia, leitura, foco e revisão |
-| **Empresa** | Visão geral, tarefas da empresa, projetos, kanban, operação, automações, agentes e vault |
+| **Empresa** | Visão geral, tarefas da empresa, projetos, kanban, operação, automações e agentes |
+
+O **Vault** é compartilhado pelos dois espaços, na seção Geral. A barra lateral flutua sobre a mesma capa, com animação e navegação móvel. CRM e GitHub carregam independentemente dos dados locais da Empresa; a navegação exibe um estado de carregamento sem travar os controles.
+
+O grafo oferece busca por nota/pasta/tag, filtros, foco em conexões diretas ou de dois níveis, zoom, pausa e tela cheia. Clique em um nó para abrir a nota; arraste para reorganizar. O explorador lateral oferece os mesmos links pelo teclado.
+
+A Agenda tem mês, semana, dia e lista, separa compromissos simultâneos e permite consultar eventos de calendários assinados. A sincronização externa acontece depois da resposta e também pelo botão de atualização. Eventos ICS são editados na origem. A Revisão compara períodos de 7, 14 ou 30 dias; ausência de check-in continua como ausência de registro.
+
+As notificações consultam pendências, eventos e incidentes a cada minuto e ao retornar à janela. A leitura fica salva neste navegador. Erros de consulta são indicados sem afirmar que está tudo em dia.
 
 Cada tarefa tem um escopo (`pessoal` ou `empresa`). Pedidos de agentes e tarefas de projetos da empresa entram como `empresa`; a IA escolhe o escopo pelo pedido.
 
@@ -82,6 +90,16 @@ A **Visão geral da Empresa** segue o formato do Início: capa própria do Unspl
 | PRs e propostas | PRs abertos e issues `proposta` da `aglabs-core` (com `GITHUB_INBOX_TOKEN`) |
 | Atividade dos agentes, Incidentes e falhas, Domínios, Agenda | Histórico recente da operação |
 
+## Central dos agentes e diagnóstico
+
+**Agentes** reúne conexões MCP, escopos, último acesso, chamadas/falhas nas últimas 24 horas, pedidos abertos e o time documentado no Registro de Agentes do vault. O status do vault é documental; último acesso não confirma que o agente continua online. A criação e revogação de acessos ficam no painel recolhido de configuração. O escopo `contexto` permite ler o vault conectado; tarefas, finanças e saúde do banco pessoal não são expostas por MCP.
+
+**Integrações → Verificar integrações** executa sondagens de leitura em banco, vault, GitHub, CRM, n8n, Telegram e consulta as batidas dos monitores. Não envia mensagens nem executa workflows. “Configurado” significa que a configuração existe; “Verificado” confirma a sondagem descrita, no horário exibido. O Telegram pode aceitar um aviso sem confirmar entrega.
+
+O mesmo diagnóstico operacional está em `GET /api/integrations/status`, autenticado pela sessão do dono ou pelo `CONTEXT_TOKEN` já usado para leitura de contexto. A resposta não contém credenciais e não é armazenada em cache público.
+
+**Integrações → PRs e propostas** permite filtrar por tipo, título, repositório e autor. A credencial segue a precedência `GITHUB_INBOX_TOKEN` → `GITHUB_TOKEN` → `VAULT_GITHUB_TOKEN`. O token do Knowledge pode ser reutilizado com as permissões atuais, mas só enxerga os repositórios liberados para ele. Para visão do ecossistema, prefira um `GITHUB_INBOX_TOKEN` separado, de leitura, com os repositórios desejados. A busca carrega até 100 PRs e 100 propostas e informa quando os resultados são parciais.
+
 ## CRM
 
 A Órbita conversa com o CRM (`aglabs-core/crm-dash`) pelo servidor MCP dele (`/api/mcp`, documentado em `docs/mcp.md` daquele repositório). A Órbita pede, o CRM executa com as próprias regras: sem acesso direto ao Supabase, sem e-mail ou telefone dos contatos, sem mudar etapa do funil e sem apagar nada.
@@ -90,7 +108,7 @@ A Órbita conversa com o CRM (`aglabs-core/crm-dash`) pelo servidor MCP dele (`/
 - **Bom dia**: oportunidades, receita do mês, suas tarefas do CRM e tarefas vencidas do time.
 - **IA**: busca contatos, abre a ficha, cria tarefa para Maia, Léo, Antonio ou técnico, conclui com motivo e registra interações. E-mail para um contato vira tarefa para o Léo, que já faz o envio.
 
-Configuração: `CRM_MCP_URL` (`https://crm-dash-chi.vercel.app/api/mcp`) e `CRM_MCP_TOKEN` na Vercel da Órbita; o mesmo token em `CRM_MCP_TOKENS="orbita:<token>:leitura,tarefas,atividades"` na Vercel do CRM. Para trocar o token, gere outro (`openssl rand -hex 32`) e atualize os dois lados. Enquanto o CRM não aceita o token, o card mostra o motivo.
+Configuração: `CRM_MCP_URL` (`https://crm.aglabs.api.br/api/mcp`) e `CRM_MCP_TOKEN` na Vercel da Órbita; o mesmo token em `CRM_MCP_TOKENS="orbita:<token>:leitura,tarefas,atividades"` na Vercel do CRM. Para trocar o token, gere outro (`openssl rand -hex 32`) e atualize os dois lados. Enquanto o CRM não aceita o token, o card mostra o motivo.
 
 ## Telegram
 

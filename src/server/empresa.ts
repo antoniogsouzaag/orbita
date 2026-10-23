@@ -2,7 +2,7 @@ import "server-only";
 import { agentTasks, recentActivity } from "@/server/agents";
 import { aiEnabled } from "@/server/ai";
 import { eventsBetween } from "@/server/calendar";
-import { crmOverview, crmUrl } from "@/server/crm";
+import { crmOverview, crmUrl, type CrmTask } from "@/server/crm";
 import { githubInbox } from "@/server/github-inbox";
 import { listGoals } from "@/server/goals";
 import { groupAgenda } from "@/server/home";
@@ -16,22 +16,20 @@ import { localHour, shiftDate, today, zonedToUtc } from "@/lib/dates";
 const DAY = 86_400_000;
 
 /** Início da Empresa: o que espera Antonio, a operação, o CRM e o trabalho dos agentes. */
-export async function loadEmpresa() {
+export async function loadEmpresaLocal() {
   const t = today();
   const now = new Date();
-  const [settings, live, asksAll, activity, gh, tasks, counts, due, projects, goals, events, crm] = await Promise.all([
+  const [settings, live, asksAll, activity, tasks, counts, due, projects, goals, events] = await Promise.all([
     getSettings(),
     liveOps(),
     agentTasks(),
     recentActivity(8),
-    githubInbox(),
     homeTasks(7, "empresa"),
     taskCounts("empresa"),
     listTasks({ view: "hoje", scope: "empresa", limit: 20 }),
     listProjects(),
     listGoals("ativa"),
     eventsBetween(zonedToUtc(t), zonedToUtc(shiftDate(t, 8))),
-    crmOverview(),
   ]);
 
   const asks = asksAll.filter((x) => x.status !== "done");
@@ -41,7 +39,7 @@ export async function loadEmpresa() {
   const domains = live.domains.filter((d) => d.expiresAt || d.error).map((d) => ({ ...d, days: d.expiresAt ? Math.ceil((d.expiresAt.getTime() - now.getTime()) / DAY) : null }));
   const soon = domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - now.getTime() < 45 * DAY);
   const silent = live.monitors.filter((m) => m.silent);
-  const crmMine = crm.configured && crm.ok ? crm.mine.filter((x) => x.prazo && x.prazo <= t) : [];
+  const crmMine: CrmTask[] = [];
   const overdue = due.filter((d) => d.dueDate && d.dueDate < t);
   const waiting = asks.length + due.length + crmMine.length;
 
@@ -63,7 +61,6 @@ export async function loadEmpresa() {
     due,
     crmMine,
     crmTasksUrl: crmUrl("/tasks"),
-    gh,
     tasks,
     counts,
     activity,
@@ -73,9 +70,14 @@ export async function loadEmpresa() {
     projects: empresaProjects,
     goals: goals.filter((g) => g.area === "empresa"),
     agenda: groupAgenda(events, now, t),
-    crm,
     aiEnabled: aiEnabled(),
   };
+}
+
+/** Full snapshot for callers that need all sources; the UI streams providers independently. */
+export async function loadEmpresa() {
+  const [local, gh, crm] = await Promise.all([loadEmpresaLocal(), githubInbox(), crmOverview()]);
+  return { ...local, gh, crm, crmMine: crm.configured && crm.ok ? crm.mine.filter((x) => x.prazo && x.prazo <= local.today) : [] };
 }
 
 export type EmpresaData = Awaited<ReturnType<typeof loadEmpresa>>;

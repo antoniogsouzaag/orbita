@@ -16,7 +16,7 @@ export function Hero({ cover, title, subtitle, tone, field = "cover", eyebrow }:
     else setState("loading");
   }, [cover.url]);
   return (
-    <section className="relative h-[420px] w-full overflow-hidden sm:h-[460px]">
+    <section className="home-hero relative h-[420px] w-full overflow-hidden sm:h-[460px]">
       <div className="absolute inset-0 [mask-image:linear-gradient(to_bottom,black_35%,transparent_92%)]" style={{ background: cover.color ?? "#0b0b0d" }} />
       {state !== "failed" && (
         // eslint-disable-next-line @next/next/no-img-element

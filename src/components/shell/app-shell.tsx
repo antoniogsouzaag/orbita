@@ -1,8 +1,8 @@
 "use client";
 
-import { Bell, LayoutGrid, LogOut, Monitor, Moon, PanelLeft, Plus, Search, Settings, Sun } from "lucide-react";
+import { Bell, CheckCheck, LayoutGrid, LogOut, Monitor, Moon, PanelLeft, Plus, RefreshCw, Search, Settings, Sun } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Popover } from "radix-ui";
 import * as React from "react";
@@ -11,13 +11,15 @@ import { GlassFilter } from "@/components/ui/liquid-glass-button";
 import { Kbd } from "@/components/ui/misc";
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
+import { acknowledgeNotifications, type ShellNotification } from "@/lib/notifications";
 import { CommandPalette } from "./command-palette";
 import { Logo } from "./logo";
 import { SETTINGS_ITEM, SHARED, SPACES, isActive, spaceOf, type NavItem, type Space } from "./nav";
 import { QuickAdd } from "./quick-add";
 import { SpeedDial } from "./speed-dial";
+import { storePreference, useScrolled, useStoredPreference } from "./browser-state";
 
-export type ShellNotification = { id: string; title: string; detail?: string; href: string; tone?: "danger" | "warning" | "info" };
+export type { ShellNotification } from "@/lib/notifications";
 
 type Ctx = { openPalette: () => void; openQuickAdd: (tab?: string) => void };
 const ShellContext = React.createContext<Ctx>({ openPalette: () => {}, openQuickAdd: () => {} });
@@ -28,20 +30,11 @@ function useSpace(): { space: Space; escopo: string | null } {
   const pathname = usePathname();
   const escopo = useSearchParams().get("escopo");
   const fromRoute = spaceOf(pathname, escopo);
-  const [last, setLast] = React.useState<Space>("pessoal");
+  const last = useStoredPreference("orbita:space", "pessoal");
   React.useEffect(() => {
-    if (fromRoute) {
-      try {
-        localStorage.setItem("orbita:space", fromRoute);
-      } catch {}
-      return;
-    }
-    try {
-      const v = localStorage.getItem("orbita:space");
-      if (v === "empresa" || v === "pessoal") setLast(v);
-    } catch {}
+    if (fromRoute) storePreference("orbita:space", fromRoute);
   }, [fromRoute]);
-  return { space: fromRoute ?? last, escopo };
+  return { space: fromRoute ?? (last === "empresa" ? "empresa" : "pessoal"), escopo };
 }
 
 function SpaceSwitch({ space, className }: { space: Space; className?: string }) {
@@ -51,7 +44,7 @@ function SpaceSwitch({ space, className }: { space: Space; className?: string })
         const S = SPACES[k];
         const on = k === space;
         return (
-          <Link key={k} href={S.home} className={cn("flex h-8 items-center justify-center gap-1.5 rounded-[10px] text-[12.5px] font-medium transition", on ? "bg-surface text-fg shadow-sm ring-1 ring-border" : "text-muted hover:text-fg")} aria-current={on ? "true" : undefined}>
+          <Link key={k} href={S.home} prefetch={true} className={cn("flex h-8 items-center justify-center gap-1.5 rounded-[10px] text-[12.5px] font-medium transition", on ? "bg-surface text-fg shadow-sm ring-1 ring-border" : "text-muted hover:text-fg")} aria-current={on ? "true" : undefined}>
             <S.icon className="size-3.5" /> {S.label}
           </Link>
         );
@@ -64,6 +57,7 @@ function NavLink({ item, active, compact }: { item: NavItem; active: boolean; co
   return (
     <Link
       href={item.href}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "group relative flex items-center gap-2.5 rounded-lg px-3 text-[13px] transition",
         compact ? "h-8" : "h-8",
@@ -105,23 +99,47 @@ export function AppShell({
   projects: { id: string; name: string; color: string }[];
 }) {
   const pathname = usePathname();
-  const [sidebar, setSidebar] = React.useState(false);
+  const sidebar = useStoredPreference("orbita:sidebar", "0") === "1";
+  const setSidebar = (value: boolean) => storePreference("orbita:sidebar", value ? "1" : "0");
   const [palette, setPalette] = React.useState(false);
   const [quick, setQuick] = React.useState<{ open: boolean; tab?: string }>({ open: false });
-  const [scrolled, setScrolled] = React.useState(false);
+  const scrolled = useScrolled();
+  const [items, setItems] = React.useState(notifications);
+  const readRaw = useStoredPreference("orbita:notifications:read", "[]");
+  const read = React.useMemo<string[]>(() => {
+    try { const value = JSON.parse(readRaw); return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(-300) : []; } catch { return []; }
+  }, [readRaw]);
+  const [noticesOpen, setNoticesOpen] = React.useState(false);
+  const [noticeError, setNoticeError] = React.useState(false);
+  const [checkedAt, setCheckedAt] = React.useState<string | null>(null);
+  const refreshingNotices = React.useRef(false);
+  const unread = items.filter((n) => !read.includes(n.id)).length;
+  const refreshNotices = React.useCallback((): Promise<void> => {
+    if (refreshingNotices.current) return Promise.resolve();
+    refreshingNotices.current = true;
+    return fetch("/api/notifications", { cache: "no-store", signal: AbortSignal.timeout(15_000) }).then(async (response) => {
+      if (!response.ok) throw new Error("notifications");
+      const data = await response.json();
+      setItems(data.items);
+      setCheckedAt(data.checkedAt);
+      setNoticeError(false);
+    }).catch(() => { setNoticeError(true); }).finally(() => { refreshingNotices.current = false; });
+  }, []);
+  const markRead = (ids: string[]) => storePreference("orbita:notifications:read", JSON.stringify(acknowledgeNotifications(read, ids)));
 
   React.useEffect(() => {
-    try {
-      setSidebar(localStorage.getItem("orbita:sidebar") === "1");
-    } catch {}
-    const onScroll = () => setScrolled(window.scrollY > 12);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    const refresh = () => { if (document.visibilityState === "visible") void refreshNotices(); };
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
+  }, [refreshNotices]);
+
+  React.useEffect(() => { void refreshNotices(); }, [pathname, refreshNotices]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") storePreference("orbita:sidebar", "0");
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPalette((v) => !v);
@@ -138,12 +156,7 @@ export function AppShell({
   }, []);
 
   const toggleSidebar = () => {
-    setSidebar((v) => {
-      try {
-        localStorage.setItem("orbita:sidebar", v ? "0" : "1");
-      } catch {}
-      return !v;
-    });
+    setSidebar(!sidebar);
   };
 
   const ctx = React.useMemo<Ctx>(() => ({ openPalette: () => setPalette(true), openQuickAdd: (tab) => setQuick({ open: true, tab }) }), []);
@@ -152,26 +165,24 @@ export function AppShell({
 
   return (
     <ShellContext.Provider value={ctx}>
-      <div className={cn("min-h-dvh", sidebar && "lg:pl-[268px]")}>
+      <div className={cn("app-frame min-h-dvh", sidebar && "sidebar-open")}>
         <GlassFilter />
         <Wallpaper urls={wallpapers} />
-        {sidebar && <Sidebar pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} notifications={notifications.length} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />}
+        {sidebar && <button className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] lg:hidden" aria-label="Fechar navegação" onClick={toggleSidebar} />}
+        <Sidebar open={sidebar} pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} onNavigate={() => { if (window.matchMedia("(max-width: 1023px)").matches) setSidebar(false); }} notifications={unread} onNotifications={() => setNoticesOpen(true)} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />
 
         <header
           className={cn(
             "fixed inset-x-0 top-0 z-40 transition-[background,border,backdrop-filter] duration-300",
-            sidebar && "lg:left-[268px]",
             scrolled || !isHome ? "glass border-b border-border/60" : "border-b border-transparent",
           )}
         >
           <div className="mx-auto flex h-14 max-w-[1500px] items-center gap-2 px-4 sm:px-6">
-            {!sidebar && (
-              <Link href="/" className={cn("flex items-center gap-2", isHome && !scrolled ? "text-white" : "text-fg")} aria-label="Início">
+              <Link href="/" className={cn("brand-lockup flex items-center gap-2", sidebar && "lg:opacity-0 lg:pointer-events-none", isHome && !scrolled ? "text-white" : "text-fg")} aria-label="Início">
                 <Logo className="size-7" />
-                <span className="hidden text-[15px] font-semibold tracking-tight sm:inline">Órbita</span>
+                <span className="hidden text-[13px] font-semibold uppercase tracking-[0.22em] sm:inline">Órbita</span>
               </Link>
-            )}
-            <button onClick={toggleSidebar} className={cn("hidden rounded-lg p-1.5 transition hover:bg-white/10 lg:block", isHome && !scrolled ? "text-white/70 hover:text-white" : "text-muted hover:text-fg")} aria-label="Alternar barra lateral">
+            <button onClick={toggleSidebar} className={cn("rounded-lg p-1.5 transition hover:bg-white/10", sidebar && "lg:ml-[120px]", isHome && !scrolled ? "text-white/70 hover:text-white" : "text-muted hover:text-fg")} aria-label="Alternar barra lateral" aria-expanded={sidebar} aria-controls="workspace-sidebar">
               <PanelLeft className="size-[18px]" />
             </button>
             <div className="ml-auto flex items-center gap-1.5">
@@ -189,7 +200,7 @@ export function AppShell({
                   <Kbd>K</Kbd>
                 </span>
               </button>
-              <Notifications items={notifications} light={isHome && !scrolled} />
+              <Notifications items={items} read={read} unread={unread} open={noticesOpen} onOpenChange={setNoticesOpen} onRead={markRead} onRefresh={refreshNotices} error={noticeError} checkedAt={checkedAt} light={isHome && !scrolled} />
               <UserMenu name={name} avatar={avatar} light={isHome && !scrolled} />
             </div>
           </div>
@@ -205,12 +216,12 @@ export function AppShell({
   );
 }
 
-function Sidebar({ pathname, name, avatar, onCollapse, notifications, onSearch, onQuick }: { pathname: string; name: string; avatar?: string | null; onCollapse: () => void; notifications: number; onSearch: () => void; onQuick: () => void }) {
+function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, notifications, onNotifications, onSearch, onQuick }: { open: boolean; pathname: string; name: string; avatar?: string | null; onCollapse: () => void; onNavigate: () => void; notifications: number; onNotifications: () => void; onSearch: () => void; onQuick: () => void }) {
   const { space, escopo } = useSpace();
   return (
-    <aside className="glass fixed inset-y-2 left-2 z-50 hidden w-[256px] flex-col overflow-hidden rounded-2xl border border-border shadow-soft lg:flex">
+    <aside id="workspace-sidebar" aria-label="Navegação principal" aria-hidden={!open} inert={!open} onClick={(event) => { if ((event.target as HTMLElement).closest("a[href]")) onNavigate(); }} className={cn("workspace-sidebar glass fixed inset-y-2 left-2 z-50 flex w-[256px] flex-col overflow-hidden rounded-[22px] border border-border shadow-soft", open && "is-open")}>
       <div className="flex items-center gap-2 px-4 pb-2 pt-4">
-        <Logo className="size-6" />
+        <Logo className="size-7" />
         <span className="text-[13px] font-semibold uppercase tracking-[0.22em]">Órbita</span>
         <button onClick={onCollapse} className="ml-auto rounded-md p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Recolher">
           <PanelLeft className="size-4" />
@@ -224,10 +235,10 @@ function Sidebar({ pathname, name, avatar, onCollapse, notifications, onSearch, 
         <button onClick={onQuick} className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-[13px] text-muted hover:bg-surface-2 hover:text-fg">
           <Plus className="size-4" /> Captura rápida <Kbd className="ml-auto">C</Kbd>
         </button>
-        <div className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-[13px] text-muted">
+        <button onClick={onNotifications} className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-[13px] text-muted transition hover:bg-surface-2 hover:text-fg">
           <Bell className="size-4" /> Notificações
           {notifications > 0 && <span className="ml-auto rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">{notifications}</span>}
-        </div>
+        </button>
       </div>
       <SpaceSwitch space={space} className="mx-3 mb-1" />
       <nav className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-3 py-2">
@@ -263,7 +274,7 @@ function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean
   return (
     <div className={cn("pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-3", hidden && "lg:hidden")}>
       <nav className="glass pointer-events-auto flex items-center gap-1 rounded-[22px] border border-border p-1.5 shadow-soft">
-        <Link href={Other.home} title={`Ir para ${Other.label}`} aria-label={`Ir para ${Other.label}`} className="grid size-10 shrink-0 place-items-center rounded-2xl text-muted transition hover:bg-surface-2 hover:text-fg">
+        <Link href={Other.home} prefetch={true} title={`Ir para ${Other.label}`} aria-label={`Ir para ${Other.label}`} className="grid size-10 shrink-0 place-items-center rounded-2xl text-muted transition hover:bg-surface-2 hover:text-fg">
           <Other.icon className="size-[18px]" />
         </Link>
         <div className="mx-0.5 h-6 w-px bg-border" />
@@ -332,27 +343,31 @@ function AllApps({ pathname }: { pathname: string }) {
   );
 }
 
-function Notifications({ items, light }: { items: ShellNotification[]; light: boolean }) {
+function Notifications({ items, read, unread, open, onOpenChange, onRead, onRefresh, error, checkedAt, light }: { items: ShellNotification[]; read: string[]; unread: number; open: boolean; onOpenChange: (value: boolean) => void; onRead: (ids: string[]) => void; onRefresh: () => Promise<void>; error: boolean; checkedAt: string | null; light: boolean }) {
   return (
-    <Popover.Root>
+    <Popover.Root open={open} onOpenChange={onOpenChange}>
       <Popover.Trigger
         className={cn("relative grid size-9 place-items-center rounded-xl border transition", light ? "glass border-white/10 text-white/85 hover:text-white" : "border-border bg-surface-2 text-muted hover:text-fg")}
-        aria-label="Notificações"
+        aria-label={`Notificações${unread ? `, ${unread} não lidas` : ""}`}
       >
         <Bell className="size-4" />
-        {items.length > 0 && (
-          <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-warning px-1 text-[10.5px] font-bold text-black">{items.length > 99 ? "99+" : items.length}</span>
+        {unread > 0 && (
+          <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-warning px-1 text-[10.5px] font-bold text-black">{unread > 99 ? "99+" : unread}</span>
         )}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={8} className="z-50 w-[min(92vw,360px)] rounded-2xl border border-border-strong bg-surface p-2 shadow-soft animate-in">
-          <div className="px-2 pb-2 pt-1 text-[13px] font-semibold">Notificações</div>
+          <div className="flex items-center gap-2 px-2 pb-2 pt-1 text-[13px] font-semibold">Notificações
+            <button onClick={() => void onRefresh()} className="ml-auto rounded-lg p-1.5 text-muted hover:bg-surface-2" aria-label="Atualizar notificações"><RefreshCw className="size-3.5" /></button>
+            {unread > 0 && <button onClick={() => onRead(items.map((n) => n.id))} className="rounded-lg p-1.5 text-muted hover:bg-surface-2" aria-label="Marcar todas como lidas"><CheckCheck className="size-4" /></button>}
+          </div>
+          {error && <p role="status" className="px-2 pb-2 text-xs text-warning">Não foi possível atualizar. Tente novamente.</p>}
           {items.length === 0 ? (
-            <p className="px-2 pb-3 text-[13px] text-muted">Tudo em dia. 🎉</p>
+            <p className="px-2 pb-3 text-[13px] text-muted">{error ? "Avisos indisponíveis no momento." : checkedAt ? "Tudo em dia. 🎉" : "Consultando seus avisos…"}</p>
           ) : (
             <div className="max-h-80 overflow-y-auto">
               {items.map((n) => (
-                <Link key={n.id} href={n.href} className="flex gap-2.5 rounded-xl px-2 py-2 hover:bg-surface-2">
+                <Link key={n.id} href={n.href} onClick={() => { onRead([n.id]); onOpenChange(false); }} className={cn("flex gap-2.5 rounded-xl px-2 py-2 hover:bg-surface-2", read.includes(n.id) && "opacity-60")}>
                   <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.tone === "danger" ? "bg-danger" : n.tone === "warning" ? "bg-warning" : "bg-accent")} />
                   <span className="min-w-0">
                     <span className="block truncate text-[13px]">{n.title}</span>
@@ -362,6 +377,7 @@ function Notifications({ items, light }: { items: ShellNotification[]; light: bo
               ))}
             </div>
           )}
+          <p className="border-t border-border px-2 pt-2 text-[10.5px] text-faint">{checkedAt ? `Atualizado às ${new Date(checkedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} · atualização automática` : "Verificando avisos…"}</p>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -370,6 +386,7 @@ function Notifications({ items, light }: { items: ShellNotification[]; light: bo
 
 function UserMenu({ name, avatar, light }: { name: string; avatar?: string | null; light: boolean }) {
   const { setTheme, theme } = useTheme();
+  const router = useRouter();
   return (
     <Menu>
       <MenuTrigger className={cn("rounded-full ring-1 transition", light ? "ring-white/20" : "ring-border")} aria-label="Conta">
@@ -377,7 +394,7 @@ function UserMenu({ name, avatar, light }: { name: string; avatar?: string | nul
       </MenuTrigger>
       <MenuContent>
         <MenuLabel>{name}</MenuLabel>
-        <MenuItem onSelect={() => (window.location.href = "/config")}><Settings /> Configurações</MenuItem>
+        <MenuItem onSelect={() => router.push("/config")}><Settings /> Configurações</MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={() => setTheme("dark")}><Moon /> Escuro {theme === "dark" && "✓"}</MenuItem>
         <MenuItem onSelect={() => setTheme("light")}><Sun /> Claro {theme === "light" && "✓"}</MenuItem>

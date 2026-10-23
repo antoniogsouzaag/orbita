@@ -127,7 +127,9 @@ export async function syncCalendar(id: string) {
 export async function syncStaleCalendars(maxAgeMin = 30) {
   const cals = await listCalendars();
   const stale = cals.filter((c) => c.kind === "ics" && c.enabled && (!c.lastSyncedAt || Date.now() - c.lastSyncedAt.getTime() > maxAgeMin * 60_000));
-  await Promise.allSettled(stale.map((c) => syncCalendar(c.id)));
+  const results = await Promise.allSettled(stale.map((c) => syncCalendar(c.id)));
+  const errors = results.flatMap((result, index) => result.status === "rejected" ? [{ calendar: stale[index].name, error: result.reason instanceof Error ? result.reason.message : String(result.reason) }] : []);
+  return { synced: results.length - errors.length, failed: errors.length, events: results.reduce((count, result) => count + (result.status === "fulfilled" ? result.value : 0), 0), errors };
 }
 
 /* ───────── Feed ICS de saída (para assinar no iPhone/Google) ───────── */

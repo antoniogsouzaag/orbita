@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { POST } from "@/app/api/mcp/route";
 import { getDb } from "@/db";
 import { agentActivity, agentTokens, opsEvents, tasks } from "@/db/schema";
-import { createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken } from "@/server/agents";
+import { agentActivitySummary, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken } from "@/server/agents";
 
 let n = 0;
 async function rpc(token: string | null, method: string, params: object = {}) {
@@ -49,7 +49,7 @@ describe("central dos agentes (MCP)", () => {
   it("expõe só as ferramentas dos escopos do agente", async () => {
     const t = await createAgentToken("Só leitura", ["status"]);
     expect((await init(t)).body.result).toMatchObject({ serverInfo: { name: "orbita" } });
-    expect(await toolNames(t)).toEqual(["status_ao_vivo"]);
+    expect(await toolNames(t)).toEqual(["automacoes_operacionais", "pendencias_github", "status_ao_vivo"]);
     const call = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "não deveria" } });
     expect(JSON.stringify(call.body)).toMatch(/not found|não|error/i);
   });
@@ -60,6 +60,7 @@ describe("central dos agentes (MCP)", () => {
 
     const r = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "Aprovar renovação do domínio", prioridade: "alta", prazo: "2026-11-01" } });
     expect(JSON.stringify(r.body.result)).toContain("Tarefa criada");
+    expect(JSON.stringify(r.body.result)).toContain("Aviso no Telegram não confirmado");
 
     const db = await getDb();
     const [task] = await db.select().from(tasks);
@@ -83,5 +84,15 @@ describe("central dos agentes (MCP)", () => {
     expect(JSON.stringify(r.body)).toMatch(/isError|invalid|error/i);
     const db = await getDb();
     expect((await db.select().from(tasks)).filter((x) => x.title === "ok")).toHaveLength(0);
+  });
+
+  it("conta a janela inteira de atividade e ignora chamadas antigas", async () => {
+    const db = await getDb();
+    await db.insert(agentActivity).values([
+      ...Array.from({ length: 55 }, (_, index) => ({ agent: "Métricas", tool: "status_ao_vivo", summary: "leitura", ok: index >= 5 })),
+      { agent: "Métricas", tool: "status_ao_vivo", summary: "antiga", ok: false, createdAt: new Date(Date.now() - 25 * 3_600_000) },
+    ]);
+    const summary = await agentActivitySummary();
+    expect(summary.rows.find((row) => row.agent === "Métricas")).toEqual({ agent: "Métricas", calls: 55, failures: 5 });
   });
 });
