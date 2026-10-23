@@ -34,3 +34,12 @@
 2. Publicar o commit revisado mediante autorização de produção; executar o diagnóstico usando as variáveis reais do deployment.
 3. Para PRs de todos os repositórios privados, configurar token dedicado de leitura com a lista de repositórios desejados. O token Knowledge só garante a cobertura já concedida.
 4. Para listar todos os workflows pela aplicação, configurar as chaves de leitura da API pública dos n8n. Os conectores do chat continuam disponíveis, mas suas credenciais não são exportadas para a aplicação.
+
+## Continuação — Metas
+
+- Filtros Todas/Pessoal/Empresa com contagens. Estudos, saúde e finanças pertencem ao filtro Pessoal; Empresa usa a área explícita, sem inferir pelo título.
+- Nova meta assume a área do filtro selecionado. O formulário reinicia ao abrir, preserva os campos em falha e informa erros de salvamento/exclusão.
+- Controles de progresso ficam desabilitados durante a atualização; alvo zero não conclui automaticamente a meta.
+- TypeScript e suíte completa passaram: 19 arquivos, 83 testes. Sem alteração de schema.
+- Navegador de produção disponível, mas a Agenda observada ainda contém só Mês/Lista, portanto não valida o checkpoint local com quatro modos.
+- A tentativa de iniciar Next na porta 3012 anunciou Ready, mas encerrou ao detectar outro servidor do projeto na porta 3000 (PID 12312). O navegador recusou conexão na porta 3012 por localhost e pelo IP de rede anunciado. Validação visual das mudanças locais continua pendente. Nenhum deploy executado nesta continuação.

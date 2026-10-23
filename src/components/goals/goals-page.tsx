@@ -23,7 +23,20 @@ function fmt(g: Goal, v: number) {
 export function GoalsPage({ goals }: { goals: Goal[] }) {
   const [editing, setEditing] = React.useState<Goal | null>(null);
   const [open, setOpen] = React.useState(false);
-  const [, start] = React.useTransition();
+  const [pending, start] = React.useTransition();
+  const [space, setSpace] = React.useState<"todas" | "pessoal" | "empresa">("todas");
+  const visible = goals.filter((g) => space === "todas" || (space === "empresa" ? g.area === "empresa" : g.area !== "empresa"));
+  function changeProgress(g: Goal, current: number) {
+    start(async () => {
+      try {
+        const completed = Number(g.target) > 0 && current >= Number(g.target);
+        await saveGoal(g.id, { title: g.title, current, ...(completed ? { status: "concluida" } : {}) });
+        if (completed) toast.success("Meta concluída! 🏆");
+      } catch {
+        toast.error("Não foi possível atualizar a meta. Tente novamente.");
+      }
+    });
+  }
   const groups = [
     { id: "ativa", label: "Ativas" },
     { id: "pausada", label: "Pausadas" },
@@ -32,10 +45,19 @@ export function GoalsPage({ goals }: { goals: Goal[] }) {
   const t = today();
   return (
     <>
-      <div className="mb-4 flex justify-end"><Button variant="primary" size="sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus /> Nova meta</Button></div>
-      {goals.length === 0 && <Card><EmptyState icon={<Trophy />} title="Nenhuma meta ainda" description="Ex.: “Quitar minha dívida — R$ 4.000”, “AG LABS com R$ 3.000/mês recorrentes”." /></Card>}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div role="group" aria-label="Filtrar metas por espaço" className="flex flex-wrap gap-1">
+          {(["todas", "pessoal", "empresa"] as const).map((value) => (
+            <Button key={value} size="sm" variant={space === value ? "secondary" : "ghost"} aria-pressed={space === value} onClick={() => setSpace(value)}>
+              {{ todas: "Todas", pessoal: "Pessoal", empresa: "Empresa" }[value]} · {goals.filter((g) => value === "todas" || (value === "empresa" ? g.area === "empresa" : g.area !== "empresa")).length}
+            </Button>
+          ))}
+        </div>
+        <Button variant="primary" size="sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus /> Nova meta</Button>
+      </div>
+      {visible.length === 0 && <Card><EmptyState icon={<Trophy />} title="Nenhuma meta neste espaço" description="Crie uma meta com um alvo mensurável e acompanhe seu progresso." /></Card>}
       {groups.map((grp) => {
-        const list = goals.filter((g) => g.status === grp.id);
+        const list = visible.filter((g) => g.status === grp.id);
         if (!list.length) return null;
         return (
           <div key={grp.id} className="mb-8">
@@ -63,8 +85,8 @@ export function GoalsPage({ goals }: { goals: Goal[] }) {
                     <Progress value={pct} color={g.color} className="mt-2 h-2" />
                     {g.status === "ativa" && (
                       <div className="mt-3 flex items-center gap-2">
-                        <Button size="icon-sm" variant="secondary" onClick={() => start(() => saveGoal(g.id, { title: g.title, current: Math.max(0, Number(g.current) - step) }))} aria-label="Diminuir"><Minus /></Button>
-                        <Button size="icon-sm" variant="secondary" onClick={() => start(async () => { const v = Number(g.current) + step; await saveGoal(g.id, { title: g.title, current: v, ...(v >= Number(g.target) ? { status: "concluida" } : {}) }); if (v >= Number(g.target)) toast.success("Meta concluída! 🏆"); })} aria-label="Aumentar"><Plus /></Button>
+                        <Button size="icon-sm" variant="secondary" disabled={pending || Number(g.current) <= 0} onClick={() => changeProgress(g, Math.max(0, Number(g.current) - step))} aria-label={`Diminuir progresso de ${g.title}`}><Minus /></Button>
+                        <Button size="icon-sm" variant="secondary" disabled={pending} onClick={() => changeProgress(g, Number(g.current) + step)} aria-label={`Aumentar progresso de ${g.title}`}><Plus /></Button>
                         <span className="text-[11.5px] text-faint">passo de {fmt(g, step)}</span>
                         {g.dueDate && <span className="ml-auto flex items-center gap-1 text-[12px] text-muted"><CalendarDays className="size-3.5" />{g.dueDate.split("-").reverse().join("/")}</span>}
                       </div>
@@ -76,20 +98,15 @@ export function GoalsPage({ goals }: { goals: Goal[] }) {
           </div>
         );
       })}
-      <GoalDialog open={open} onOpenChange={setOpen} goal={editing} />
+      {open && <GoalDialog open={open} onOpenChange={setOpen} goal={editing} defaultArea={space === "empresa" ? "empresa" : "pessoal"} />}
     </>
   );
 }
 
-function GoalDialog({ open, onOpenChange, goal }: { open: boolean; onOpenChange: (v: boolean) => void; goal: Goal | null }) {
-  const blank = { title: "", emoji: "", description: "", area: "pessoal" as Goal["area"], metric: "percent", current: "0", target: "100", unit: "", dueDate: "", status: "ativa", color: "#a78bfa" };
-  const [f, setF] = React.useState(blank);
+function GoalDialog({ open, onOpenChange, goal, defaultArea }: { open: boolean; onOpenChange: (v: boolean) => void; goal: Goal | null; defaultArea: Goal["area"] }) {
+  const blank = { title: "", emoji: "", description: "", area: defaultArea, metric: "percent", current: "0", target: "100", unit: "", dueDate: "", status: "ativa", color: "#a78bfa" };
+  const [f, setF] = React.useState(() => goal ? { title: goal.title, emoji: goal.emoji ?? "", description: goal.description ?? "", area: goal.area, metric: goal.metric, current: String(goal.current), target: String(goal.target), unit: goal.unit ?? "", dueDate: goal.dueDate ?? "", status: goal.status, color: goal.color } : blank);
   const [pending, start] = React.useTransition();
-  React.useEffect(() => {
-    if (open)
-      setF(goal ? { title: goal.title, emoji: goal.emoji ?? "", description: goal.description ?? "", area: goal.area, metric: goal.metric, current: String(goal.current), target: String(goal.target), unit: goal.unit ?? "", dueDate: goal.dueDate ?? "", status: goal.status, color: goal.color } : blank);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, goal]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title={goal ? "Editar meta" : "Nova meta"}>
@@ -97,12 +114,16 @@ function GoalDialog({ open, onOpenChange, goal }: { open: boolean; onOpenChange:
           onSubmit={(e) => {
             e.preventDefault();
             start(async () => {
+              try {
               await saveGoal(goal?.id ?? null, {
                 title: f.title, emoji: f.emoji || null, description: f.description || null, area: f.area, metric: f.metric as "percent", current: Number(f.current.replace(",", ".")) || 0,
                 target: Number(f.target.replace(",", ".")) || 0, unit: f.unit || null, dueDate: f.dueDate || null, status: f.status as "ativa", color: f.color,
               });
               toast.success("Meta salva");
               onOpenChange(false);
+              } catch {
+                toast.error("Não foi possível salvar a meta. Revise os campos e tente novamente.");
+              }
             });
           }}
           className="space-y-4"
@@ -123,7 +144,7 @@ function GoalDialog({ open, onOpenChange, goal }: { open: boolean; onOpenChange:
           </div>
           <Field label="Cor"><ColorPicker value={f.color} onChange={(color) => setF({ ...f, color })} /></Field>
           <div className="flex gap-2">
-            {goal && <Button type="button" variant="danger" onClick={() => start(async () => { if (!confirm("Excluir a meta?")) return; await deleteGoal(goal.id); onOpenChange(false); })}>Excluir</Button>}
+            {goal && <Button type="button" variant="danger" disabled={pending} onClick={() => start(async () => { if (!confirm("Excluir a meta?")) return; try { await deleteGoal(goal.id); onOpenChange(false); } catch { toast.error("Não foi possível excluir a meta. Tente novamente."); } })}>Excluir</Button>}
             <Button variant="primary" className="ml-auto" disabled={pending}>Salvar</Button>
           </div>
         </form>
