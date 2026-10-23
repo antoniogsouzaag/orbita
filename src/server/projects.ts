@@ -1,9 +1,9 @@
 import "server-only";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { projects, tasks } from "@/db/schema";
+import { projects, tasks, type TaskScope } from "@/db/schema";
 
-export async function listProjects(includeArchived = false) {
+export async function listProjects(includeArchived = false, scope?: TaskScope) {
   const db = await getDb();
   const rows = await db
     .select({
@@ -12,8 +12,8 @@ export async function listProjects(includeArchived = false) {
       done: sql<number>`count(${tasks.id}) filter (where ${tasks.status} = 'done' and ${tasks.parentId} is null)::int`,
     })
     .from(projects)
-    .leftJoin(tasks, eq(tasks.projectId, projects.id))
-    .where(includeArchived ? undefined : eq(projects.archived, false))
+    .leftJoin(tasks, and(eq(tasks.projectId, projects.id), scope ? eq(tasks.scope, scope) : sql`${tasks.scope} = case when ${projects.area} = 'empresa' then 'empresa' else 'pessoal' end`))
+    .where(and(includeArchived ? undefined : eq(projects.archived, false), scope === "empresa" ? eq(projects.area, "empresa") : scope === "pessoal" ? ne(projects.area, "empresa") : undefined))
     .groupBy(projects.id)
     .orderBy(asc(projects.archived), asc(projects.sort), asc(projects.name));
   return rows.map((r) => ({ ...r.project, open: r.open, done: r.done }));

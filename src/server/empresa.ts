@@ -27,12 +27,14 @@ export async function loadEmpresaLocal() {
     homeTasks(7, "empresa"),
     taskCounts("empresa"),
     listTasks({ view: "hoje", scope: "empresa", limit: 20 }),
-    listProjects(),
+    listProjects(false, "empresa"),
     listGoals("ativa"),
     eventsBetween(zonedToUtc(t), zonedToUtc(shiftDate(t, 8))),
   ]);
 
-  const asks = asksAll.filter((x) => x.status !== "done");
+  const asks = asksAll.filter((x) => x.status !== "done" && x.scope === "empresa");
+  const askIds = new Set(asks.map((task) => task.id));
+  const waitingDue = due.filter((task) => !askIds.has(task.id));
   const down = live.status.filter((s) => !s.ok);
   const failures = live.events.filter((e) => e.kind === "workflow_error" && now.getTime() - e.createdAt.getTime() < DAY);
   const incidents = live.events.filter((e) => ["site_down", "workflow_error", "domain_alert", "monitor_silent"].includes(e.kind) && now.getTime() - e.createdAt.getTime() < 7 * DAY);
@@ -41,7 +43,7 @@ export async function loadEmpresaLocal() {
   const silent = live.monitors.filter((m) => m.silent);
   const crmMine: CrmTask[] = [];
   const overdue = due.filter((d) => d.dueDate && d.dueDate < t);
-  const waiting = asks.length + due.length + crmMine.length;
+  const waiting = asks.length + waitingDue.length + crmMine.length;
 
   let subtitle: { text: string; tone?: "warning" };
   if (down.length) subtitle = { text: `⚠ Fora do ar: ${down.map((d) => d.name).join(", ")}`, tone: "warning" };
@@ -58,7 +60,7 @@ export async function loadEmpresaLocal() {
     subtitle,
     today: t,
     asks,
-    due,
+    due: waitingDue,
     crmMine,
     crmTasksUrl: crmUrl("/tasks"),
     tasks,

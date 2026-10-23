@@ -32,6 +32,7 @@ async function withMeta(rows: { task: Task; project: { id: string; name: string;
 const projectCols = { id: projects.id, name: projects.name, color: projects.color };
 
 export async function listTasks(opts: { view?: TaskView; projectId?: string; tag?: string; limit?: number; scope?: TaskScope } = {}): Promise<TaskRow[]> {
+  if (opts.projectId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(opts.projectId)) return [];
   const db = await getDb();
   const t = today();
   const where = [isNull(tasks.parentId)];
@@ -61,13 +62,16 @@ export async function listTasks(opts: { view?: TaskView; projectId?: string; tag
   return withMeta(rows);
 }
 
-export async function getTask(id: string) {
+export async function getTask(id: string, scope?: TaskScope, projectId?: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
   const db = await getDb();
-  const [row] = await db.select({ task: tasks, project: projectCols }).from(tasks).leftJoin(projects, eq(tasks.projectId, projects.id)).where(eq(tasks.id, id));
+  const [row] = await db.select({ task: tasks, project: projectCols }).from(tasks).leftJoin(projects, eq(tasks.projectId, projects.id)).where(and(eq(tasks.id, id), scope ? eq(tasks.scope, scope) : undefined, projectId ? eq(tasks.projectId, projectId) : undefined, isNull(tasks.parentId)));
   if (!row) return null;
   const [withCounts] = await withMeta([row]);
   const subtasks = await db.select().from(tasks).where(eq(tasks.parentId, id)).orderBy(asc(tasks.sort), asc(tasks.createdAt));
-  return { ...withCounts, children: subtasks };
+  // O vínculo explícito com a tarefa principal define a origem de subtarefas
+  // antigas, inclusive as que foram gravadas com o default pessoal.
+  return { ...withCounts, children: subtasks.map((child) => ({ ...child, scope: row.task.scope, projectId: row.task.projectId })) };
 }
 
 export async function taskCounts(scope?: TaskScope) {
@@ -104,16 +108,16 @@ export async function homeTasks(limit = 6, scope?: TaskScope) {
   return withMeta(rows);
 }
 
-export async function allTags(): Promise<string[]> {
+export async function allTags(scope?: TaskScope): Promise<string[]> {
   const db = await getDb();
-  const rows = await db.select({ tag: sql<string>`distinct unnest(${tasks.tags})` }).from(tasks);
+  const rows = await db.select({ tag: sql<string>`distinct unnest(${tasks.tags})` }).from(tasks).where(and(isNull(tasks.parentId), scope ? eq(tasks.scope, scope) : undefined));
   return rows.map((r) => r.tag).sort();
 }
 
-export async function completedOnDays(from: string) {
+export async function completedOnDays(from: string, scope?: TaskScope) {
   const db = await getDb();
   return db
     .select({ id: tasks.id, completedAt: tasks.completedAt })
     .from(tasks)
-    .where(and(eq(tasks.status, "done"), isNotNull(tasks.completedAt), gte(tasks.completedAt, new Date(`${from}T00:00:00Z`))));
+    .where(and(eq(tasks.status, "done"), isNotNull(tasks.completedAt), gte(tasks.completedAt, new Date(`${from}T00:00:00Z`)), scope ? sql`coalesce((select parent.scope from ${tasks} parent where parent.id = ${tasks.parentId}), ${tasks.scope}) = ${scope}` : undefined));
 }

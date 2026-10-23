@@ -1,32 +1,64 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
-import { ChartNoAxesCombined, ExternalLink, RefreshCw } from "lucide-react";
+import { Building2, ExternalLink, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { refreshSocialAction } from "@/app/actions/integrations";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { groupSocialChannels } from "@/lib/business";
 import type { SocialMetric, SocialOverview } from "@/server/social";
 
 const NETWORKS: Record<string, string> = { "instagram-standalone": "Instagram", instagram: "Instagram", facebook: "Facebook", threads: "Threads", youtube: "YouTube", linkedin: "LinkedIn", "linkedin-page": "LinkedIn", tiktok: "TikTok" };
 const LABELS: Record<string, string> = { Followers: "Seguidores", "Follower Count": "Seguidores", "Page followers": "Seguidores da página", Impressions: "Impressões", Reach: "Alcance", Likes: "Curtidas", Views: "Visualizações", Comments: "Comentários", Shares: "Compartilhamentos", Saves: "Salvamentos", Replies: "Respostas", Subscribers: "Inscritos" };
 export function SocialDashboard({ initial, panelUrl }: { initial: SocialOverview; panelUrl: string | null }) {
   const [data, setData] = React.useState(initial);
-  const [group, setGroup] = React.useState("all");
   const [pending, start] = React.useTransition();
   const channel = data.channels[0];
-  const groups = [...new Map((data.available ?? []).filter((item) => item.customer).map((item) => [item.customer!.id, item.customer!.name])).entries()];
-  const channels = (data.available ?? []).filter((item) => group === "all" || (group === "ungrouped" ? !item.customer : item.customer?.id === group));
-  const channelInGroup = group === "all" || channels.some((item) => item.id === channel?.id);
-  const load = (id = channel?.id, days = data.days) => start(async () => { try { setData(await refreshSocialAction(id, days)); } catch { toast.error("Não foi possível atualizar. Tente novamente."); } });
+  const groups = groupSocialChannels(data.available ?? []);
+  const entity = groups.find((group) => group.id === data.entityId);
+  const channels = entity?.channels ?? [];
+  const network = channel ? NETWORKS[channel.identifier] ?? channel.identifier : "";
+  const load = (id = channel?.id, days = data.days, group = data.entityId) => start(async () => {
+    try {
+      const next = await refreshSocialAction(id, days, group);
+      setData(next);
+      const params = new URLSearchParams();
+      if (next.entityId) params.set("entidade", groups.find((item) => item.id === next.entityId)?.key ?? next.entityId);
+      if (next.channels[0]) params.set("canal", next.channels[0].id);
+      if (days === 30) params.set("dias", "30");
+      window.history.replaceState(null, "", `/redes?${params}`);
+    } catch { toast.error("Não foi possível atualizar. Tente novamente."); }
+  });
   return <div className="space-y-5">
-    <Card className="bg-gradient-to-br from-accent/10 via-surface to-surface p-5 sm:p-7"><div className="flex flex-wrap justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-accent">Distribuição do ecossistema</p><h2 className="mt-2 text-2xl font-semibold">Cada canal, no seu contexto.</h2><p className="mt-2 max-w-lg text-sm text-muted">Escolha o negócio e acompanhe a evolução de um canal por vez.</p></div><ChartNoAxesCombined className="size-10 text-accent/60" /></div><div className="mt-5 flex flex-wrap gap-2"><Button size="sm" disabled={pending || !data.configured} onClick={() => load()}><RefreshCw className={pending ? "animate-spin" : ""} />{pending ? "Consultando…" : "Atualizar agora"}</Button>{panelUrl && <Button asChild size="sm" variant="ghost"><a href={panelUrl} target="_blank" rel="noopener noreferrer">Planejar e publicar no Postiz<ExternalLink /></a></Button>}</div></Card>
-    {!data.configured && <Card className="p-5 text-sm text-muted">Conecte o Postiz em <Link href="/integracoes" className="text-accent underline">Integrações</Link> para carregar seus canais e métricas.</Card>}
+    <Card className="flex flex-wrap items-center justify-between gap-4 bg-gradient-to-br from-accent/10 via-surface to-surface p-5">
+      <div><p className="text-[10px] uppercase tracking-[.2em] text-accent">Distribuição do ecossistema</p><h2 className="mt-2 text-lg font-semibold">Uma entidade. Todos os seus canais.</h2><p className="mt-1 text-xs text-muted">Os grupos do Postiz conectam cada perfil ao negócio certo.</p></div>
+      <div className="flex flex-wrap gap-2"><Button size="sm" disabled={pending || !data.configured} onClick={() => load()}><RefreshCw className={pending ? "animate-spin" : ""} />{pending ? "Consultando…" : "Atualizar agora"}</Button>{panelUrl && <Button asChild size="sm" variant="ghost"><a href={panelUrl} target="_blank" rel="noopener noreferrer">Abrir Postiz<ExternalLink /></a></Button>}</div>
+    </Card>
+    {!data.configured && <Card className="p-5 text-sm text-muted">Conecte o Postiz em <Link href="/integracoes" className="text-accent underline">Integrações</Link> para carregar suas entidades e canais.</Card>}
     {data.error && <p role="alert" className="rounded-xl border border-warning/30 p-4 text-sm text-warning">{data.error}</p>}
-    {!!data.available?.length && <div className="grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)]"><aside className="space-y-3"><label className="block text-xs text-muted" htmlFor="social-group">Negócio / grupo do Postiz</label><select id="social-group" className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm" value={group} disabled={pending} onChange={(e) => { const next = e.target.value; setGroup(next); const first = data.available?.find((item) => next === "all" || (next === "ungrouped" ? !item.customer : item.customer?.id === next)); if (first) load(first.id); }}><option value="all">Todos os negócios</option>{groups.map(([id, name]) => <option key={id} value={id}>{name}</option>)}<option value="ungrouped">Sem grupo</option></select><nav aria-label="Canais sociais" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">{channels.map((item) => <button key={item.id} disabled={pending} aria-pressed={channel?.id === item.id} onClick={() => load(item.id)} className={`rounded-xl border p-3 text-left transition hover:bg-surface-2 disabled:opacity-60 ${channel?.id === item.id ? "border-accent/40 bg-accent/10" : "border-border bg-surface"}`}><span className="block text-sm font-medium">{item.name}</span><span className="mt-1 block text-xs text-muted">{NETWORKS[item.identifier] ?? item.identifier}{item.disabled ? " · desativado" : ""}</span>{item.profile && <span className="mt-1 block truncate text-[11px] text-faint">@{item.profile.replace(/^@/, "")}</span>}</button>)}</nav>{!channels.length && <p className="text-xs text-muted">Nenhum canal neste grupo.</p>}</aside>
-    <section aria-busy={pending} className="min-w-0 space-y-4">{channel && channelInGroup && <><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">{channel.name}</h2><p className="mt-1 text-xs text-muted">{NETWORKS[channel.identifier] ?? channel.identifier}{channel.customer ? ` · ${channel.customer.name}` : " · sem grupo no Postiz"}</p></div><div className="flex gap-1 rounded-xl border border-border p-1" aria-label="Período">{([7, 30] as const).map((days) => <button key={days} disabled={pending} onClick={() => load(channel.id, days)} aria-pressed={data.days === days} className={`rounded-lg px-3 py-1.5 text-xs ${data.days === days ? "bg-accent/15 text-accent" : "text-muted"}`}>{days} dias</button>)}</div></div>
-    {channel.error ? <Card className="p-5"><p role="alert" className="text-sm text-warning">{channel.error}</p><p className="mt-2 text-xs text-muted">A listagem de canais respondeu; a consulta de métricas deste canal falhou. Isso não significa atividade zero.</p><Button className="mt-4" size="sm" disabled={pending} onClick={() => load()}>Tentar novamente</Button></Card> : channel.disabled ? <Card className="p-5 text-sm text-muted">Canal desativado no Postiz. Reconecte-o no painel de origem.</Card> : !channel.metrics.length ? <Card className="p-5 text-sm text-muted">A rede não retornou séries para este período. Algumas redes ou contas não oferecem analytics por canal.</Card> : <div className="grid gap-3 sm:grid-cols-2">{channel.metrics.map((metric, i) => <MetricCard key={`${metric.label}-${i}`} metric={metric} />)}</div>}
-    <p className="text-[11px] leading-relaxed text-faint">Fonte: Postiz / {NETWORKS[channel.identifier] ?? channel.identifier} · janela solicitada: {data.days} dias · visão consultada em {new Date(data.checkedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}. Séries automáticas podem ter cache de até 1 hora; Atualizar agora ignora esse cache. Os valores e as datas abaixo são os retornados pela rede. Seguidores, alcance e visualizações não são somados entre canais.</p></>}</section></div>}
+    {!!groups.length && <>
+      <nav aria-label="Entidades sociais" className="grid grid-cols-2 gap-3 lg:grid-cols-4">{groups.map((group) => <button type="button" key={group.id} disabled={pending} aria-pressed={entity?.id === group.id} onClick={() => load(group.channels.find((item) => !item.disabled)?.id ?? group.channels[0].id, data.days, group.id)} className={`flex min-w-0 items-center gap-3 rounded-2xl border p-4 text-left transition hover:bg-surface-2 disabled:opacity-60 ${entity?.id === group.id ? "border-accent/40 bg-accent/10" : "border-border bg-surface"}`}>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-surface-2">{group.logo ? <Image src={group.logo} alt="" width={36} height={36} className="size-9 object-contain" /> : <Building2 className="size-5 text-muted" />}</span>
+        <span className="min-w-0"><span className="block truncate text-sm font-semibold">{group.name}</span><span className="mt-1 block text-[11px] text-muted">{group.channels.length} {group.channels.length === 1 ? "canal" : "canais"}</span></span>
+      </button>)}</nav>
+      {entity && <div className="grid items-start gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
+        <aside className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold">{entity.name}</h2>{entity.businessHref && <Link href={entity.businessHref} className="text-[11px] text-accent hover:underline">Ver negócio ↗</Link>}</div>
+          <nav aria-label={`Canais de ${entity.name}`} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">{channels.map((item) => <button type="button" key={item.id} disabled={pending} aria-pressed={channel?.id === item.id} onClick={() => load(item.id)} className={`rounded-xl border p-3 text-left transition hover:bg-surface-2 disabled:opacity-60 ${channel?.id === item.id ? "border-accent/40 bg-accent/10" : "border-border bg-surface"}`}>
+            <span className="block text-sm font-medium">{NETWORKS[item.identifier] ?? item.identifier}</span>
+            <span className="mt-1 block truncate text-xs text-muted">{item.profile ? `@${item.profile.replace(/^@/, "")}` : item.name}{item.disabled ? " · desativado" : ""}</span>
+            {item.profile && <span className="mt-1 block truncate text-[10px] text-faint">Nome na origem: {item.name}</span>}
+          </button>)}</nav>
+          <p className="text-[10px] leading-relaxed text-faint">Cada entidade reúne os perfis do seu grupo no Postiz. Os canais preservam o nome cadastrado na rede; contas sem grupo ficam em Sem entidade.</p>
+        </aside>
+        <section aria-busy={pending} className="min-w-0 space-y-4">{channel && <>
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] uppercase tracking-widest text-accent">{entity.name}</p><h2 className="mt-1 text-xl font-semibold">{network}</h2><p className="mt-1 text-xs text-muted">{channel.profile ? `@${channel.profile.replace(/^@/, "")} · ` : ""}{channel.name}</p></div><div className="flex gap-1 rounded-xl border border-border p-1" aria-label="Período">{([7, 30] as const).map((days) => <button type="button" key={days} disabled={pending} onClick={() => load(channel.id, days)} aria-pressed={data.days === days} className={`rounded-lg px-3 py-1.5 text-xs ${data.days === days ? "bg-accent/15 text-accent" : "text-muted"}`}>{days} dias</button>)}</div></div>
+          {channel.error ? <Card className="p-5"><p role="alert" className="text-sm text-warning">{channel.error}</p><p className="mt-2 text-xs text-muted">Os canais responderam; as métricas deste perfil estão indisponíveis. Isso não representa atividade zero.</p><Button className="mt-4" size="sm" disabled={pending} onClick={() => load()}>Tentar novamente</Button></Card> : channel.disabled ? <Card className="p-5 text-sm text-muted">Canal desativado no Postiz. Reconecte-o no painel de origem.</Card> : !channel.metrics.length ? <Card className="p-5 text-sm text-muted">A rede não retornou séries para este período. Algumas redes ou contas não oferecem analytics por canal.</Card> : <div className="grid gap-3 sm:grid-cols-2">{channel.metrics.map((metric, i) => <MetricCard key={`${metric.label}-${i}`} metric={metric} />)}</div>}
+          <p className="text-[11px] leading-relaxed text-faint">Fonte: Postiz / {network} · janela solicitada: {data.days} dias · consultado em {new Date(data.checkedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}. Métricas automáticas: cache de até 1 hora. Atualizar agora renova nomes, grupos e métricas. Seguidores, alcance e visualizações são apresentados por perfil.</p>
+        </>}</section>
+      </div>}
+    </>}
     {data.configured && !data.error && !data.available?.length && <Card className="p-5 text-sm text-muted">Nenhum canal retornado pelo Postiz.</Card>}
   </div>;
 }

@@ -49,14 +49,32 @@ describe("central dos agentes (MCP)", () => {
   it("expõe só as ferramentas dos escopos do agente", async () => {
     const t = await createAgentToken("Só leitura", ["status"]);
     expect((await init(t)).body.result).toMatchObject({ serverInfo: { name: "orbita" } });
-    expect(await toolNames(t)).toEqual(["automacoes_operacionais", "pendencias_github", "status_ao_vivo"]);
+    expect(await toolNames(t)).toEqual(["automacoes_operacionais", "documentacao_canonica", "pendencias_github", "status_ao_vivo"]);
     const call = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "não deveria" } });
     expect(JSON.stringify(call.body)).toMatch(/not found|não|error/i);
   });
 
+  it("entrega o mesmo manual por ferramenta, resource e prompt sem ampliar permissões", async () => {
+    const token = await createAgentToken("Manual", ["status"]);
+    const resources = await rpc(token, "resources/list");
+    expect(resources.body.result!.resources).toEqual(expect.arrayContaining([expect.objectContaining({ uri: "orbita://manual", mimeType: "text/markdown" })]));
+    const resource = await rpc(token, "resources/read", { uri: "orbita://manual" });
+    const manual = await rpc(token, "tools/call", { name: "documentacao_canonica", arguments: {} });
+    const resourceText = (resource.body.result!.contents as { text: string }[])[0].text;
+    const toolText = (manual.body.result!.content as { text: string }[])[0].text;
+    expect(resourceText).toBe(toolText);
+    expect(toolText).toContain("Pessoal e Empresa são espaços separados");
+    expect(toolText).toContain("CRM");
+    const prompts = await rpc(token, "prompts/list");
+    expect(prompts.body.result!.prompts).toEqual(expect.arrayContaining([expect.objectContaining({ name: "iniciar_operacao" })]));
+    const prompt = await rpc(token, "prompts/get", { name: "iniciar_operacao" });
+    expect(JSON.stringify(prompt.body.result)).toContain("ao_vivo:false");
+    expect(await toolNames(token)).not.toContain("contexto_pessoal");
+  });
+
   it("agente abre tarefa para Antonio e registra evento, tudo com log", async () => {
     const t = await createAgentToken("Hermes Oracle", ["tarefas", "eventos"]);
-    expect(await toolNames(t)).toEqual(["criar_tarefa_para_antonio", "minhas_tarefas", "registrar_evento"]);
+    expect(await toolNames(t)).toEqual(["criar_tarefa_para_antonio", "documentacao_canonica", "minhas_tarefas", "registrar_evento"]);
 
     const r = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "Aprovar renovação do domínio", prioridade: "alta", prazo: "2026-11-01" } });
     expect(JSON.stringify(r.body.result)).toContain("Tarefa criada");
@@ -64,7 +82,7 @@ describe("central dos agentes (MCP)", () => {
 
     const db = await getDb();
     const [task] = await db.select().from(tasks);
-    expect(task).toMatchObject({ title: "Aprovar renovação do domínio", priority: 3, dueDate: "2026-11-01" });
+    expect(task).toMatchObject({ title: "Aprovar renovação do domínio", priority: 3, dueDate: "2026-11-01", scope: "empresa" });
     expect(task.tags).toEqual(["agente", "agente:hermes-oracle"]);
 
     const mine = await rpc(t, "tools/call", { name: "minhas_tarefas", arguments: {} });
@@ -84,6 +102,18 @@ describe("central dos agentes (MCP)", () => {
     expect(JSON.stringify(r.body)).toMatch(/isError|invalid|error/i);
     const db = await getDb();
     expect((await db.select().from(tasks)).filter((x) => x.title === "ok")).toHaveLength(0);
+  });
+
+  it("valida datas reais e vincula pedido ao negócio explícito", async () => {
+    const token = await createAgentToken("Produto", ["tarefas"]);
+    const invalid = await rpc(token, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "Revisar produto", prazo: "2026-02-30", negocio: "barberias" } });
+    expect(JSON.stringify(invalid.body)).toContain("isError");
+    const result = await rpc(token, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "Revisar Barberias", negocio: "barberias" } });
+    expect(JSON.stringify(result.body)).toContain("escopo=empresa");
+    const db = await getDb();
+    const rows = await db.select().from(tasks);
+    expect(rows.find(t => t.title === "Revisar Barberias")).toMatchObject({ scope: "empresa", tags: ["agente", "agente:produto", "barberias"] });
+    expect(rows.some(t => t.title === "Revisar produto")).toBe(false);
   });
 
   it("admin recebe as ações da central e downgrade remove o acesso imediatamente", async () => {

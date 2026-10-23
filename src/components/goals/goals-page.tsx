@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarDays, Goal as GoalIcon, Minus, Pencil, Plus, Trophy } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 import { deleteGoal, saveGoal } from "@/app/actions/core";
@@ -10,7 +11,8 @@ import { ColorPicker } from "@/components/ui/color";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Progress } from "@/components/ui/misc";
-import { AREAS, type Goal } from "@/db/schema";
+import { AREAS, type Goal, type TaskScope } from "@/db/schema";
+import { projectScope } from "@/lib/task-scope";
 import { daysBetween, today } from "@/lib/dates";
 import { AREA_LABEL, cn, formatBRL, formatNumber } from "@/lib/utils";
 
@@ -20,12 +22,11 @@ function fmt(g: Goal, v: number) {
   return `${formatNumber(v, 2)}${g.unit ? ` ${g.unit}` : ""}`;
 }
 
-export function GoalsPage({ goals }: { goals: Goal[] }) {
+export function GoalsPage({ goals, scope }: { goals: Goal[]; scope: TaskScope }) {
   const [editing, setEditing] = React.useState<Goal | null>(null);
   const [open, setOpen] = React.useState(false);
   const [pending, start] = React.useTransition();
-  const [space, setSpace] = React.useState<"todas" | "pessoal" | "empresa">("todas");
-  const visible = goals.filter((g) => space === "todas" || (space === "empresa" ? g.area === "empresa" : g.area !== "empresa"));
+  const visible = goals;
   function changeProgress(g: Goal, current: number) {
     start(async () => {
       try {
@@ -47,9 +48,9 @@ export function GoalsPage({ goals }: { goals: Goal[] }) {
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div role="group" aria-label="Filtrar metas por espaço" className="flex flex-wrap gap-1">
-          {(["todas", "pessoal", "empresa"] as const).map((value) => (
-            <Button key={value} size="sm" variant={space === value ? "secondary" : "ghost"} aria-pressed={space === value} onClick={() => setSpace(value)}>
-              {{ todas: "Todas", pessoal: "Pessoal", empresa: "Empresa" }[value]} · {goals.filter((g) => value === "todas" || (value === "empresa" ? g.area === "empresa" : g.area !== "empresa")).length}
+          {(["pessoal", "empresa"] as const).map((value) => (
+            <Button key={value} asChild size="sm" variant={scope === value ? "secondary" : "ghost"}>
+              <Link href={value === "empresa" ? "/metas?escopo=empresa" : "/metas"} aria-current={scope === value ? "page" : undefined}>{value === "empresa" ? "Empresa" : "Pessoal"}{scope === value ? ` · ${goals.length}` : ""}</Link>
             </Button>
           ))}
         </div>
@@ -98,7 +99,7 @@ export function GoalsPage({ goals }: { goals: Goal[] }) {
           </div>
         );
       })}
-      {open && <GoalDialog open={open} onOpenChange={setOpen} goal={editing} defaultArea={space === "empresa" ? "empresa" : "pessoal"} />}
+      {open && <GoalDialog open={open} onOpenChange={setOpen} goal={editing} defaultArea={scope} />}
     </>
   );
 }
@@ -134,7 +135,7 @@ function GoalDialog({ open, onOpenChange, goal, defaultArea }: { open: boolean; 
           </div>
           <Field label="Descrição"><Textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} className="min-h-16" placeholder="Atingir R$ 3.000/mês recorrentes" /></Field>
           <div className="grid grid-cols-2 gap-2">
-            <Field label="Área"><Select value={f.area} onChange={(e) => setF({ ...f, area: e.target.value as Goal["area"] })}>{AREAS.map((a) => <option key={a} value={a}>{AREA_LABEL[a]}</option>)}</Select></Field>
+            <Field label="Área"><Select value={f.area} onChange={(e) => setF({ ...f, area: e.target.value as Goal["area"] })}>{AREAS.filter((a) => projectScope(a) === projectScope(defaultArea)).map((a) => <option key={a} value={a}>{AREA_LABEL[a]}</option>)}</Select></Field>
             <Field label="Medida"><Select value={f.metric} onChange={(e) => setF({ ...f, metric: e.target.value, ...(e.target.value === "percent" ? { target: "100" } : {}) })}><option value="percent">Percentual</option><option value="currency">Dinheiro (R$)</option><option value="number">Número</option></Select></Field>
             <Field label="Atual"><Input inputMode="decimal" value={f.current} onChange={(e) => setF({ ...f, current: e.target.value })} /></Field>
             <Field label="Alvo"><Input inputMode="decimal" value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} /></Field>

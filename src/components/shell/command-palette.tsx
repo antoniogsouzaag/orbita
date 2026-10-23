@@ -1,47 +1,41 @@
 "use client";
 
 import { Command } from "cmdk";
-import { CalendarPlus, CheckSquare, FileText, FolderKanban, Goal, LibraryBig, Moon, NotebookPen, Plus, Sun, Wallet } from "lucide-react";
+import { CalendarPlus, CheckSquare, FileText, FolderKanban, Goal, LibraryBig, Moon, NotebookPen, PanelLeft, Plus, Sun, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Dialog as D } from "radix-ui";
 import * as React from "react";
-import { ALL_NAV } from "./nav";
+import { ALL_NAV, navigationHref, spaceOf } from "./nav";
 
 type Result = { id: string; type: "tarefa" | "nota" | "projeto" | "meta" | "vault"; title: string; subtitle?: string; href: string };
 
 const ICONS = { tarefa: CheckSquare, nota: NotebookPen, projeto: FolderKanban, meta: Goal, vault: LibraryBig };
 
-export function CommandPalette({ open, onOpenChange, onQuickAdd }: { open: boolean; onOpenChange: (v: boolean) => void; onQuickAdd: (tab?: string) => void }) {
+export function CommandPalette({ open, onOpenChange, onQuickAdd, scope, onToggleSidebar }: { open: boolean; onOpenChange: (v: boolean) => void; onQuickAdd: (tab?: string) => void; scope: "pessoal" | "empresa"; onToggleSidebar: () => void }) {
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const [q, setQ] = React.useState("");
-  const [results, setResults] = React.useState<Result[]>([]);
+  const [resultSet, setResultSet] = React.useState<{ query: string; items: Result[] }>({ query: "", items: [] });
+  const results = q.trim().length >= 2 && resultSet.query === q ? resultSet.items : [];
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
-    if (!open) setQ("");
-  }, [open]);
-
-  React.useEffect(() => {
-    if (q.trim().length < 2) {
-      setResults([]);
-      return;
-    }
+    if (!open || q.trim().length < 2) return;
     const ctrl = new AbortController();
     const t = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
-        if (res.ok) setResults((await res.json()).results);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&escopo=${scope}`, { signal: ctrl.signal });
+        if (res.ok && !ctrl.signal.aborted) setResultSet({ query: q, items: (await res.json()).results });
       } catch {}
-      setLoading(false);
+      if (!ctrl.signal.aborted) setLoading(false);
     }, 160);
     return () => {
       clearTimeout(t);
       ctrl.abort();
     };
-  }, [q]);
+  }, [q, scope, open]);
 
   const go = (href: string) => {
     onOpenChange(false);
@@ -84,23 +78,30 @@ export function CommandPalette({ open, onOpenChange, onQuickAdd }: { open: boole
                 </Command.Group>
               )}
               <Command.Group heading="Ações">
-                <Item value="nova tarefa adicionar" onSelect={() => run(() => onQuickAdd("tarefa"))}><Plus /> Nova tarefa</Item>
-                <Item value="nova nota" onSelect={() => run(() => onQuickAdd("nota"))}><NotebookPen /> Nova nota</Item>
-                <Item value="novo evento compromisso agenda" onSelect={() => run(() => onQuickAdd("evento"))}><CalendarPlus /> Novo compromisso</Item>
-                <Item value="novo lançamento gasto receita finanças" onSelect={() => run(() => onQuickAdd("financas"))}><Wallet /> Novo lançamento</Item>
+                <Item value="nova tarefa adicionar" onSelect={() => run(() => onQuickAdd("tarefa"))}><Plus /> Nova tarefa {scope === "empresa" ? "da empresa" : "pessoal"}</Item>
+                {scope === "pessoal" && <>
+                  <Item value="nova nota" onSelect={() => run(() => onQuickAdd("nota"))}><NotebookPen /> Nova nota</Item>
+                  <Item value="novo evento compromisso agenda" onSelect={() => run(() => onQuickAdd("evento"))}><CalendarPlus /> Novo compromisso</Item>
+                  <Item value="novo lançamento gasto receita finanças" onSelect={() => run(() => onQuickAdd("financas"))}><Wallet /> Novo lançamento</Item>
+                </>}
+                <Item value="alternar barra lateral sidebar menu navegação" onSelect={() => run(onToggleSidebar)}><PanelLeft /> Alternar barra lateral <span className="ml-auto text-[12px] text-faint">&apos;</span></Item>
                 <Item value="alternar tema escuro claro" onSelect={() => run(() => setTheme(resolvedTheme === "dark" ? "light" : "dark"))}>
                   {resolvedTheme === "dark" ? <Sun /> : <Moon />} Alternar tema
                 </Item>
               </Command.Group>
               <Command.Group heading="Ir para">
-                {ALL_NAV.map((n) => (
-                  <Item key={n.href} value={`ir ${n.label} ${n.keywords ?? ""}`} onSelect={() => go(n.href)}>
+                {ALL_NAV.map((n) => {
+                  const [path, query] = navigationHref(n.href, scope).split("?");
+                  const targetScope = spaceOf(path, new URLSearchParams(query).get("escopo"));
+                  return <Item key={n.href} value={`ir ${n.label} ${n.keywords ?? ""} ${targetScope ?? ""} ${n.href}`} onSelect={() => go(navigationHref(n.href, scope))}>
                     <n.icon /> {n.label}
-                  </Item>
-                ))}
+                    {targetScope && <span className="ml-auto text-[10.5px] text-faint">{targetScope === "empresa" ? "Empresa" : "Pessoal"}</span>}
+                  </Item>;
+                })}
               </Command.Group>
             </Command.List>
           </Command>
+          <p className="flex justify-between border-t border-border px-4 py-2 text-[10.5px] text-faint"><span>Ctrl K · buscar</span><span>C · capturar</span><span>&apos; · barra lateral</span></p>
         </D.Content>
       </D.Portal>
     </D.Root>

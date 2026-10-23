@@ -3,11 +3,13 @@
 import { CalendarDays, ListChecks } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
+import { toast } from "sonner";
 import { quickAddTask, updateTask } from "@/app/actions/core";
 import { Chip } from "@/components/ui/misc";
-import type { TaskStatus } from "@/db/schema";
+import type { TaskScope, TaskStatus } from "@/db/schema";
 import { relativeDay, today } from "@/lib/dates";
 import { cn } from "@/lib/utils";
+import { taskHref } from "@/lib/task-scope";
 import type { TaskRow } from "@/server/tasks";
 import { PriorityIcon } from "./priority-icon";
 
@@ -17,18 +19,20 @@ const COLUMNS: { id: TaskStatus; label: string; dot: string }[] = [
   { id: "done", label: "Concluído", dot: "var(--success)" },
 ];
 
-export function Kanban({ tasks, projectId }: { tasks: TaskRow[]; projectId?: string }) {
+export function Kanban({ tasks, projectId, scope }: { tasks: TaskRow[]; projectId?: string; scope: TaskScope }) {
   const router = useRouter();
-  const [items, setItems] = React.useState(tasks);
+  const [items, moveOptimistically] = React.useOptimistic(tasks, (state, change: { id: string; status: TaskStatus }) => state.map((task) => task.id === change.id ? { ...task, status: change.status } : task));
   const [over, setOver] = React.useState<TaskStatus | null>(null);
   const [adding, setAdding] = React.useState<Record<string, string>>({});
   const [, start] = React.useTransition();
-  React.useEffect(() => setItems(tasks), [tasks]);
   const t = today();
 
   const move = (id: string, status: TaskStatus) => {
-    setItems((list) => list.map((x) => (x.id === id ? { ...x, status } : x)));
-    start(() => updateTask(id, { status }));
+    start(async () => {
+      moveOptimistically({ id, status });
+      try { await updateTask(id, { status }); }
+      catch { toast.error("Não foi possível mover a tarefa."); }
+    });
   };
 
   return (
@@ -47,7 +51,7 @@ export function Kanban({ tasks, projectId }: { tasks: TaskRow[]; projectId?: str
               e.preventDefault();
               setOver(null);
               const id = e.dataTransfer.getData("text/plain");
-              if (id) move(id, col.id);
+              if (items.some((item) => item.id === id)) move(id, col.id);
             }}
             className={cn("flex min-h-[300px] flex-col rounded-2xl border border-border bg-surface/60 p-2 transition", over === col.id && "border-accent/60 bg-accent/5")}
           >
@@ -61,7 +65,7 @@ export function Kanban({ tasks, projectId }: { tasks: TaskRow[]; projectId?: str
                   key={task.id}
                   draggable
                   onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
-                  onClick={() => router.push(`/tarefas?task=${task.id}`)}
+                  onClick={() => router.push(taskHref(scope, task.id))}
                   className="cursor-grab rounded-xl border border-border bg-surface p-3 shadow-sm transition hover:border-border-strong active:cursor-grabbing"
                 >
                   <div className={cn("text-[13.5px]", task.status === "done" && "text-faint line-through")}>{task.title}</div>
@@ -91,8 +95,10 @@ export function Kanban({ tasks, projectId }: { tasks: TaskRow[]; projectId?: str
                   if (!v) return;
                   setAdding((a) => ({ ...a, [col.id]: "" }));
                   start(async () => {
-                    const { id } = await quickAddTask(v, projectId ?? null);
-                    if (col.id === "doing") await updateTask(id, { status: "doing" });
+                    try {
+                      const { id } = await quickAddTask(v, projectId ?? null, scope);
+                      if (col.id === "doing") await updateTask(id, { status: "doing" });
+                    } catch { setAdding((a) => ({ ...a, [col.id]: v })); toast.error("Não foi possível criar a tarefa."); }
                   });
                 }}
               >

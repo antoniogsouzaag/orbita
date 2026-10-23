@@ -1,5 +1,7 @@
 # Integração dos gestores
 
+Entrada canônica da central: `/documentacao` (mesmo contrato de `orbita://manual` e `documentacao_canonica` no MCP). Este guia complementa o manual com a configuração específica dos runtimes.
+
 Este guia distingue as capacidades existentes das conexões que cada gestor ainda precisa configurar. Não provisiona tokens, endpoints nem permissões.
 
 ## Dois sentidos independentes

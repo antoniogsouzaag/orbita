@@ -23,13 +23,20 @@ describe("notificações operacionais", () => {
     await db.insert(opsHeartbeats).values({ source: "teste", label: "Monitor parado", everyMinutes: 5, lastSeen: new Date(Date.now() - 60 * 60_000) });
   });
 
-  it("inclui incidentes, monitor silencioso, pedidos e eventos sem duplicar tarefa do agente", async () => {
-    const rows = await loadNotifications();
-    expect(rows.map((row) => row.title)).toEqual(expect.arrayContaining(["Workflow falhou", "Monitor parado", "Pedido de Hermes", "Reunião em andamento", "Empresa vencida", "Pessoal vencida"]));
+  it("Empresa inclui operação, pedidos e tarefas empresariais sem dados pessoais ou duplicação", async () => {
+    const rows = await loadNotifications("empresa");
+    expect(rows.map((row) => row.title)).toEqual(expect.arrayContaining(["Workflow falhou", "Monitor parado", "Pedido de Hermes", "Empresa vencida"]));
     expect(rows.filter((row) => row.title === "Pedido de Hermes")).toHaveLength(1);
-    expect(rows.some((row) => ["Pedido resolvido", "Já resolvido"].includes(row.title))).toBe(false);
+    expect(rows.some((row) => ["Pedido resolvido", "Já resolvido", "Pessoal vencida", "Reunião em andamento"].includes(row.title))).toBe(false);
     expect(rows.find((row) => row.title === "Empresa vencida")?.href).toContain("escopo=empresa");
+  });
+
+  it("Pessoal inclui tarefas pessoais e agenda sem avisos empresariais", async () => {
+    const rows = await loadNotifications("pessoal");
+    expect(rows.map((row) => row.title)).toEqual(expect.arrayContaining(["Reunião em andamento", "Pessoal vencida"]));
+    expect(rows.some((row) => ["Empresa vencida", "Pedido de Hermes", "Workflow falhou", "Monitor parado"].includes(row.title))).toBe(false);
     expect(rows.find((row) => row.title === "Reunião em andamento")?.detail).toBe("Em andamento");
+    expect(rows.find((row) => row.title === "Pessoal vencida")?.href).not.toContain("escopo=empresa");
   });
 
   it("mantém IDs lidos únicos e limitados, sem guardar conteúdo", () => {

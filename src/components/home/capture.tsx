@@ -38,7 +38,7 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
     setAsking(true);
     setAnswer("");
     try {
-      const res = await fetch("/api/ai/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: scope === "empresa" ? `[Espaço Empresa — trate como assunto da AG LABS; tarefas criadas aqui são da empresa] ${question}` : question }) });
+      const res = await fetch("/api/ai/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question, scope }) });
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: "Falha ao consultar a IA" }));
         setAnswer(`⚠️ ${err.error}`);
@@ -69,12 +69,14 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
   const submit = () => {
     const text = value.trim();
     if (!text) return;
+    if (scope === "empresa" && tab === "nota") { setTab("tarefa"); toast.info("Notas rápidas ficam no Pessoal. O conhecimento durável da empresa fica no Vault."); return; }
     if (tab === "ia") {
       setValue("");
       void ask(text);
       return;
     }
     start(async () => {
+      try {
       if (tab === "tarefa") {
         const { parsed } = await quickAddTask(text, projectId, scope);
         const bits = [parsed.dueDate && `${relativeDay(parsed.dueDate)}${parsed.dueTime ? ` ${parsed.dueTime}` : ""}`, parsed.projectName, ...parsed.tags.map((t) => `#${t}`)].filter(Boolean);
@@ -85,6 +87,7 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
         toast.success("Nota criada", { action: { label: "Abrir", onClick: () => router.push(`/notas?id=${id}`) } });
       }
       setValue("");
+      } catch { toast.error("Não foi possível salvar. Confira o projeto e tente novamente."); }
     });
   };
 
@@ -101,7 +104,7 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
             { id: "tarefa", label: "Tarefa", icon: CheckSquare },
             { id: "ia", label: "Perguntar à IA", icon: Sparkles },
             { id: "nota", label: "Nota", icon: NotebookPen },
-          ] as const).map((t) => (
+          ] as const).filter((item) => scope === "pessoal" || item.id !== "nota").map((t) => (
             <button
               key={t.id}
               onClick={() => {
@@ -158,7 +161,7 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
             </Popover.Root>
           )}
           <span className="hidden truncate text-[12px] text-faint sm:block">
-            {tab === "tarefa" ? "Use #tag, !alta, hoje/amanhã, 15h e @projeto" : tab === "ia" ? (aiEnabled ? "Claude responde com o contexto do seu dia" : "Configure a chave da IA em Integrações") : "Enter salva · Shift+Enter quebra linha"}
+            {tab === "tarefa" ? "Use #tag, !alta, hoje/amanhã, 15h e @projeto" : tab === "ia" ? (aiEnabled ? "A IA responde com o contexto deste espaço" : "Configure a chave da IA em Integrações") : "Enter salva · Shift+Enter quebra linha"}
           </span>
           <button
             onClick={submit}

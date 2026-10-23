@@ -6,8 +6,8 @@ import { aiEnabled, askStream } from "@/server/ai";
 export const maxDuration = 60;
 
 const Body = z.union([
-  z.object({ question: z.string().trim().min(1).max(4000) }),
-  z.object({ messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(20000) })).min(1).max(40) }),
+  z.object({ question: z.string().trim().min(1).max(4000), scope: z.enum(["pessoal", "empresa"]).optional() }),
+  z.object({ messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(20000) })).min(1).max(40), scope: z.enum(["pessoal", "empresa"]).optional() }),
 ]);
 
 export async function POST(req: NextRequest) {
@@ -17,6 +17,6 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Pergunta inválida" }, { status: 400 });
   const history = "question" in parsed.data ? [{ role: "user" as const, content: parsed.data.question }] : parsed.data.messages;
   if (history.at(-1)?.role !== "user") return NextResponse.json({ error: "A última mensagem deve ser sua" }, { status: 400 });
-  const stream = await askStream(history);
+  const stream = await askStream(history, { scope: parsed.data.scope ?? "pessoal" });
   return new Response(stream, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-accel-buffering": "no" } });
 }

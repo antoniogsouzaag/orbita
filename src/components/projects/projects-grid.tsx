@@ -7,25 +7,22 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState } from "@/components/ui/card";
 import { Progress } from "@/components/ui/misc";
-import type { Project } from "@/db/schema";
+import type { Project, TaskScope } from "@/db/schema";
 import { AREA_LABEL } from "@/lib/utils";
 import type { ProjectWithCounts } from "@/server/projects";
 import { ProjectDialog } from "./project-dialog";
 
-export function ProjectsGrid({ projects }: { projects: ProjectWithCounts[] }) {
+export function ProjectsGrid({ projects, scope }: { projects: ProjectWithCounts[]; scope: TaskScope }) {
   const [editing, setEditing] = React.useState<Project | null>(null);
-  const [open, setOpen] = React.useState(false);
   const params = useSearchParams();
-  React.useEffect(() => {
-    if (params.get("novo") === "1") setOpen(true);
-  }, [params]);
+  const [open, setOpen] = React.useState(params.get("novo") === "1");
   const active = projects.filter((p) => !p.archived);
   const archived = projects.filter((p) => p.archived);
   const card = (p: ProjectWithCounts) => {
     const total = p.open + p.done;
     return (
       <Card key={p.id} className="group relative p-5 transition hover:border-border-strong">
-        <Link href={`/projetos/${p.id}`} className="absolute inset-0" aria-label={p.name} />
+        <Link href={`/projetos/${p.id}${scope === "empresa" ? "?escopo=empresa" : ""}`} className="absolute inset-0" aria-label={p.name} />
         <div className="flex items-start gap-3">
           <span className="grid size-10 place-items-center rounded-xl" style={{ background: `color-mix(in oklab, ${p.color} 18%, transparent)`, color: p.color }}><FolderKanban className="size-5" /></span>
           <div className="min-w-0 flex-1">
@@ -54,7 +51,7 @@ export function ProjectsGrid({ projects }: { projects: ProjectWithCounts[] }) {
           <div className="grid gap-4 opacity-60 sm:grid-cols-2 lg:grid-cols-3">{archived.map(card)}</div>
         </>
       )}
-      <ProjectDialog open={open} onOpenChange={setOpen} project={editing} />
+      {open && <ProjectDialog open={open} onOpenChange={setOpen} project={editing} scope={scope} />}
     </>
   );
 }
@@ -64,7 +61,7 @@ export function EditProjectButton({ project }: { project: Project }) {
   return (
     <>
       <Button size="sm" onClick={() => setOpen(true)}><Pencil /> Editar</Button>
-      <ProjectDialog open={open} onOpenChange={setOpen} project={project} />
+      {open && <ProjectDialog open={open} onOpenChange={setOpen} project={project} />}
     </>
   );
 }

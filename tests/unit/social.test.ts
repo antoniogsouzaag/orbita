@@ -3,6 +3,30 @@ vi.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }));
 import { socialOverview, socialPanelUrl } from "@/server/social";
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("Postiz somente consulta", () => {
+  it("seleciona todos os canais da entidade e consulta somente seu perfil ativo", async () => {
+    vi.stubEnv("POSTIZ_API_URL", "https://postiz.example/api/public/v1");
+    vi.stubEnv("POSTIZ_API_KEY", "private-key");
+    const group = "66f42ad3-dd35-40fa-a261-d632f680e18e";
+    const request = vi.fn(async (url: string) => Response.json(url.endsWith("/integrations") ? [
+      { id: "unrelated", name: "Barberias", identifier: "youtube" },
+      { id: "barber", name: "Barberro", identifier: "instagram", customer: { id: group, name: "Barberro" } },
+      { id: "facebook", name: "Barber PRO", identifier: "facebook", customer: { id: group, name: "Barberias" } },
+    ] : []));
+    vi.stubGlobal("fetch", request);
+    const result = await socialOverview(undefined, 7, true, "barberias");
+    expect(result.entityId).toBe(group);
+    expect(result.channels[0].id).toBe("barber");
+    expect(result.available).toHaveLength(3);
+    expect(request.mock.calls.at(-1)?.[0]).toContain("/analytics/barber?");
+  });
+  it("não consulta outro negócio quando uma entidade não tem canais", async () => {
+    vi.stubEnv("POSTIZ_API_URL", "https://postiz.example/api/public/v1");
+    vi.stubEnv("POSTIZ_API_KEY", "private-key");
+    const request = vi.fn(async () => Response.json([{ id: "real", name: "Real", identifier: "youtube" }]));
+    vi.stubGlobal("fetch", request);
+    expect(await socialOverview(undefined, 7, true, "barberias")).toMatchObject({ channels: [], error: expect.stringContaining("Nenhum canal") });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
   it("link do painel não transporta credenciais da URL", () => {
     vi.stubEnv("POSTIZ_API_URL", "https://user:private@postiz.example/api/public/v1");
     expect(socialPanelUrl()).toBeNull();

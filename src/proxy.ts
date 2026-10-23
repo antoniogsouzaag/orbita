@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
 /** Rotas acessíveis sem sessão (as de API validam o próprio token). */
-const PUBLIC = [/^\/login/, /^\/api\/calendar\/(feed|sync)/, /^\/api\/context/, /^\/api\/integrations\/status$/, /^\/api\/ops\/(ingest|alvos)/, /^\/api\/mcp/, /^\/api\/capture$/, /^\/api\/cron\//, /^\/api\/health/, /^\/manifest\.webmanifest$/, /^\/robots\.txt$/];
+const PUBLIC = [/^\/api\/docs\/agentes$/, /^\/login/, /^\/api\/calendar\/(feed|sync)/, /^\/api\/context/, /^\/api\/integrations\/status$/, /^\/api\/ops\/(ingest|alvos)/, /^\/api\/mcp/, /^\/api\/capture$/, /^\/api\/cron\//, /^\/api\/health/, /^\/manifest\.webmanifest$/, /^\/robots\.txt$/];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -86,7 +86,7 @@ describe("CRM pela Órbita", () => {
   it("a IA cria tarefa para o Léo sem mandar campos nulos e leva o link do CRM", async () => {
     const { runAssistantTool } = await import("@/server/assistant");
     const r = await runAssistantTool("crm_criar_tarefa", JSON.stringify({ titulo: "Enviar proposta por e-mail", responsavel: "leo", descricao: null, prazo: "2026-10-24", prioridade: null, contato_id: null }));
-    expect(r.ok).toBe(true);
+    expect(r.ok, r.text).toBe(true);
     expect(r.text).toContain("para Léo");
     expect(r.action?.href).toBe(`${base}/tasks`);
     expect(calls.at(-1)).toMatchObject({ name: "crm_criar_tarefa", args: { titulo: "Enviar proposta por e-mail", responsavel: "leo", prazo: "2026-10-24" } });

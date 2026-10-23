@@ -199,18 +199,18 @@ export function AgendaWidget({ agenda }: { agenda: HomeData["agenda"] }) {
 }
 
 /* ───────── Metas ───────── */
-export function GoalsWidget({ goals }: { goals: HomeData["goals"] }) {
+export function GoalsWidget({ goals, href = "/metas" }: { goals: HomeData["goals"]; href?: string }) {
   return (
     <Card className="h-full">
-      <CardHeader icon={<Goal />} title="Metas" href="/metas" hrefLabel="Metas" />
+      <CardHeader icon={<Goal />} title="Metas" href={href} hrefLabel="Metas" />
       {goals.length === 0 ? (
-        <EmptyState icon={<Trophy />} title="Defina suas metas" description="Metas com progresso mensurável aparecem aqui." action={<Button size="sm" asChild><Link href="/metas">Criar meta</Link></Button>} />
+        <EmptyState icon={<Trophy />} title="Defina suas metas" description="Metas com progresso mensurável aparecem aqui." action={<Button size="sm" asChild><Link href={href}>Criar meta</Link></Button>} />
       ) : (
         <div className="space-y-3.5 px-5 pb-5">
           {goals.slice(0, 5).map((g) => {
             const pct = g.target ? Math.round((Number(g.current) / Number(g.target)) * 100) : 0;
             return (
-              <Link key={g.id} href="/metas" className="block">
+              <Link key={g.id} href={href} className="block">
                 <div className="flex items-center gap-2 text-[14px]">
                   <span className="size-1.5 shrink-0 rounded-full" style={{ background: g.color }} />
                   <span className="min-w-0 flex-1 truncate">{g.emoji && `${g.emoji} `}{g.title}</span>

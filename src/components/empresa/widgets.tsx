@@ -215,7 +215,7 @@ export function AgentsWidget({ activity }: { activity: EmpresaData["activity"] }
 export function ProjectsWidget({ projects }: { projects: EmpresaData["projects"] }) {
   return (
     <Card className="h-full">
-      <CardHeader icon={<FolderKanban />} title="Projetos" href="/projetos" hrefLabel="Projetos" />
+      <CardHeader icon={<FolderKanban />} title="Projetos" href="/projetos?escopo=empresa" hrefLabel="Projetos" />
       {projects.length === 0 ? (
         <EmptyState icon={<Briefcase />} title="Nenhum projeto da empresa" description="Projetos com área Empresa aparecem aqui." />
       ) : (
@@ -223,7 +223,7 @@ export function ProjectsWidget({ projects }: { projects: EmpresaData["projects"]
           {projects.slice(0, 6).map((p) => {
             const total = p.open + p.done;
             return (
-              <Link key={p.id} href={`/projetos/${p.id}`} className="block">
+              <Link key={p.id} href={`/projetos/${p.id}?escopo=empresa`} className="block">
                 <div className="flex items-center gap-2 text-[13.5px]">
                   <span className="size-2 shrink-0 rounded-full" style={{ background: p.color }} />
                   <span className="min-w-0 flex-1 truncate">{p.name}</span>

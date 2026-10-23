@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { books, dayPlans, focusSessions, transactions, workouts } from "@/db/schema";
+import { books, dayPlans, focusSessions, tasks, transactions, workouts, type TaskScope } from "@/db/schema";
 import { shiftDate, startOfWeekISO, today, zonedToUtc } from "@/lib/dates";
 
 export function monthRange(ym: string) {
@@ -60,7 +60,11 @@ export async function listBooks() {
   return db.select().from(books).orderBy(sql`case ${books.status} when 'lendo' then 0 when 'quero' then 1 else 2 end`, desc(books.createdAt));
 }
 
-export async function focusStats() {
+export function focusScopeWhere(scope: TaskScope) {
+  return sql`coalesce((select task.scope from ${tasks} task where task.id = ${focusSessions.taskId}), 'pessoal') = ${scope}`;
+}
+
+export async function focusStats(scope?: TaskScope) {
   const db = await getDb();
   const t = today();
   const weekStart = zonedToUtc(startOfWeekISO(t));
@@ -73,8 +77,8 @@ export async function focusStats() {
       month: sql<number>`coalesce(sum(${focusSessions.minutes}) filter (where ${focusSessions.startedAt} >= ${monthAgo.toISOString()}), 0)::int`,
       sessions: sql<number>`count(*) filter (where ${focusSessions.startedAt} >= ${weekStart.toISOString()})::int`,
     })
-    .from(focusSessions);
-  const recent = await db.select().from(focusSessions).orderBy(desc(focusSessions.startedAt)).limit(20);
+    .from(focusSessions).where(scope ? focusScopeWhere(scope) : undefined);
+  const recent = await db.select().from(focusSessions).where(scope ? focusScopeWhere(scope) : undefined).orderBy(desc(focusSessions.startedAt)).limit(20);
   return { ...s, avgDaily: Math.round(s.month / 30), recent };
 }
 

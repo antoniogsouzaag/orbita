@@ -30,6 +30,7 @@ const EVENT_STYLE: Record<string, { icon: typeof XCircle; tone: string; label: s
   agente_info: { icon: Bot, tone: "text-muted", label: "Agente" },
   agente_alerta: { icon: AlertTriangle, tone: "text-warning", label: "Alerta de agente" },
   agente_incidente: { icon: XCircle, tone: "text-danger", label: "Incidente (agente)" },
+  agente_resumo: { icon: Bot, tone: "text-muted", label: "Resumo do agente" },
 };
 
 export default async function Page() {
@@ -41,9 +42,16 @@ export default async function Page() {
   });
   const groupOrder = [...new Set((targets ?? []).map((t) => t.group))];
   const openIncidents = live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt);
-  const wf24 = live.events.filter((e) => e.kind === "workflow_error" && Date.now() - e.createdAt.getTime() < 86_400_000);
-  const soonDomains = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - Date.now() < 45 * 86_400_000);
+  const wf24 = live.events.filter((e) => e.kind === "workflow_error" && live.generatedAt - e.createdAt.getTime() < 86_400_000);
+  const soonDomains = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - live.generatedAt < 45 * 86_400_000);
   const silent = live.monitors.filter((m) => m.silent);
+  const priorities = [
+    ...(silent.length ? [{ title: `${silent.length} monitor(es) sem atualização`, detail: "Confira a última execução e restabeleça a coleta antes de interpretar disponibilidade.", href: "/operacao/automacoes", label: "Revisar coleta" }] : []),
+    ...(board.some(item => !item.ok) ? [{ title: `${board.filter(item => !item.ok).length} endereço(s) com falha recebida`, detail: "Abra o endereço e o incidente correspondente; priorize os produtos afetados.", href: "#disponibilidade", label: "Ver disponibilidade" }] : []),
+    ...(wf24.length ? [{ title: `${wf24.length} falha(s) de workflow em 24h`, detail: "Inspecione a execução antes de reenviar ou repetir efeitos.", href: "/operacao/automacoes", label: "Abrir execuções" }] : []),
+    ...(soonDomains.length ? [{ title: `${soonDomains.length} domínio(s) requerem revisão`, detail: "Confira vencimento e responsabilidade na origem antes de renovar.", href: "#dominios", label: "Ver domínios" }] : []),
+    ...(coh?.notMonitored.length || coh?.notInVault.length ? [{ title: "Inventário e coleta estão diferentes", detail: "Revise os vínculos entre o vault e o monitor para evitar pontos sem cobertura.", href: "#coerencia", label: "Comparar fontes" }] : []),
+  ];
 
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "orbita";
   const base = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
@@ -87,7 +95,8 @@ export default async function Page() {
         </div>
       )}
 
-      <StatusBoard initial={board} groupOrder={groupOrder} />
+      <Card className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">O que pede atenção</h2><p className="mt-1 text-xs text-muted">Decisões sugeridas a partir do estado recebido. Cada fonte mantém seu horário e sua evidência.</p></div><Link href="/documentacao#continuidade" className="text-xs text-accent hover:underline">Como evoluir a operação ↗</Link></div>{priorities.length ? <div className="mt-4 grid gap-3 md:grid-cols-2">{priorities.map(item => <Link key={item.title} href={item.href} className="rounded-xl border border-warning/20 bg-warning/5 p-4 hover:border-warning/50"><h3 className="text-sm font-medium">{item.title}</h3><p className="mt-2 text-xs leading-relaxed text-muted">{item.detail}</p><span className="mt-3 block text-xs text-accent">{item.label} ↗</span></Link>)}</div> : <p className="mt-4 text-sm text-muted">{live.monitors.length ? "Nenhum alerta nessas verificações. Consulte a cobertura e a última batida dos monitores abaixo." : "Aguardando dados dos monitores para formar a fila de atenção. Confira a conexão em Integrações."}</p>}</Card>
+      <div id="disponibilidade" className="scroll-mt-24"><StatusBoard initial={board} groupOrder={groupOrder} /></div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -114,13 +123,13 @@ export default async function Page() {
           </div>
         </Card>
 
-        <Card>
+        <Card id="dominios" className="scroll-mt-24">
           <CardHeader icon={<Globe />} title="Domínios" meta="vencimento (RDAP via n8n)" />
           <div className="px-5 pb-5">
             {live.domains.length === 0 && <p className="text-[13px] text-muted">Nenhum domínio recebido ainda. O monitor de vencimento envia a lista quando ligado à Órbita.</p>}
             <div className="space-y-2">
               {live.domains.map((d) => {
-                const days = d.expiresAt ? Math.ceil((d.expiresAt.getTime() - Date.now()) / 86_400_000) : null;
+                const days = d.expiresAt ? Math.ceil((d.expiresAt.getTime() - live.generatedAt) / 86_400_000) : null;
                 return (
                   <div key={d.domain} className="flex items-center gap-3 text-[13px]">
                     <span className={cn("w-16 shrink-0 rounded-md px-1.5 py-0.5 text-center text-[11.5px] font-semibold tabular-nums", days === null ? "bg-surface-2 text-faint" : days < 8 ? "bg-danger/15 text-danger" : days < 45 ? "bg-warning/15 text-warning" : "bg-success/12 text-success")}>
@@ -137,7 +146,7 @@ export default async function Page() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card id="coerencia" className="scroll-mt-24">
           <CardHeader icon={<CheckCircle2 />} title="Coerência vault × monitor" href={monitorNote ? `/vault?p=${encodeURIComponent(monitorNote)}` : undefined} hrefLabel="Nota no vault" />
           <div className="space-y-3 px-5 pb-5 text-[13px]">
             {!coh && <p className="text-muted">Conecte o vault para comparar.</p>}
@@ -164,7 +173,7 @@ export default async function Page() {
       </div>
 
       <Card>
-        <CardHeader icon={<Bot />} title="Contexto para agentes" />
+        <CardHeader icon={<Bot />} title="Contexto para agentes" href="/documentacao" hrefLabel="Manual canônico" />
         <div className="flex flex-wrap items-center gap-3 px-5 pb-5 text-[13px] text-muted">
           <p className="min-w-[260px] flex-1">Para um agente novo: devolve em markdown as regras do vault, agentes, servidores, apps, automações e o estado ao vivo — sem dados pessoais nem segredos.</p>
           <CopyButton text={`curl -H "Authorization: Bearer $CONTEXT_TOKEN" "${base}/api/context?format=md&live=1"`} label="Copiar curl" />

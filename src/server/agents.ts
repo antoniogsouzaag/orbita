@@ -11,6 +11,7 @@ import { githubInbox } from "./github-inbox";
 import { n8nOverview } from "./ops";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
 import { assistantTools, runAssistantTool } from "./assistant";
+import { AGENT_MANUAL_URI, AGENT_MANUAL_VERSION, agentManualMarkdown } from "@/lib/agent-handbook";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -76,7 +77,7 @@ export async function agentActivitySummary() {
 export async function agentTasks(agent?: string) {
   const db = await getDb();
   const cond = agent ? sql`${`agente:${slug(agent)}`} = any(${tasks.tags})` : sql`exists (select 1 from unnest(${tasks.tags}) t where t like 'agente:%')`;
-  return db.select().from(tasks).where(cond).orderBy(desc(tasks.createdAt)).limit(100);
+  return db.select().from(tasks).where(and(eq(tasks.scope, "empresa"), cond)).orderBy(desc(tasks.createdAt)).limit(100);
 }
 
 function slug(s: string) {
@@ -98,7 +99,7 @@ const text = (t: string, isError = false): ToolResult => ({ content: [{ type: "t
 
 /** Monta um servidor MCP com as ferramentas permitidas pelos escopos do agente. */
 export function buildMcpServer(agent: AgentIdentity) {
-  const server = new McpServer({ name: "orbita", version: "1.0.0" }, { instructions: "Órbita: central operacional da AG LABS. Use contexto_operacional para se situar. O vault é a fonte canônica; registre pedidos para Antonio com criar_tarefa_para_antonio e relatos com registrar_evento. Administradores têm acesso às ações e dados da central; demais perfis acessam apenas os escopos concedidos." });
+  const server = new McpServer({ name: "orbita", version: "2.0.0" }, { instructions: `Órbita: central pessoal e empresarial. Comece por documentacao_canonica ou pelo resource ${AGENT_MANUAL_URI} (versão ${AGENT_MANUAL_VERSION}); depois contexto_operacional com ao_vivo:false e as fichas relevantes do vault. Pessoal e Empresa permanecem separados; tarefas comerciais pertencem ao CRM. Administradores acessam também dados pessoais e escrita; demais perfis usam apenas seus escopos. Conexão MCP não despacha execuções aos runtimes. Registre resultado verificável e fonte, sem confundir configuração com execução.` });
   const can = (s: AgentScope) => agent.scopes.includes("admin") || agent.scopes.includes(s);
   const run = async (tool: string, summary: string, fn: () => Promise<ToolResult>) => {
     try {
@@ -111,11 +112,16 @@ export function buildMcpServer(agent: AgentIdentity) {
     }
   };
 
+  // O contrato de uso não contém dados do proprietário e pode ser lido por todo token válido.
+  server.registerResource("manual-orbita", AGENT_MANUAL_URI, { title: "Manual canônico da Órbita", description: "Fontes, escopos, integração e continuidade do ecossistema", mimeType: "text/markdown" }, async () => ({ contents: [{ uri: AGENT_MANUAL_URI, mimeType: "text/markdown", text: agentManualMarkdown() }] }));
+  server.registerTool("documentacao_canonica", { title: "Manual canônico", description: "Leia primeiro: contrato atual da central, fontes, Pessoal/Empresa, escopos e roteiro do agente.", inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } }, async () => run("documentacao_canonica", "leu o manual canônico", async () => text(agentManualMarkdown())));
+  server.registerPrompt("iniciar_operacao", { title: "Entrar na Órbita", description: "Roteiro para situar o agente antes de consultar ou executar" }, async () => ({ messages: [{ role: "user", content: { type: "text", text: `${agentManualMarkdown()}\n\nConsulte tools/list para suas permissões e contexto_operacional com ao_vivo:false se disponível. Leia as fichas relevantes e prossiga dentro da tarefa autorizada pelo proprietário.` } }] }));
+
   if (can("contexto")) {
     server.registerTool(
       "contexto_operacional",
-      { title: "Contexto operacional", description: "Regras do vault, agentes, servidores, aplicações, automações e monitoramento da AG LABS, em markdown.", inputSchema: { ao_vivo: z.boolean().optional().describe("Incluir estado ao vivo (status, incidentes, monitores)") } },
-      async ({ ao_vivo }) => run("contexto_operacional", "leu o contexto operacional", async () => text(contextToMarkdown(await buildContext({ live: ao_vivo ?? true })))),
+      { title: "Contexto operacional", description: "Regras do vault, agentes, servidores, aplicações, automações e monitoramento. Padrão: inventário; solicite ao_vivo para a decisão atual.", inputSchema: { ao_vivo: z.boolean().optional().describe("Incluir estado ao vivo (status, incidentes, monitores)") }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } },
+      async ({ ao_vivo }) => run("contexto_operacional", "leu o contexto operacional", async () => text(contextToMarkdown(await buildContext({ live: ao_vivo ?? false })))),
     );
     server.registerTool(
       "buscar_no_vault",
@@ -185,16 +191,16 @@ export function buildMcpServer(agent: AgentIdentity) {
   if (can("tarefas")) {
     server.registerTool(
       "criar_tarefa_para_antonio",
-      { title: "Criar tarefa para Antonio", description: "Abre uma tarefa na Órbita para Antonio decidir ou executar (aprovação, pendência, próximo passo). Use para o que depende dele.", inputSchema: { titulo: z.string().min(3).max(200), detalhes: z.string().max(4000).optional(), prioridade: z.enum(["baixa", "media", "alta"]).optional(), prazo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("AAAA-MM-DD") } },
-      async ({ titulo, detalhes, prioridade, prazo }) =>
+      { title: "Criar tarefa para Antonio", description: "Abre uma tarefa na Órbita para Antonio decidir ou executar (aprovação, pendência, próximo passo). Use para o que depende dele.", inputSchema: { titulo: z.string().min(3).max(200), detalhes: z.string().max(4000).optional(), prioridade: z.enum(["baixa", "media", "alta"]).optional(), prazo: z.iso.date().optional().describe("AAAA-MM-DD"), negocio: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40).optional().describe("Identificador explícito do negócio, ex.: barberias. Sem vínculo, omita.") } },
+      async ({ titulo, detalhes, prioridade, prazo, negocio }) =>
         run("criar_tarefa_para_antonio", `abriu tarefa “${titulo}”`, async () => {
           const db = await getDb();
           const [t] = await db
             .insert(tasks)
-            .values({ title: titulo, notes: `${detalhes ?? ""}\n\n— aberta por ${agent.name} via MCP`.trim(), priority: prioridade === "alta" ? 3 : prioridade === "media" ? 2 : prioridade === "baixa" ? 1 : 0, dueDate: prazo ?? null, tags: ["agente", `agente:${slug(agent.name)}`], scope: "empresa" })
+            .values({ title: titulo, notes: `${detalhes ?? ""}\n\n— aberta por ${agent.name} via MCP`.trim(), priority: prioridade === "alta" ? 3 : prioridade === "media" ? 2 : prioridade === "baixa" ? 1 : 0, dueDate: prazo ?? null, tags: ["agente", `agente:${slug(agent.name)}`, ...(negocio ? [negocio] : [])], scope: "empresa" })
             .returning({ id: tasks.id });
           const notified = await notifyAgentAsk(agent.name, titulo, prioridade ?? null);
-          return text(`Tarefa criada (${t.id}). Antonio verá na Órbita.${notified ? " O Telegram aceitou o aviso (entrega não confirmada)." : " Aviso no Telegram não confirmado; a tarefa continua salva."}`);
+          return text(`Tarefa criada (${t.id}). Antonio verá em /tarefas?escopo=empresa.${notified ? " O Telegram aceitou o aviso (entrega não confirmada)." : " Aviso no Telegram não confirmado; a tarefa continua salva."}`);
         }),
     );
     server.registerTool(

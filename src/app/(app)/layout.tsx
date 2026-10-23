@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     avatarVersion(),
   ]);
   return (
-    <AppShell wallpapers={{ pessoal: small(settings.cover.url), empresa: small(settings.empresaCover.url) }} name={settings.name} avatar={avatarV ? `/api/avatar?v=${avatarV}` : null} notifications={[]} projects={projects.map((p) => ({ id: p.id, name: p.name, color: p.color }))}>
+    <AppShell wallpapers={{ pessoal: small(settings.cover.url), empresa: small(settings.empresaCover.url) }} name={settings.name} avatar={avatarV ? `/api/avatar?v=${avatarV}` : null} notifications={[]} projects={projects.map((p) => ({ id: p.id, name: p.name, color: p.color, area: p.area }))}>
       {children}
     </AppShell>
   );

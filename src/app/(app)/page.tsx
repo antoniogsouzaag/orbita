@@ -21,7 +21,7 @@ const SPAN: Partial<Record<WidgetId, string>> = { conquistas: "md:col-span-2", p
 
 export default async function HomePage() {
   after(() => syncStaleCalendars(60).then(() => undefined).catch(() => {}));
-  const [data, projects] = await Promise.all([loadHome(), listProjects()]);
+  const [data, projects] = await Promise.all([loadHome(), listProjects(false, "pessoal")]);
   const { settings } = data;
 
   const render: Record<WidgetId, () => React.ReactNode> = {

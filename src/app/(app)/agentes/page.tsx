@@ -8,6 +8,7 @@ import { AgentAccessLink } from "@/components/agents/access-link";
 import { CopyButton } from "@/components/ops/copy-button";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
 import { agentActivitySummary, agentTasks, listAgentTokens, recentActivity } from "@/server/agents";
+import { CORE_AGENT_TOOLS } from "@/lib/agent-handbook";
 import { agentReports } from "@/server/agent-reports";
 
 export const metadata = { title: "Agentes" };
@@ -20,18 +21,6 @@ function ago(d: Date) {
   return h < 48 ? `há ${h}h` : `há ${Math.round(h / 24)} dias`;
 }
 
-const TOOLS = [
-  ["contexto_operacional", "contexto", "Regras do vault, agentes, servidores, apps, automações e status ao vivo"],
-  ["buscar_no_vault", "contexto", "Busca nas notas do vault"],
-  ["ler_nota_do_vault", "contexto", "Lê uma nota inteira do vault"],
-  ["status_ao_vivo", "status", "Fora do ar, incidentes, domínios e monitores"],
-  ["pendencias_github", "status", "PRs e propostas visíveis ao token configurado"],
-  ["automacoes_operacionais", "status", "Workflows e falhas recentes no n8n"],
-  ["criar_tarefa_para_antonio", "tarefas", "Abre uma tarefa para você decidir ou executar"],
-  ["minhas_tarefas", "tarefas", "O agente acompanha as tarefas que abriu"],
-  ["registrar_evento", "eventos", "Registra deploy, manutenção ou incidente na Operação"],
-] as const;
-
 export default async function Page() {
   const [tokens, activity, inbox, summary, h] = await Promise.all([listAgentTokens(), recentActivity(40), agentTasks(), agentActivitySummary(), headers()]);
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "orbita";
@@ -42,6 +31,7 @@ export default async function Page() {
     <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-6">
       <PageHeader icon={<Bot />} title="Central dos agentes" description="Time, atividade e decisões em um só lugar. O contexto vem do Knowledge; a execução fica com cada agente." actions={<AgentAccessLink />} />
 
+      <Link href="/documentacao" className="flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-accent/5 p-5"><span><span className="block text-sm font-semibold">Manual canônico da Órbita</span><span className="mt-1 block text-xs text-muted">Fontes, permissões e roteiro de entrada. A mesma versão na página, no Markdown e no MCP.</span></span><span aria-hidden="true">↗</span></Link>
       <AgentOperations tokens={tokens} inbox={inbox} summary={summary} />
       <Suspense fallback={<Card className="p-5 text-xs text-muted">Consultando resumos…</Card>}><Reports /></Suspense>
       <Suspense fallback={<Card className="p-6 text-[13px] text-muted">Carregando time documentado no Knowledge…</Card>}><AgentRegistry /></Suspense>
@@ -61,10 +51,10 @@ export default async function Page() {
               </div>
               <p>Transporte HTTP (Streamable), cabeçalho <code>Authorization: Bearer orb_…</code>. Funciona com Claude Code, Codex, n8n (nó MCP Client) e qualquer cliente MCP.</p>
               <ul className="space-y-1.5">
-                {TOOLS.map(([name, scope, desc]) => (
+                {CORE_AGENT_TOOLS.map(({ name, scope, description }) => (
                   <li key={name} className="flex gap-2">
                     <code className="shrink-0 font-mono text-[11.5px] text-fg">{name}</code>
-                    <span className="truncate text-[12px]">{desc}</span>
+                    <span className="truncate text-[12px]">{description}</span>
                     <span className="ml-auto shrink-0 rounded bg-surface-2 px-1.5 text-[11px] text-faint">{scope}</span>
                   </li>
                 ))}

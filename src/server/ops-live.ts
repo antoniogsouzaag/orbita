@@ -168,7 +168,7 @@ export async function liveOps() {
     const minutesAgo = Math.round((now - b.lastSeen.getTime()) / 60_000);
     return { source: b.source, label: b.label ?? b.source, lastSeen: b.lastSeen, everyMinutes: b.everyMinutes, minutesAgo, silent: minutesAgo > b.everyMinutes * 2.5 + 2 };
   });
-  return { status, events, monitors, domains: domains.sort((a, b) => (a.expiresAt?.getTime() ?? Infinity) - (b.expiresAt?.getTime() ?? Infinity)) };
+  return { generatedAt: now, status, events, monitors, domains: domains.sort((a, b) => (a.expiresAt?.getTime() ?? Infinity) - (b.expiresAt?.getTime() ?? Infinity)) };
 }
 
 const norm = (u: string) => u.replace(/\/+$/, "").toLowerCase();
