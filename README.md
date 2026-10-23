@@ -59,6 +59,9 @@ http_headers = { Authorization = "Bearer orb_..." }
 | `status` | `status_ao_vivo`, `pendencias_github`, `automacoes_operacionais` |
 | `tarefas` | `criar_tarefa_para_antonio`, `minhas_tarefas` |
 | `eventos` | `registrar_evento` |
+| `admin` | Todos os escopos anteriores, `contexto_pessoal` e o catálogo da IA com prefixo `orbita_`, inclusive escrita versionada no vault |
+
+Para Hermes, validação de conexão e o caminho inverso (Órbita → agente), veja [Integração dos gestores](docs/integracao-gestores.md). Criar o token não configura o runtime nem comprova uma conexão ativa.
 
 ## Pessoal e Empresa
 
@@ -135,7 +138,8 @@ O chat (página **IA** e “Perguntar à IA” no Início) usa o modelo de `OPEN
 | `criar_evento`, `ver_agenda` | Marca compromissos e lê a agenda, inclusive calendários assinados |
 | `registrar_lancamento` | Registra despesa ou receita em Finanças |
 | `criar_nota`, `buscar_notas` | Notas pessoais |
-| `buscar_no_vault`, `ler_nota_do_vault` | Vault (só leitura) |
+| `buscar_no_vault`, `ler_nota_do_vault` | Consulta do vault |
+| `salvar_nota_vault` | Cria/atualiza nota canônica com SHA; políticas, produtos e responsabilidades exigem aprovação explícita de Antonio |
 | `status_operacao` | Sites fora do ar, incidentes, falhas, monitores e domínios |
 | `crm_resumo`, `crm_tarefas`, `crm_buscar_contatos`, `crm_contato` | Funil, receita, tarefas do time e fichas do CRM (com o CRM conectado) |
 | `crm_criar_tarefa`, `crm_concluir_tarefa`, `crm_registrar_atividade` | Tarefa para Maia, Léo, Antonio ou técnico; conclusão com motivo; interação na ficha |
@@ -201,7 +205,7 @@ Stack: Next.js 16 (App Router), React 19, Tailwind v4, Drizzle ORM, Neon, jose, 
 - **GitHub** (`/github`): inbox por repositório e autor + calendário real de contribuições (`GITHUB_USER`). Contribuições não equivalem a commits. A rota anterior redireciona.
 - **Redes sociais** (`/redes`): API Postiz de leitura (`POSTIZ_API_URL` com base HTTPS completa até `/public/v1`, `POSTIZ_API_KEY`). Exibe séries originais dos últimos 7 dias, com fonte, horário, janela e cobertura parcial explícita. Consulta até 8 canais e usa cache de uma hora; ausência de série não significa zero. A conexão do chat não fornece credenciais ao app.
 - **Revisão do vault** (`/vault/revisao`): links sem destino, notas isoladas, títulos ambíguos e metadados incompletos. A análise é determinística e não modifica notas.
-- **Memória compartilhada**: decisões duradouras explicitamente solicitadas vão para `90 - Administração/Memória Compartilhada`, com fonte e data. A IA e `contexto_operacional` recebem as últimas 12 entradas ativas, limitadas a 12 mil caracteres; notas antigas continuam pesquisáveis no vault. Não replica histórico de conversas de Hermes/OpenClaw, nem armazena dados pessoais ou de clientes no vault.
+- **Contexto e memória**: o vault é o manual e inventário canônico, consultado pela IA e pelos agentes. Não há gravação automática nem injeção de uma pasta avulsa de memória compartilhada. Memórias e conversas particulares ficam nos respectivos runtimes; resumos transitórios ficam nos eventos operacionais da Órbita. Decisões duráveis aprovadas entram nas notas canônicas correspondentes.
 - **Admin MCP**: todas as ações disponíveis na IA aparecem com prefixo `orbita_`, além de `contexto_pessoal`. Escrita de notas exige versão SHA e recusa conflitos. Perfil é atribuído explicitamente ao token; downgrade e revogação valem na próxima chamada. Não dá acesso a segredos, terminal ou ferramentas ainda não implementadas pela central.
 - **Resumos dos agentes**: `registrar_evento` aceita `tipo: resumo`. A central mostra o último relato por origem nas últimas 24 horas e o bom dia inclui até cinco. O Léo ainda precisa ser conectado para enviar essa triagem; nenhum recebimento é simulado.
 
