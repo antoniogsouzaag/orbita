@@ -56,3 +56,23 @@ describe("ingestão de status (n8n → Órbita)", () => {
     expect(IngestSchema.safeParse({ source: "", links: [{ url: "nao-e-url" }] }).success).toBe(false);
   });
 });
+
+describe("limpeza automática", () => {
+  it("apaga só o que envelheceu e mantém incidentes abertos", async () => {
+    const { pruneOld } = await import("@/server/ops-live");
+    const db = await getDb();
+    const old = new Date(Date.now() - 120 * 86_400_000);
+    await db.insert(opsEvents).values([
+      { kind: "site_down", severity: "critical", source: "t", subject: "resolvido antigo", createdAt: old, resolvedAt: old },
+      { kind: "site_down", severity: "critical", source: "t", subject: "aberto antigo", createdAt: old },
+    ]);
+    await db.insert(opsStatus).values({ url: "https://saiu-do-monitor.example/", name: "x", ok: true, source: "t", checkedAt: old, changedAt: old });
+    const r = await pruneOld(true);
+    expect(r!.eventos).toBeGreaterThanOrEqual(1);
+    expect(r!.enderecos).toBe(1);
+    const subjects = (await db.select().from(opsEvents)).map((e) => e.subject);
+    expect(subjects).toContain("aberto antigo");
+    expect(subjects).not.toContain("resolvido antigo");
+    expect(await pruneOld()).toBeNull(); // só uma vez por dia
+  });
+});

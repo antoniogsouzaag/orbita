@@ -12,6 +12,7 @@ import { listHabits } from "@/server/habits";
 import { focusStats, listWorkouts } from "@/server/life";
 import { getSettings } from "@/server/settings";
 import { listTasks, taskCounts } from "@/server/tasks";
+import { ASSISTANT_TOOLS, runAssistantTool, toolJsonSchema } from "@/server/assistant";
 import { getVaultIndexSafe, getVaultProvider, searchVault } from "@/server/vault";
 
 /**
@@ -74,7 +75,7 @@ export async function personalContext(): Promise<string> {
     listWorkouts(3),
   ]);
   const fmtTask = (x: (typeof open)[number]) =>
-    `- ${x.title}${x.dueDate ? ` (vence ${x.dueDate}${x.dueTime ? ` ${x.dueTime}` : ""})` : ""}${x.priority ? ` [prioridade ${["", "baixa", "média", "alta"][x.priority]}]` : ""}${x.project ? ` #${x.project.name}` : ""}`;
+    `- ${x.title} (id ${x.id})${x.dueDate ? ` (vence ${x.dueDate}${x.dueTime ? ` ${x.dueTime}` : ""})` : ""}${x.priority ? ` [prioridade ${["", "baixa", "média", "alta"][x.priority]}]` : ""}${x.project ? ` #${x.project.name}` : ""}`;
   const lines = [
     `Agora: ${formatLong(t)}, ${localTime(now)} (hora local ${localHour()}h). Usuário: ${settings.name}.`,
     `Tarefas: ${counts.open} abertas, ${counts.today} para hoje, ${counts.overdue} atrasadas.`,
@@ -120,70 +121,145 @@ function errorText(e: unknown) {
   return "Falha ao gerar a resposta";
 }
 
-/** Resposta em streaming (texto puro) para a pergunta, com contexto do dia + vault. */
-export async function askStream(history: ChatTurn[]): Promise<ReadableStream<Uint8Array>> {
+/** Marcador de ação no fluxo de texto: \u001e{json}\u001e — o chat mostra um chip e atualiza a tela. */
+export const ACTION_MARK = "\u001e";
+const MAX_ROUNDS = 6;
+
+function actionMarker(a: { label: string; href: string }) {
+  return `${ACTION_MARK}${JSON.stringify(a)}${ACTION_MARK}`;
+}
+
+const TOOL_RULES = `Você pode agir com as ferramentas: criar, listar, atualizar e concluir tarefas; criar eventos e ver a agenda; registrar despesas e receitas; criar e buscar notas pessoais; buscar e ler o vault; ver o status da operação.
+- Quando o pedido for uma ação ("cria", "marca", "lembra", "anota", "gastei", "conclui", "reorganiza"), execute com a ferramenta em vez de só descrever. Depois confirme em uma linha o que foi feito.
+- Calcule datas absolutas (AAAA-MM-DD) a partir de hoje, informado no contexto. Horários em HH:MM, fuso de São Paulo.
+- Para mudar uma tarefa existente use o id do contexto ou chame listar_tarefas antes. Nunca invente ids.
+- Para reorganizar o dia ou a semana, ajuste prazo e prioridade das tarefas e explique a nova ordem.
+- Pedido ambíguo que pode criar algo errado: pergunte antes. Você não apaga nada.
+- O vault é só leitura aqui; tarefas e dados de clientes da empresa ficam no CRM, que você ainda não acessa.`;
+
+/** Resposta em streaming (texto) para a pergunta, com contexto do dia + vault e ferramentas para agir. */
+export async function askStream(history: ChatTurn[], opts: { tools?: boolean } = {}): Promise<ReadableStream<Uint8Array>> {
   const provider = aiProvider();
   if (!provider) throw new Error("IA não configurada");
+  const useTools = opts.tools ?? true;
   const question = history.at(-1)?.content ?? "";
   const [personal, vault] = await Promise.all([personalContext(), vaultContext(question)]);
   const context = `<contexto_do_dia>\n${personal}\n</contexto_do_dia>${vault ? `\n<vault>\n${vault}\n</vault>` : ""}`;
   const turns = history.map((m, i) => (i === history.length - 1 ? { role: "user" as const, content: `${context}\n\n<pergunta>\n${m.content}\n</pergunta>` } : m));
+  const instructions = useTools ? `${SYSTEM}\n\n${TOOL_RULES}` : SYSTEM;
   const enc = new TextEncoder();
+  const controller = new AbortController();
 
-  if (provider === "openai") {
-    const controller = new AbortController();
-    return new ReadableStream({
-      async start(out) {
-        try {
-          const stream = await openaiClient().responses.create(
-            { model: aiModel(), instructions: SYSTEM, input: turns, stream: true, store: false, reasoning: { effort: "low" }, prompt_cache_key: "orbita-ask" },
-            { signal: controller.signal },
-          );
-          for await (const ev of stream) {
-            if (ev.type === "response.output_text.delta") out.enqueue(enc.encode(ev.delta));
-            else if (ev.type === "response.refusal.delta") out.enqueue(enc.encode(ev.delta));
-            else if (ev.type === "response.incomplete") out.enqueue(enc.encode("\n\n_(resposta cortada)_"));
-            else if (ev.type === "response.failed" || ev.type === "error") out.enqueue(enc.encode("\n\n⚠️ A IA não conseguiu terminar a resposta."));
-          }
-        } catch (e) {
-          out.enqueue(enc.encode(`\n\n⚠️ ${errorText(e)}.`));
-        } finally {
-          out.close();
-        }
-      },
-      cancel() {
-        controller.abort();
-      },
-    });
-  }
-
-  const stream = anthropicClient().beta.messages.stream({
-    model: aiModel(),
-    max_tokens: 16000,
-    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-    output_config: { effort: "low" },
-    messages: turns,
-    ...FALLBACK,
-  });
+  const run = provider === "openai" ? runOpenAI : runAnthropic;
   return new ReadableStream({
     async start(out) {
+      const emit = (t: string) => out.enqueue(enc.encode(t));
       try {
-        for await (const ev of stream) {
-          if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") out.enqueue(enc.encode(ev.delta.text));
-        }
-        const final = await stream.finalMessage();
-        if (final.stop_reason === "refusal") out.enqueue(enc.encode("\n\n_Não posso ajudar com esse pedido._"));
-        if (final.stop_reason === "max_tokens") out.enqueue(enc.encode("\n\n_(resposta cortada por tamanho)_"));
+        await run({ instructions, turns, useTools, emit, signal: controller.signal });
       } catch (e) {
-        out.enqueue(enc.encode(`\n\n⚠️ ${errorText(e)}.`));
+        if (!controller.signal.aborted) emit(`\n\n⚠️ ${errorText(e)}.`);
       } finally {
         out.close();
       }
     },
     cancel() {
-      stream.abort();
+      controller.abort();
     },
   });
+}
+
+/** Mesma conversa, sem streaming: devolve o texto final e as ações feitas (usado pelo atalho do iPhone). */
+export async function askOnce(text: string): Promise<{ answer: string; actions: { label: string; href: string }[] }> {
+  const stream = await askStream([{ role: "user", content: text }]);
+  const raw = await new Response(stream).text();
+  const actions: { label: string; href: string }[] = [];
+  const answer = raw.replace(new RegExp(`${ACTION_MARK}([^${ACTION_MARK}]*)${ACTION_MARK}`, "g"), (_, j: string) => {
+    try {
+      actions.push(JSON.parse(j));
+    } catch {}
+    return "";
+  });
+  return { answer: answer.trim(), actions };
+}
+
+type RunArgs = { instructions: string; turns: ChatTurn[]; useTools: boolean; emit: (t: string) => void; signal: AbortSignal };
+
+async function runOpenAI({ instructions, turns, useTools, emit, signal }: RunArgs) {
+  const client = openaiClient();
+  const tools: OpenAI.Responses.Tool[] = useTools ? ASSISTANT_TOOLS.map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
+  let input: OpenAI.Responses.ResponseInput = turns.map((t) => ({ role: t.role, content: t.content }));
+  let reasoning = true; // alguns modelos não aceitam o parâmetro: cai para a chamada simples
+
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    const body = {
+      model: aiModel(),
+      instructions,
+      input,
+      stream: true as const,
+      store: false,
+      prompt_cache_key: "orbita-ask",
+      ...(tools.length ? { tools, parallel_tool_calls: true } : {}),
+      ...(reasoning ? { reasoning: { effort: "low" as const }, include: ["reasoning.encrypted_content" as const] } : {}),
+    };
+    let stream;
+    try {
+      stream = await client.responses.create(body, { signal });
+    } catch (e) {
+      if (reasoning && e instanceof OpenAI.APIError && e.status === 400 && /reasoning|unsupported/i.test(e.message)) {
+        reasoning = false;
+        round--;
+        continue;
+      }
+      throw e;
+    }
+    let final: OpenAI.Responses.Response | null = null;
+    for await (const ev of stream) {
+      if (ev.type === "response.output_text.delta") emit(ev.delta);
+      else if (ev.type === "response.refusal.delta") emit(ev.delta);
+      else if (ev.type === "response.completed") final = ev.response;
+      else if (ev.type === "response.incomplete") {
+        emit("\n\n_(resposta cortada)_");
+        final = ev.response;
+      } else if (ev.type === "response.failed" || ev.type === "error") emit("\n\n⚠️ A IA não conseguiu terminar a resposta.");
+    }
+    const calls = (final?.output ?? []).filter((o): o is OpenAI.Responses.ResponseFunctionToolCall => o.type === "function_call");
+    if (!calls.length || !final) return;
+    input = [...input, ...(final.output as OpenAI.Responses.ResponseInputItem[])];
+    for (const c of calls) {
+      const r = await runAssistantTool(c.name, c.arguments);
+      if (r.action) emit(actionMarker(r.action));
+      input.push({ type: "function_call_output", call_id: c.call_id, output: r.text });
+    }
+  }
+  emit("\n\n_(parei após muitas etapas; confira o que foi feito)_");
+}
+
+async function runAnthropic({ instructions, turns, useTools, emit, signal }: RunArgs) {
+  const tools = useTools ? ASSISTANT_TOOLS.map((t) => ({ name: t.name, description: t.description, input_schema: toolJsonSchema(t) as Anthropic.Beta.BetaTool.InputSchema })) : undefined;
+  const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role, content: t.content }));
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    const stream = anthropicClient().beta.messages.stream(
+      { model: aiModel(), max_tokens: 16000, system: [{ type: "text", text: instructions, cache_control: { type: "ephemeral" } }], output_config: { effort: "low" }, messages, ...(tools ? { tools } : {}), ...FALLBACK },
+      { signal },
+    );
+    for await (const ev of stream) {
+      if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") emit(ev.delta.text);
+    }
+    const final = await stream.finalMessage();
+    if (final.stop_reason === "refusal") emit("\n\n_Não posso ajudar com esse pedido._");
+    if (final.stop_reason === "max_tokens") emit("\n\n_(resposta cortada por tamanho)_");
+    if (final.stop_reason !== "tool_use") return;
+    messages.push({ role: "assistant", content: final.content });
+    const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
+    for (const b of final.content) {
+      if (b.type !== "tool_use") continue;
+      const r = await runAssistantTool(b.name, b.input as Record<string, unknown>);
+      if (r.action) emit(actionMarker(r.action));
+      results.push({ type: "tool_result", tool_use_id: b.id, content: r.text, ...(r.ok ? {} : { is_error: true }) });
+    }
+    messages.push({ role: "user", content: results });
+  }
+  emit("\n\n_(parei após muitas etapas; confira o que foi feito)_");
 }
 
 const PlanSchema = z.object({

@@ -56,7 +56,7 @@ describe("auditoria de autenticação", () => {
   });
   it("toda rota de API checa sessão ou token", () => {
     const routes = walk(path.join(root, "api")).filter((f) => f.endsWith("route.ts"));
-    const open = routes.filter((f) => !/isAuthenticated\(\)|tokenMatches\(|verifyAgentToken\(/.test(readFileSync(f, "utf8")) && !f.includes(`${path.sep}health${path.sep}`));
+    const open = routes.filter((f) => !/isAuthenticated\(\)|tokenMatches\(|verifyAgentToken\(|verifyCaptureToken\(/.test(readFileSync(f, "utf8")) && !f.includes(`${path.sep}health${path.sep}`));
     expect(open.map((f) => path.relative(root, f))).toEqual([]);
   });
 });

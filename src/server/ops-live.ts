@@ -1,9 +1,36 @@
 import "server-only";
-import { and, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { opsDomains, opsEvents, opsHeartbeats, opsStatus } from "@/db/schema";
+import { agentActivity, opsDomains, opsEvents, opsHeartbeats, opsStatus } from "@/db/schema";
+import { getRawSetting, setRawSetting } from "./security-store";
 import { monitorTargets } from "./ops";
+
+/* ───────────── Limpeza automática (sem acumular histórico velho) ───────────── */
+
+const DAY = 86_400_000;
+
+/** Apaga o que perdeu valor. Roda no máximo uma vez por dia, embutida na ingestão do n8n. */
+export async function pruneOld(force = false) {
+  const last = Number(((await getRawSetting("prune")) as { at?: number } | undefined)?.at ?? 0);
+  if (!force && Date.now() - last < DAY) return null;
+  await setRawSetting("prune", { at: Date.now() });
+  const db = await getDb();
+  const ago = (d: number) => new Date(Date.now() - d * DAY);
+  const r = {
+    atividade: (await db.delete(agentActivity).where(lt(agentActivity.createdAt, ago(30))).returning({ id: agentActivity.id })).length,
+    eventos: (
+      await db
+        .delete(opsEvents)
+        .where(or(and(isNotNull(opsEvents.resolvedAt), lt(opsEvents.createdAt, ago(90))), and(eq(opsEvents.kind, "workflow_error"), lt(opsEvents.createdAt, ago(30))), and(eq(opsEvents.severity, "info"), lt(opsEvents.createdAt, ago(30)))))
+        .returning({ id: opsEvents.id })
+    ).length,
+    enderecos: (await db.delete(opsStatus).where(lt(opsStatus.checkedAt, ago(14))).returning({ url: opsStatus.url })).length,
+    monitores: (await db.delete(opsHeartbeats).where(lt(opsHeartbeats.lastSeen, ago(30))).returning({ s: opsHeartbeats.source })).length,
+    dominios: (await db.delete(opsDomains).where(lt(opsDomains.checkedAt, ago(30))).returning({ d: opsDomains.domain })).length,
+  };
+  return r;
+}
 
 /* ───────────── Ingestão (n8n → Órbita) ───────────── */
 
@@ -119,6 +146,7 @@ export async function ingest(p: IngestPayload) {
     await db.insert(opsEvents).values({ kind: e.kind, severity: e.severity, source: p.source, subject: e.subject, detail: e.detail ?? {} });
     counters.events++;
   }
+  await pruneOld().catch((e) => console.error("[prune]", e));
   return counters;
 }
 

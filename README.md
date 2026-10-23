@@ -11,9 +11,9 @@ Uso pessoal, um único usuário. Em produção: Vercel (região `gru1`, São Pau
 | Núcleo | Início (capa, saudação, captura rápida, widgets), Tarefas, Projetos, Kanban, Agenda, Notas |
 | Vida | Metas, Hábitos, Academia, Finanças, Leitura, Foco |
 | Operação | Vault (editor estilo Obsidian, wikilinks, backlinks, grafo), Operação (status ao vivo), Automações, Agentes |
-| Insights | Revisão, IA (chat e plano do dia), Integrações, Configurações |
+| Insights | Revisão, IA (chat com ações e plano do dia), Integrações, Configurações |
 
-Botão **+** abre os atalhos rápidos, inclusive tarefa por voz.
+Botão **+** abre os atalhos rápidos, inclusive tarefa por voz. No iPhone, “E aí Siri, Órbita” registra pelo app Atalhos.
 
 ## Princípios
 
@@ -21,6 +21,8 @@ Botão **+** abre os atalhos rápidos, inclusive tarefa por voz.
 - **O GitHub é o backup do vault.** Cada salvamento no editor vira um commit; o Obsidian sincroniza pelo obsidian-git.
 - **O n8n coleta, a Órbita guarda e mostra.** Os monitores enviam links, domínios e falhas para `/api/ops/ingest`; a Órbita registra histórico, incidentes e a batida de cada monitor.
 - **Agentes entram por MCP com acesso mínimo.** Cada agente tem um token próprio com escopos; nenhum vê dados pessoais nem edita o vault.
+- **Sem acumular lixo.** Uma vez por dia a Órbita apaga o que envelheceu: atividade de agentes (30 dias), falhas de workflow e avisos (30 dias), incidentes resolvidos (90 dias) e endereços, monitores e domínios que pararam de ser enviados.
+- **Falha de uma fonte não derruba a tela.** Se o GitHub recusar o token do vault, as páginas seguem funcionando e mostram o motivo e como corrigir.
 
 ## Endpoints
 
@@ -31,6 +33,9 @@ Botão **+** abre os atalhos rápidos, inclusive tarefa por voz.
 | `/api/mcp` | `Bearer orb_…` (criado em **Agentes**) | Servidor MCP (Streamable HTTP) para agentes, Claude Code e Codex |
 | `GET /api/context` | `Bearer CONTEXT_TOKEN` ou sessão | Contexto operacional em markdown/JSON |
 | `GET /api/calendar/feed.ics?token=…` | `CALENDAR_FEED_TOKEN` | Feed para assinar no iPhone |
+| `POST /api/capture` | `Bearer cap_…` (gerada em **Configurações → iPhone**) | Atalho do iPhone/Siri: `{ texto, modo? }` → `{ ok, mensagem }` |
+| `POST /api/ai/ask` | sessão | Chat com a IA (texto em streaming, com ações) |
+| `GET /api/avatar` | sessão | Foto do perfil |
 | `GET /api/health` | pública | Verificação de disponibilidade |
 
 ### Conectar um agente
@@ -54,6 +59,27 @@ http_headers = { Authorization = "Bearer orb_..." }
 | `status` | `status_ao_vivo` |
 | `tarefas` | `criar_tarefa_para_antonio`, `minhas_tarefas` |
 | `eventos` | `registrar_evento` |
+
+## IA com ações
+
+O chat (página **IA** e “Perguntar à IA” no Início) usa o modelo de `OPENAI_MODEL` (padrão `gpt-6-luna`) com ferramentas. Ele lê o dia (tarefas, hábitos, agenda, metas), consulta o vault e a operação e também age:
+
+| Ferramenta | O que faz |
+| --- | --- |
+| `criar_tarefa`, `listar_tarefas`, `atualizar_tarefa` | Cria, lista, conclui e reorganiza tarefas (prazo, prioridade, projeto) |
+| `criar_evento`, `ver_agenda` | Marca compromissos e lê a agenda, inclusive calendários assinados |
+| `registrar_lancamento` | Registra despesa ou receita em Finanças |
+| `criar_nota`, `buscar_notas` | Notas pessoais |
+| `buscar_no_vault`, `ler_nota_do_vault` | Vault (só leitura) |
+| `status_operacao` | Sites fora do ar, incidentes, falhas, monitores e domínios |
+
+Nada é apagado pela IA. Cada ação aparece como um selo na resposta, com link para a tela correspondente. O mesmo catálogo vale para Claude (`AI_PROVIDER=anthropic`).
+
+## Atalho do iPhone
+
+Em **Configurações → iPhone**, gere a chave (aparece uma vez) e monte o atalho **Órbita** no app Atalhos: *Ditar Texto* → *Obter Conteúdo do URL* (POST `https://orb.aglabs.api.br/api/capture`, cabeçalho `Authorization: Bearer cap_…`, corpo JSON `{ "texto": … }`) → *Obter Valor do Dicionário* `mensagem` → *Falar Texto*.
+
+Sem `modo`, a IA entende e age (“comprar café amanhã às 9”, “gastei 32 no almoço”, “o que tenho hoje?”). Com `modo` `tarefa`, `nota` ou `gasto`, o registro é direto, sem IA.
 
 ## Variáveis de ambiente
 

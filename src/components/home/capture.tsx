@@ -9,6 +9,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { createNote, quickAddTask } from "@/app/actions/core";
 import { ParsePreview } from "@/components/tasks/parse-preview";
+import { splitActions } from "@/lib/ai-stream";
 import { relativeDay } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
@@ -46,11 +47,17 @@ export function Capture({ projects, aiEnabled }: { projects: { id: string; name:
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let acc = "";
+      let parsed = splitActions("");
       for (;;) {
         const { done, value: chunk } = await reader.read();
         if (done) break;
         acc += dec.decode(chunk, { stream: true });
-        setAnswer(acc);
+        parsed = splitActions(acc);
+        setAnswer(parsed.text);
+      }
+      if (parsed.actions.length) {
+        toast.success(parsed.actions.map((a) => a.label).join(" · "));
+        router.refresh();
       }
     } catch {
       setAnswer("⚠️ Não foi possível falar com a IA agora.");

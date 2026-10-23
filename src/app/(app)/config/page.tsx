@@ -1,21 +1,27 @@
 import { Database, Download, Settings } from "lucide-react";
 import { PreferencesCard } from "@/components/settings/preferences-card";
+import { IphoneCard } from "@/components/settings/iphone-card";
 import { SecurityCard } from "@/components/settings/security-card";
+import { headers } from "next/headers";
+import { captureTokenInfo } from "@/server/capture";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
 import { securityState } from "@/lib/auth";
-import { getSettings } from "@/server/settings";
+import { avatarVersion, getSettings } from "@/server/settings";
 
 export const metadata = { title: "Configurações" };
 
 export default async function Page() {
-  const [settings, sec] = await Promise.all([getSettings(), securityState(true)]);
+  const [settings, sec, avatarV, capture, h] = await Promise.all([getSettings(), securityState(true), avatarVersion(), captureTokenInfo(), headers()]);
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "orbita";
+  const captureUrl = `${host.startsWith("localhost") ? "http" : "https"}://${host}/api/capture`;
   const passwordMode = process.env.ORBITA_PASSWORD_HASH ? "hash" : process.env.ORBITA_PASSWORD ? "plain" : "none";
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 sm:px-6">
       <PageHeader icon={<Settings />} title="Configurações" />
-      <PreferencesCard name={settings.name} accent={settings.accent} focusMinutes={settings.focusMinutes} />
+      <PreferencesCard avatar={avatarV ? `/api/avatar?v=${avatarV}` : null} name={settings.name} accent={settings.accent} focusMinutes={settings.focusMinutes} />
       <SecurityCard totpEnabled={sec.totpEnabled} envTotp={Boolean(process.env.ORBITA_TOTP_SECRET)} passwordMode={passwordMode} />
+      <IphoneCard url={captureUrl} info={capture} />
       <Card>
         <CardHeader icon={<Database />} title="Seus dados" />
         <div className="space-y-3 px-5 pb-5 text-[13px] text-muted">

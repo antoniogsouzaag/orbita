@@ -8,7 +8,7 @@ import { AREAS, TASK_STATUS, checkins, goals, habitLogs, habits, notes, projects
 import { requireAuth } from "@/lib/auth";
 import { today } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
-import { setSetting, type AppSettings } from "@/server/settings";
+import { setAvatar, setSetting, type AppSettings } from "@/server/settings";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -256,5 +256,40 @@ export async function updateSettings(patch: Partial<AppSettings>) {
     })
     .parse(patch);
   for (const [k, val] of Object.entries(v)) await setSetting(k as keyof AppSettings, val as never);
+  refresh();
+}
+
+/** Foto do perfil: recebe a imagem já recortada e reduzida no navegador (data URL). null remove. */
+export async function saveAvatar(dataUrl: string | null) {
+  await requireAuth();
+  if (dataUrl === null) {
+    await setAvatar(null);
+    refresh();
+    return { ok: true as const };
+  }
+  const m = /^data:(image\/(?:webp|png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(z.string().max(700_000).parse(dataUrl));
+  if (!m) return { ok: false as const, error: "Formato de imagem não suportado" };
+  const bytes = Buffer.from(m[2], "base64");
+  if (bytes.length > 400_000) return { ok: false as const, error: "Imagem grande demais" };
+  const magic = bytes.subarray(0, 12).toString("latin1");
+  const valid = (m[1] === "image/png" && magic.startsWith("\x89PNG")) || (m[1] === "image/jpeg" && bytes[0] === 0xff && bytes[1] === 0xd8) || (m[1] === "image/webp" && magic.startsWith("RIFF") && magic.slice(8, 12) === "WEBP");
+  if (!valid) return { ok: false as const, error: "Arquivo de imagem inválido" };
+  await setAvatar({ type: m[1], data: m[2], updatedAt: Date.now() });
+  refresh();
+  return { ok: true as const };
+}
+
+/* ───────────── Atalho do iPhone ───────────── */
+
+export async function generateCaptureToken() {
+  await requireAuth();
+  const { createCaptureToken } = await import("@/server/capture");
+  return createCaptureToken();
+}
+
+export async function revokeCaptureTokenAction() {
+  await requireAuth();
+  const { revokeCaptureToken } = await import("@/server/capture");
+  await revokeCaptureToken();
   refresh();
 }

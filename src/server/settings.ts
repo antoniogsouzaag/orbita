@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { settings } from "@/db/schema";
 import { COVER_PRESETS } from "@/lib/covers";
@@ -52,7 +52,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
 export async function getSettings(): Promise<AppSettings> {
   const db = await getDb();
   const rows = await db.select().from(settings);
-  const map = Object.fromEntries(rows.map((r) => [r.key, r.value])) as Partial<AppSettings>;
+  // só as chaves de preferência (a tabela também guarda segurança e a foto, que não devem vazar daqui)
+  const keys = new Set(Object.keys(DEFAULT_SETTINGS));
+  const map = Object.fromEntries(rows.filter((r) => keys.has(r.key)).map((r) => [r.key, r.value])) as Partial<AppSettings>;
   const merged = { ...DEFAULT_SETTINGS, ...map };
   // garante que widgets novos apareçam para quem já tinha uma ordem salva
   const known = new Set(merged.widgets.order);
@@ -74,4 +76,26 @@ export async function getRawSetting(key: string) {
   const db = await getDb();
   const [row] = await db.select().from(settings).where(eq(settings.key, key));
   return row?.value;
+}
+
+/* ───────────── Foto do perfil (guardada no banco, servida por /api/avatar) ───────────── */
+
+type StoredAvatar = { type: string; data: string; updatedAt: number };
+
+export async function getAvatar(): Promise<StoredAvatar | null> {
+  const v = (await getRawSetting("avatar")) as StoredAvatar | null | undefined;
+  return v && typeof v.data === "string" ? v : null;
+}
+
+/** Versão da foto (para invalidar o cache do navegador) ou null se não houver. */
+export async function avatarVersion(): Promise<number | null> {
+  const db = await getDb();
+  const [row] = await db.select({ v: sql<number | null>`(${settings.value}->>'updatedAt')::bigint` }).from(settings).where(eq(settings.key, "avatar"));
+  return row?.v ? Number(row.v) : null;
+}
+
+export async function setAvatar(value: StoredAvatar | null) {
+  const db = await getDb();
+  if (!value) await db.delete(settings).where(eq(settings.key, "avatar"));
+  else await db.insert(settings).values({ key: "avatar", value }).onConflictDoUpdate({ target: settings.key, set: { value } });
 }

@@ -24,11 +24,13 @@ export const useShell = () => React.useContext(ShellContext);
 
 export function AppShell({
   children,
+  avatar,
   name,
   notifications,
   projects,
 }: {
   children: React.ReactNode;
+  avatar?: string | null;
   name: string;
   notifications: ShellNotification[];
   projects: { id: string; name: string; color: string }[];
@@ -81,7 +83,7 @@ export function AppShell({
   return (
     <ShellContext.Provider value={ctx}>
       <div className={cn("min-h-dvh", sidebar && "lg:pl-[268px]")}>
-        {sidebar && <Sidebar pathname={pathname} name={name} onCollapse={toggleSidebar} notifications={notifications.length} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />}
+        {sidebar && <Sidebar pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} notifications={notifications.length} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />}
 
         <header
           className={cn(
@@ -116,7 +118,7 @@ export function AppShell({
                 </span>
               </button>
               <Notifications items={notifications} light={isHome && !scrolled} />
-              <UserMenu name={name} light={isHome && !scrolled} />
+              <UserMenu name={name} avatar={avatar} light={isHome && !scrolled} />
             </div>
           </div>
         </header>
@@ -131,7 +133,7 @@ export function AppShell({
   );
 }
 
-function Sidebar({ pathname, name, onCollapse, notifications, onSearch, onQuick }: { pathname: string; name: string; onCollapse: () => void; notifications: number; onSearch: () => void; onQuick: () => void }) {
+function Sidebar({ pathname, name, avatar, onCollapse, notifications, onSearch, onQuick }: { pathname: string; name: string; avatar?: string | null; onCollapse: () => void; notifications: number; onSearch: () => void; onQuick: () => void }) {
   return (
     <aside className="glass fixed inset-y-2 left-2 z-50 hidden w-[256px] flex-col overflow-hidden rounded-2xl border border-border shadow-soft lg:flex">
       <div className="flex items-center gap-2 px-4 pb-2 pt-4">
@@ -178,7 +180,7 @@ function Sidebar({ pathname, name, onCollapse, notifications, onSearch, onQuick 
           <Settings className="size-4" /> Configurações
         </Link>
         <div className="mt-2 flex items-center gap-2.5 px-2">
-          <Avatar name={name} />
+          <Avatar name={name} src={avatar} />
           <div className="min-w-0 text-[12.5px] font-medium">{name}</div>
         </div>
       </div>
@@ -291,12 +293,12 @@ function Notifications({ items, light }: { items: ShellNotification[]; light: bo
   );
 }
 
-function UserMenu({ name, light }: { name: string; light: boolean }) {
+function UserMenu({ name, avatar, light }: { name: string; avatar?: string | null; light: boolean }) {
   const { setTheme, theme } = useTheme();
   return (
     <Menu>
       <MenuTrigger className={cn("rounded-full ring-1 transition", light ? "ring-white/20" : "ring-border")} aria-label="Conta">
-        <Avatar name={name} />
+        <Avatar name={name} src={avatar} />
       </MenuTrigger>
       <MenuContent>
         <MenuLabel>{name}</MenuLabel>
@@ -312,8 +314,10 @@ function UserMenu({ name, light }: { name: string; light: boolean }) {
   );
 }
 
-export function Avatar({ name, className }: { name: string; className?: string }) {
+export function Avatar({ name, src, className }: { name: string; src?: string | null; className?: string }) {
   const initials = name.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
+  // eslint-disable-next-line @next/next/no-img-element
+  if (src) return <img src={src} alt={name} className={cn("size-8 shrink-0 rounded-full object-cover", className)} />;
   return (
     <span className={cn("grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-accent to-violet-500 text-[12px] font-bold text-white", className)}>
       {initials}
