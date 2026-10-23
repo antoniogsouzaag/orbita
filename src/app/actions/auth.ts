@@ -1,28 +1,70 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createSession, destroySession, passwordMatches } from "@/lib/auth";
+import { checkTotp, createSession, destroySession, passwordMatches, requireAuth, securityState, updateSecurity } from "@/lib/auth";
+import { generateSecret, otpauthUri, verifyTotp } from "@/lib/totp";
 
-const attempts = new Map<string, { n: number; until: number }>();
+const MAX_FAILS = 5;
+const LOCK_MS = 5 * 60_000;
 
 export async function login(_: { error?: string } | undefined, formData: FormData): Promise<{ error?: string }> {
-  const key = "owner";
-  const a = attempts.get(key);
-  if (a && a.until > Date.now()) return { error: "Muitas tentativas. Aguarde um minuto." };
-  const password = String(formData.get("password") ?? "");
-  if (!passwordMatches(password)) {
-    const n = (a?.n ?? 0) + 1;
-    attempts.set(key, { n, until: n >= 5 ? Date.now() + 60_000 : 0 });
-    await new Promise((r) => setTimeout(r, 400));
-    return { error: "Senha incorreta." };
+  const s = await securityState(true);
+  if (s.lockedUntil > Date.now()) {
+    const min = Math.ceil((s.lockedUntil - Date.now()) / 60_000);
+    return { error: `Muitas tentativas. Tente de novo em ${min} min.` };
   }
-  attempts.delete(key);
+  const password = String(formData.get("password") ?? "");
+  const code = String(formData.get("code") ?? "");
+  const ok = passwordMatches(password) && (await checkTotp(code));
+  if (!ok) {
+    const failed = s.failed + 1;
+    await updateSecurity({ failed: failed >= MAX_FAILS ? 0 : failed, lockedUntil: failed >= MAX_FAILS ? Date.now() + LOCK_MS : 0 });
+    await new Promise((r) => setTimeout(r, 600));
+    return { error: s.totpEnabled ? "Senha ou código incorretos." : "Senha incorreta." };
+  }
+  if (s.failed || s.lockedUntil) await updateSecurity({ failed: 0, lockedUntil: 0 });
   await createSession();
   const next = String(formData.get("next") ?? "/");
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  redirect(next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/");
 }
 
 export async function logout() {
   await destroySession();
   redirect("/login");
+}
+
+/** Invalida todas as sessões (todos os dispositivos), inclusive a atual. */
+export async function logoutEverywhere() {
+  await requireAuth();
+  const s = await securityState(true);
+  await updateSecurity({ sessionVersion: s.sessionVersion + 1 });
+  await destroySession();
+  redirect("/login");
+}
+
+export async function startTotpSetup() {
+  await requireAuth();
+  const s = await securityState(true);
+  if (process.env.ORBITA_TOTP_SECRET) return { error: "2FA definido por variável de ambiente." };
+  const secret = generateSecret();
+  await updateSecurity({ totpSecret: secret, totpEnabled: false });
+  return { secret, uri: otpauthUri(secret, process.env.OWNER_NAME ?? "dono"), enabled: s.totpEnabled };
+}
+
+export async function confirmTotp(code: string) {
+  await requireAuth();
+  const s = await securityState(true);
+  if (!s.totpSecret || !verifyTotp(s.totpSecret, code)) return { ok: false, error: "Código inválido. Confira o horário do celular e tente o código atual." };
+  await updateSecurity({ totpEnabled: true, sessionVersion: s.sessionVersion + 1 });
+  await createSession(); // mantém este dispositivo conectado; os demais precisam entrar de novo com o código
+  return { ok: true };
+}
+
+export async function disableTotp(code: string) {
+  await requireAuth();
+  const s = await securityState(true);
+  if (process.env.ORBITA_TOTP_SECRET) return { ok: false, error: "2FA definido por variável de ambiente." };
+  if (s.totpEnabled && (!s.totpSecret || !verifyTotp(s.totpSecret, code))) return { ok: false, error: "Código inválido." };
+  await updateSecurity({ totpEnabled: false, totpSecret: null });
+  return { ok: true };
 }
