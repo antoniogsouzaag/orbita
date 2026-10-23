@@ -38,3 +38,13 @@ describe("tabelas markdown", () => {
     expect(plainText(t[1].rows[0][0])).toBe("Agente - Tom 🦾");
   });
 });
+
+import { preprocessWikilinks } from "@/components/markdown/view";
+describe("preprocessWikilinks", () => {
+  it("converte wikilinks e preserva código", () => {
+    expect(preprocessWikilinks("Veja [[Nota A|apelido]] e `[[nao]]`")).toBe("Veja [apelido](wikilink:Nota%20A) e `[[nao]]`");
+    expect(preprocessWikilinks("[[Áreas da AG LABS#Gestão dos ambientes]]")).toBe("[Áreas da AG LABS › Gestão dos ambientes](wikilink:%C3%81reas%20da%20AG%20LABS#Gest%C3%A3o%20dos%20ambientes)");
+    expect(preprocessWikilinks("| [[Página - X\\|X]] |")).toBe("| [X](wikilink:P%C3%A1gina%20-%20X) |");
+    expect(preprocessWikilinks("![[logo.png]]")).toBe("![logo.png](embed:logo.png)");
+  });
+});

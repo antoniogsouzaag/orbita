@@ -1,0 +1,172 @@
+"use client";
+
+import { CheckSquare, Hash } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import * as React from "react";
+import { toast } from "sonner";
+import { quickAddTask, toggleTask } from "@/app/actions/core";
+import { Card, EmptyState } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { relativeDay, today } from "@/lib/dates";
+import { cn } from "@/lib/utils";
+import type { TaskRow, TaskView } from "@/server/tasks";
+import { ParsePreview } from "./parse-preview";
+import { TaskDetail, type TaskDetailData } from "./task-detail";
+import { TaskItem } from "./task-item";
+
+const VIEWS: { id: TaskView; label: string }[] = [
+  { id: "hoje", label: "Hoje" },
+  { id: "proximos", label: "Próximos" },
+  { id: "atrasadas", label: "Atrasadas" },
+  { id: "semdata", label: "Sem data" },
+  { id: "todas", label: "Todas" },
+  { id: "concluidas", label: "Concluídas" },
+];
+
+function groupByDate(tasks: TaskRow[], view: TaskView) {
+  if (view === "concluidas" || view === "semdata") return [{ key: "all", label: "", items: tasks }];
+  const t = today();
+  const groups = new Map<string, { key: string; label: string; items: TaskRow[] }>();
+  for (const task of tasks) {
+    let key = task.dueDate ?? "zz-sem-data";
+    let label = task.dueDate ? relativeDay(task.dueDate) : "Sem data";
+    if (task.dueDate && task.dueDate < t) {
+      key = "0-atrasadas";
+      label = "Atrasadas";
+    }
+    if (!groups.has(key)) groups.set(key, { key, label, items: [] });
+    groups.get(key)!.items.push(task);
+  }
+  return [...groups.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
+export function TasksView({
+  tasks,
+  view,
+  counts,
+  projects,
+  tags,
+  activeTag,
+  projectId,
+  detail,
+  hideViews,
+}: {
+  tasks: TaskRow[];
+  view: TaskView;
+  counts?: Partial<Record<TaskView, number>>;
+  projects: { id: string; name: string; color: string }[];
+  tags?: string[];
+  activeTag?: string;
+  projectId?: string;
+  detail: TaskDetailData | null;
+  hideViews?: boolean;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const [value, setValue] = React.useState("");
+  const [optimistic, toggle] = React.useOptimistic(tasks, (state, id: string) => state.map((t) => (t.id === id ? { ...t, status: t.status === "done" ? "todo" : "done" } : t)) as TaskRow[]);
+  const [pending, start] = React.useTransition();
+
+  const href = (patch: Record<string, string | null>) => {
+    const p = new URLSearchParams(params.toString());
+    for (const [k, v] of Object.entries(patch)) (v === null ? p.delete(k) : p.set(k, v));
+    const s = p.toString();
+    return `${pathname}${s ? `?${s}` : ""}`;
+  };
+
+  const groups = groupByDate(optimistic, view);
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[200px_1fr]">
+      {!hideViews && (
+        <aside className="space-y-5">
+          <nav className="no-scrollbar flex gap-1 overflow-x-auto lg:flex-col">
+            {VIEWS.map((v) => (
+              <Link
+                key={v.id}
+                href={href({ view: v.id, task: null })}
+                className={cn("flex shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2 text-[13.5px] transition", view === v.id ? "bg-surface-3 font-medium text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")}
+              >
+                {v.label}
+                {counts?.[v.id] !== undefined && counts[v.id]! > 0 && <span className={cn("text-[12px] tabular-nums", v.id === "atrasadas" ? "text-danger" : "text-faint")}>{counts[v.id]}</span>}
+              </Link>
+            ))}
+          </nav>
+          {projects.length > 0 && (
+            <div className="hidden lg:block">
+              <div className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-faint">Projetos</div>
+              {projects.map((p) => (
+                <Link key={p.id} href={href({ project: projectId === p.id ? null : p.id, task: null })} className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px]", projectId === p.id ? "bg-surface-3 text-fg" : "text-muted hover:text-fg")}>
+                  <span className="size-2 rounded-full" style={{ background: p.color }} /> <span className="truncate">{p.name}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+          {tags && tags.length > 0 && (
+            <div className="hidden lg:block">
+              <div className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-faint">Tags</div>
+              <div className="flex flex-wrap gap-1 px-2">
+                {tags.map((t) => (
+                  <Link key={t} href={href({ tag: activeTag === t ? null : t, task: null })} className={cn("flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[12px]", activeTag === t ? "bg-accent text-accent-fg" : "bg-surface-2 text-muted hover:text-fg")}>
+                    <Hash className="size-3" />{t}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </aside>
+      )}
+
+      <div className="min-w-0 space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!value.trim()) return;
+            const v = value;
+            setValue("");
+            start(async () => {
+              await quickAddTask(view === "hoje" && !/\b(hoje|amanh|segunda|terça|terca|quarta|quinta|sexta|s[áa]bado|domingo|\d{1,2}\/\d{1,2})/i.test(v) ? `${v} hoje` : v, projectId ?? null);
+              toast.success("Tarefa criada");
+            });
+          }}
+          className="card p-3"
+        >
+          <Input value={value} onChange={(e) => setValue(e.target.value)} disabled={pending} placeholder={`Adicionar tarefa${view === "hoje" ? " para hoje" : ""}…  (#tag !alta amanhã 15h @projeto)`} className="h-11 border-transparent bg-transparent text-[15px] focus:ring-0" />
+          {value && <div className="px-3 pb-1"><ParsePreview value={value} projects={projects} /></div>}
+        </form>
+
+        {optimistic.length === 0 ? (
+          <Card><EmptyState icon={<CheckSquare />} title={view === "concluidas" ? "Nada concluído ainda" : "Nenhuma tarefa aqui"} description="Tudo limpo por enquanto. ✨" /></Card>
+        ) : (
+          groups.map((g) => (
+            <Card key={g.key} className="p-2">
+              {g.label && (
+                <div className={cn("px-3 pb-1 pt-2 text-[12px] font-semibold uppercase tracking-wider", g.key === "0-atrasadas" ? "text-danger" : "text-faint")}>
+                  {g.label} <span className="font-normal text-faint">· {g.items.length}</span>
+                </div>
+              )}
+              {g.items.map((t) => (
+                <TaskItem
+                  key={t.id}
+                  task={t}
+                  showDate={g.key === "all" || g.key === "0-atrasadas"}
+                  onOpen={() => router.push(href({ task: t.id }), { scroll: false })}
+                  onToggle={() =>
+                    start(async () => {
+                      toggle(t.id);
+                      await toggleTask(t.id);
+                    })
+                  }
+                />
+              ))}
+            </Card>
+          ))
+        )}
+      </div>
+
+      {detail && <TaskDetail task={detail} projects={projects} onClose={() => router.push(href({ task: null }), { scroll: false })} />}
+    </div>
+  );
+}

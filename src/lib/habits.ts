@@ -78,3 +78,48 @@ export function dayStreak(active: Set<string>, today: string): number {
   }
   return n;
 }
+
+/** Maior sequência já registrada (dias agendados seguidos com check). */
+export function bestStreak(h: HabitLike, done: Set<string>, today: string): number {
+  if (done.size === 0) return 0;
+  if (h.frequency === "weekly") {
+    let best = 0;
+    let cur = 0;
+    const sorted = [...done].sort();
+    let week = startOfWeekISO(sorted[0]);
+    const end = startOfWeekISO(today);
+    while (week <= end) {
+      const n = lastNDays(7, shiftDate(week, 6)).filter((d) => done.has(d)).length;
+      cur = n >= Math.max(1, h.timesPerWeek) ? cur + 1 : 0;
+      best = Math.max(best, cur);
+      week = shiftDate(week, 7);
+    }
+    return best;
+  }
+  const sorted = [...done].sort();
+  let best = 0;
+  let cur = 0;
+  let day = sorted[0];
+  while (day <= today) {
+    if (isScheduled(h, day)) {
+      if (done.has(day)) {
+        cur++;
+        best = Math.max(best, cur);
+      } else if (day !== today) cur = 0;
+    }
+    day = shiftDate(day, 1);
+  }
+  return best;
+}
+
+/** Taxa de conclusão nos últimos N dias (apenas dias agendados). */
+export function completionRate(h: HabitLike, done: Set<string>, today: string, n = 30): number {
+  if (h.frequency === "weekly") {
+    const days = lastNDays(n, today);
+    const count = days.filter((d) => done.has(d)).length;
+    return Math.min(100, Math.round((count / ((n / 7) * Math.max(1, h.timesPerWeek))) * 100));
+  }
+  const days = lastNDays(n, today).filter((d) => isScheduled(h, d));
+  if (!days.length) return 0;
+  return Math.round((days.filter((d) => done.has(d)).length / days.length) * 100);
+}
