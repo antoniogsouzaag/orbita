@@ -2,7 +2,7 @@
 
 import { Bell, LayoutGrid, LogOut, Monitor, Moon, PanelLeft, Plus, Search, Settings, Sun } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Popover } from "radix-ui";
 import * as React from "react";
@@ -12,7 +12,7 @@ import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } fr
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "./command-palette";
 import { Logo } from "./logo";
-import { ALL_NAV, NAV, SETTINGS_ITEM, isActive } from "./nav";
+import { SETTINGS_ITEM, SHARED, SPACES, isActive, spaceOf, type NavItem, type Space } from "./nav";
 import { QuickAdd } from "./quick-add";
 import { SpeedDial } from "./speed-dial";
 
@@ -21,6 +21,59 @@ export type ShellNotification = { id: string; title: string; detail?: string; hr
 type Ctx = { openPalette: () => void; openQuickAdd: (tab?: string) => void };
 const ShellContext = React.createContext<Ctx>({ openPalette: () => {}, openQuickAdd: () => {} });
 export const useShell = () => React.useContext(ShellContext);
+
+/** Espaço atual (Pessoal/Empresa): vem da rota; nas telas comuns, fica o último usado. */
+function useSpace(): { space: Space; escopo: string | null } {
+  const pathname = usePathname();
+  const escopo = useSearchParams().get("escopo");
+  const fromRoute = spaceOf(pathname, escopo);
+  const [last, setLast] = React.useState<Space>("pessoal");
+  React.useEffect(() => {
+    if (fromRoute) {
+      try {
+        localStorage.setItem("orbita:space", fromRoute);
+      } catch {}
+      return;
+    }
+    try {
+      const v = localStorage.getItem("orbita:space");
+      if (v === "empresa" || v === "pessoal") setLast(v);
+    } catch {}
+  }, [fromRoute]);
+  return { space: fromRoute ?? last, escopo };
+}
+
+function SpaceSwitch({ space, className }: { space: Space; className?: string }) {
+  return (
+    <div className={cn("grid grid-cols-2 gap-0.5 rounded-xl border border-border bg-surface-2/70 p-0.5", className)}>
+      {(Object.keys(SPACES) as Space[]).map((k) => {
+        const S = SPACES[k];
+        const on = k === space;
+        return (
+          <Link key={k} href={S.home} className={cn("flex h-8 items-center justify-center gap-1.5 rounded-[10px] text-[12.5px] font-medium transition", on ? "bg-surface text-fg shadow-sm ring-1 ring-border" : "text-muted hover:text-fg")} aria-current={on ? "true" : undefined}>
+            <S.icon className="size-3.5" /> {S.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function NavLink({ item, active, compact }: { item: NavItem; active: boolean; compact?: boolean }) {
+  return (
+    <Link
+      href={item.href}
+      className={cn(
+        "group relative flex items-center gap-2.5 rounded-lg px-3 text-[13px] transition",
+        compact ? "h-8" : "h-8",
+        active ? "bg-surface-3 font-medium text-fg" : "text-muted hover:bg-surface-2 hover:text-fg",
+      )}
+    >
+      {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-accent" />}
+      <item.icon className={cn("size-4", active ? "text-accent" : "text-faint group-hover:text-fg")} /> {item.label}
+    </Link>
+  );
+}
 
 export function AppShell({
   children,
@@ -134,6 +187,7 @@ export function AppShell({
 }
 
 function Sidebar({ pathname, name, avatar, onCollapse, notifications, onSearch, onQuick }: { pathname: string; name: string; avatar?: string | null; onCollapse: () => void; notifications: number; onSearch: () => void; onQuick: () => void }) {
+  const { space, escopo } = useSpace();
   return (
     <aside className="glass fixed inset-y-2 left-2 z-50 hidden w-[256px] flex-col overflow-hidden rounded-2xl border border-border shadow-soft lg:flex">
       <div className="flex items-center gap-2 px-4 pb-2 pt-4">
@@ -156,24 +210,18 @@ function Sidebar({ pathname, name, avatar, onCollapse, notifications, onSearch, 
           {notifications > 0 && <span className="ml-auto rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">{notifications}</span>}
         </div>
       </div>
+      <SpaceSwitch space={space} className="mx-3 mb-1" />
       <nav className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-3 py-2">
-        {NAV.map((s) => (
+        {SPACES[space].sections.map((s) => (
           <div key={s.label}>
             <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-faint">{s.label}</div>
-            {s.items.map((i) => (
-              <Link
-                key={i.href}
-                href={i.href}
-                className={cn(
-                  "flex h-8 items-center gap-2.5 rounded-lg px-3 text-[13px] transition",
-                  isActive(pathname, i.href) ? "bg-surface-3 font-medium text-fg" : "text-muted hover:bg-surface-2 hover:text-fg",
-                )}
-              >
-                <i.icon className="size-4" /> {i.label}
-              </Link>
-            ))}
+            {s.items.map((i) => <NavLink key={i.href} item={i} active={isActive(pathname, i.href, escopo)} />)}
           </div>
         ))}
+        <div>
+          <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-faint">Geral</div>
+          {SHARED.map((i) => <NavLink key={i.href} item={i} active={isActive(pathname, i.href, escopo)} />)}
+        </div>
       </nav>
       <div className="border-t border-border p-3">
         <Link href={SETTINGS_ITEM.href} className={cn("flex h-8 items-center gap-2.5 rounded-lg px-3 text-[13px]", isActive(pathname, "/config") ? "bg-surface-3 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")}>
@@ -189,13 +237,20 @@ function Sidebar({ pathname, name, avatar, onCollapse, notifications, onSearch, 
 }
 
 function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean; onQuick: (tab: string) => void }) {
-  const items = ALL_NAV.filter((i) => i.dock);
+  const { space, escopo } = useSpace();
+  const items = [...SPACES[space].sections.flatMap((s) => s.items).filter((i) => i.dock), ...SHARED.filter((i) => i.dock)];
+  const other: Space = space === "pessoal" ? "empresa" : "pessoal";
+  const Other = SPACES[other];
   return (
     <div className={cn("pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-3", hidden && "lg:hidden")}>
       <nav className="glass pointer-events-auto flex items-center gap-1 rounded-[22px] border border-border p-1.5 shadow-soft">
-        <div className="no-scrollbar flex max-w-[calc(100vw-140px)] items-center gap-0.5 overflow-x-auto">
+        <Link href={Other.home} title={`Ir para ${Other.label}`} aria-label={`Ir para ${Other.label}`} className="grid size-10 shrink-0 place-items-center rounded-2xl text-muted transition hover:bg-surface-2 hover:text-fg">
+          <Other.icon className="size-[18px]" />
+        </Link>
+        <div className="mx-0.5 h-6 w-px bg-border" />
+        <div className="no-scrollbar flex max-w-[calc(100vw-190px)] items-center gap-0.5 overflow-x-auto">
           {items.map((i) => {
-            const active = isActive(pathname, i.href);
+            const active = isActive(pathname, i.href, escopo);
             return (
               <Link
                 key={i.href}
@@ -223,14 +278,15 @@ function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean
 
 function AllApps({ pathname }: { pathname: string }) {
   const [open, setOpen] = React.useState(false);
+  const { escopo } = useSpace();
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger className="grid size-10 place-items-center rounded-2xl text-muted hover:bg-surface-2 hover:text-fg" aria-label="Todos os módulos">
         <LayoutGrid className="size-[18px]" />
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content side="top" sideOffset={14} className="z-50 w-[min(92vw,420px)] rounded-2xl border border-border-strong bg-surface p-3 shadow-soft animate-in">
-          {NAV.map((s) => (
+        <Popover.Content side="top" sideOffset={14} className="z-50 max-h-[70vh] w-[min(92vw,420px)] overflow-y-auto rounded-2xl border border-border-strong bg-surface p-3 shadow-soft animate-in">
+          {[...SPACES.pessoal.sections.map((s) => ({ ...s, label: `Pessoal · ${s.label}` })), ...SPACES.empresa.sections.map((s) => ({ ...s, label: `Empresa · ${s.label}` })), { label: "Geral", items: SHARED }].map((s) => (
             <div key={s.label} className="mb-2 last:mb-0">
               <div className="px-1 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-faint">{s.label}</div>
               <div className="grid grid-cols-3 gap-1">
@@ -239,7 +295,7 @@ function AllApps({ pathname }: { pathname: string }) {
                     key={i.href}
                     href={i.href}
                     onClick={() => setOpen(false)}
-                    className={cn("flex flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-center text-[12px] transition", isActive(pathname, i.href) ? "bg-surface-3 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")}
+                    className={cn("flex flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-center text-[12px] transition", isActive(pathname, i.href, escopo) ? "bg-surface-3 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")}
                   >
                     <i.icon className="size-5" />
                     {i.label}

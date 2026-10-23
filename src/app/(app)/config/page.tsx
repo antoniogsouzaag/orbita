@@ -1,6 +1,7 @@
 import { Database, Download, Settings } from "lucide-react";
 import { PreferencesCard } from "@/components/settings/preferences-card";
 import { IphoneCard } from "@/components/settings/iphone-card";
+import { TelegramCard } from "@/components/settings/telegram-card";
 import { SecurityCard } from "@/components/settings/security-card";
 import { headers } from "next/headers";
 import { captureTokenInfo } from "@/server/capture";
@@ -15,13 +16,14 @@ export default async function Page() {
   const [settings, sec, avatarV, capture, h] = await Promise.all([getSettings(), securityState(true), avatarVersion(), captureTokenInfo(), headers()]);
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "orbita";
   const captureUrl = `${host.startsWith("localhost") ? "http" : "https"}://${host}/api/capture`;
-  const passwordMode = process.env.ORBITA_PASSWORD_HASH ? "hash" : process.env.ORBITA_PASSWORD ? "plain" : "none";
+  const passwordMode = sec.passwordHash ? "app" : process.env.ORBITA_PASSWORD_HASH ? "hash" : process.env.ORBITA_PASSWORD ? "plain" : "none";
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 sm:px-6">
       <PageHeader icon={<Settings />} title="Configurações" />
       <PreferencesCard avatar={avatarV ? `/api/avatar?v=${avatarV}` : null} name={settings.name} accent={settings.accent} focusMinutes={settings.focusMinutes} />
       <SecurityCard totpEnabled={sec.totpEnabled} envTotp={Boolean(process.env.ORBITA_TOTP_SECRET)} passwordMode={passwordMode} />
       <IphoneCard url={captureUrl} info={capture} />
+      <TelegramCard configured={Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID)} cron={Boolean(process.env.CRON_SECRET)} />
       <Card>
         <CardHeader icon={<Database />} title="Seus dados" />
         <div className="space-y-3 px-5 pb-5 text-[13px] text-muted">

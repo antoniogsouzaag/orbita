@@ -27,12 +27,13 @@ const PRIO_NOME = ["sem prioridade", "baixa", "média", "alta"];
 async function projectByName(name: string | null | undefined) {
   if (!name) return null;
   const db = await getDb();
-  const all = await db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.archived, false));
-  return matchProject(name, all);
+  const all = await db.select({ id: projects.id, name: projects.name, area: projects.area }).from(projects).where(eq(projects.archived, false));
+  const m = matchProject(name, all);
+  return m ? (all.find((x) => x.id === m.id) ?? null) : null;
 }
 
-function fmtTask(t: { id: string; title: string; dueDate: string | null; dueTime: string | null; priority: number; status: string; project?: { name: string } | null; tags?: string[] }) {
-  return `- [${t.status === "done" ? "x" : " "}] ${t.title} (id ${t.id})${t.dueDate ? ` · prazo ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ""}` : ""}${t.priority ? ` · prioridade ${PRIO_NOME[t.priority]}` : ""}${t.project ? ` · projeto ${t.project.name}` : ""}${t.tags?.length ? ` · #${t.tags.join(" #")}` : ""}`;
+function fmtTask(t: { id: string; scope?: string; title: string; dueDate: string | null; dueTime: string | null; priority: number; status: string; project?: { name: string } | null; tags?: string[] }) {
+  return `- [${t.status === "done" ? "x" : " "}] ${t.title} (id ${t.id})${t.scope === "empresa" ? " · empresa" : ""}${t.dueDate ? ` · prazo ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ""}` : ""}${t.priority ? ` · prioridade ${PRIO_NOME[t.priority]}` : ""}${t.project ? ` · projeto ${t.project.name}` : ""}${t.tags?.length ? ` · #${t.tags.join(" #")}` : ""}`;
 }
 
 /* ───────────── Ações ───────────── */
@@ -45,6 +46,7 @@ const criarTarefaSchema = z.object({
     projeto: z.string().max(100).nullish().describe("Nome do projeto existente"),
     tags: z.array(z.string().trim().min(1).max(40)).max(10).nullish(),
     notas: z.string().max(5000).nullish(),
+    escopo: z.enum(["pessoal", "empresa"]).nullish().describe("empresa = trabalho da AG LABS; pessoal = vida pessoal. Padrão: pessoal"),
   });
 export const criarTarefa = {
   schema: criarTarefaSchema,
@@ -53,7 +55,7 @@ export const criarTarefa = {
     const p = await projectByName(v.projeto);
     const [row] = await db
       .insert(tasks)
-      .values({ title: v.titulo, dueDate: v.prazo ?? null, dueTime: v.hora ?? null, priority: v.prioridade ? PRIORIDADE[v.prioridade] : 0, projectId: p?.id ?? null, tags: v.tags ?? [], notes: v.notas ?? null })
+      .values({ title: v.titulo, dueDate: v.prazo ?? null, dueTime: v.hora ?? null, priority: v.prioridade ? PRIORIDADE[v.prioridade] : 0, projectId: p?.id ?? null, tags: v.tags ?? [], notes: v.notas ?? null, scope: v.escopo ?? (p?.area === "empresa" ? "empresa" : "pessoal") })
       .returning({ id: tasks.id });
     const extra = [v.prazo && `prazo ${v.prazo}${v.hora ? ` ${v.hora}` : ""}`, p && `projeto ${p.name}`, v.projeto && !p && `projeto “${v.projeto}” não encontrado, ficou sem projeto`].filter(Boolean).join(", ");
     return { text: `Tarefa criada (id ${row.id}): ${v.titulo}${extra ? ` — ${extra}` : ""}.`, action: { label: `Tarefa: ${v.titulo}`, href: "/tarefas" } };
@@ -73,12 +75,13 @@ export async function quickTask(texto: string): Promise<ActionResult> {
 const listarTarefasSchema = z.object({
     visao: z.enum(["hoje", "proximos", "atrasadas", "semdata", "todas", "concluidas"]).nullish().describe("hoje inclui as atrasadas; proximos = 14 dias"),
     busca: z.string().max(100).nullish().describe("Filtra pelo texto do título"),
+    escopo: z.enum(["pessoal", "empresa"]).nullish().describe("Sem escopo = todas"),
     limite: z.number().int().min(1).max(50).nullish(),
   });
 export const listarTarefas = {
   schema: listarTarefasSchema,
   async run(v: z.infer<typeof listarTarefasSchema>): Promise<ActionResult> {
-    const rows = await listTasks({ view: (v.visao ?? "todas") as TaskView, limit: 200 });
+    const rows = await listTasks({ view: (v.visao ?? "todas") as TaskView, limit: 200, scope: v.escopo ?? undefined });
     const q = v.busca?.toLowerCase();
     const list = (q ? rows.filter((t) => t.title.toLowerCase().includes(q)) : rows).slice(0, v.limite ?? 25);
     return { text: list.length ? list.map(fmtTask).join("\n") : "Nenhuma tarefa encontrada." };

@@ -51,6 +51,7 @@ export function TasksView({
   projectId,
   detail,
   hideViews,
+  scope,
 }: {
   tasks: TaskRow[];
   view: TaskView;
@@ -61,6 +62,7 @@ export function TasksView({
   projectId?: string;
   detail: TaskDetailData | null;
   hideViews?: boolean;
+  scope?: "pessoal" | "empresa" | "todas";
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -82,6 +84,15 @@ export function TasksView({
     <div className="grid gap-6 lg:grid-cols-[200px_1fr]">
       {!hideViews && (
         <aside className="space-y-5">
+          {scope && (
+            <div className="grid grid-cols-3 gap-0.5 rounded-xl border border-border bg-surface-2 p-0.5 text-[12.5px]">
+              {(["pessoal", "empresa", "todas"] as const).map((s) => (
+                <Link key={s} href={href({ escopo: s === "pessoal" ? null : s, task: null, project: null })} className={cn("rounded-[10px] px-2 py-1.5 text-center capitalize transition", scope === s ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>
+                  {s}
+                </Link>
+              ))}
+            </div>
+          )}
           <nav className="no-scrollbar flex gap-1 overflow-x-auto lg:flex-col">
             {VIEWS.map((v) => (
               <Link
@@ -127,7 +138,7 @@ export function TasksView({
             const v = value;
             setValue("");
             start(async () => {
-              await quickAddTask(view === "hoje" && !/\b(hoje|amanh|segunda|terça|terca|quarta|quinta|sexta|s[áa]bado|domingo|\d{1,2}\/\d{1,2})/i.test(v) ? `${v} hoje` : v, projectId ?? null);
+              await quickAddTask(view === "hoje" && !/\b(hoje|amanh|segunda|terça|terca|quarta|quinta|sexta|s[áa]bado|domingo|\d{1,2}\/\d{1,2})/i.test(v) ? `${v} hoje` : v, projectId ?? null, scope === "empresa" ? "empresa" : scope === "pessoal" ? "pessoal" : undefined);
               toast.success("Tarefa criada");
             });
           }}

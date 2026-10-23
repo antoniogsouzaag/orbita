@@ -16,7 +16,7 @@ export async function GET() {
   const body = {
     exportedAt: new Date().toISOString(),
     app: "orbita",
-    data: { projects, tasks, goals, habits, habitLogs, calendars: calendars.map((c) => ({ ...c, url: c.url ? "(oculto)" : null })), events: events.filter((e) => !e.calendarId), notes, checkins, focusSessions, transactions, workouts, books, dayPlans, settings: settings.filter((x) => x.key !== "security") },
+    data: { projects, tasks, goals, habits, habitLogs, calendars: calendars.map((c) => ({ ...c, url: c.url ? "(oculto)" : null })), events: events.filter((e) => !e.calendarId), notes, checkins, focusSessions, transactions, workouts, books, dayPlans, settings: settings.filter((x) => !["security", "capture_token"].includes(x.key)) },
   };
   return new NextResponse(JSON.stringify(body, null, 2), { headers: { "content-type": "application/json", "content-disposition": `attachment; filename="orbita-backup-${today()}.json"`, "cache-control": "no-store" } });
 }

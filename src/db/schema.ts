@@ -35,6 +35,8 @@ export const projects = pgTable("projects", {
 
 export const TASK_STATUS = ["todo", "doing", "done"] as const;
 export type TaskStatus = (typeof TASK_STATUS)[number];
+export const TASK_SCOPES = ["pessoal", "empresa"] as const;
+export type TaskScope = (typeof TASK_SCOPES)[number];
 
 export const tasks = pgTable(
   "tasks",
@@ -45,6 +47,8 @@ export const tasks = pgTable(
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
     parentId: uuid("parent_id").references((): AnyPgColumn => tasks.id, { onDelete: "cascade" }),
     status: text("status").$type<TaskStatus>().notNull().default("todo"),
+    /** pessoal | empresa — separa a vida pessoal do trabalho da AG LABS */
+    scope: text("scope").$type<TaskScope>().notNull().default("pessoal"),
     /** 0 nenhuma · 1 baixa · 2 média · 3 alta */
     priority: smallint("priority").notNull().default(0),
     dueDate: date("due_date"),
@@ -54,7 +58,7 @@ export const tasks = pgTable(
     sort: integer("sort").notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [index("tasks_status_due_idx").on(t.status, t.dueDate), index("tasks_parent_idx").on(t.parentId)],
+  (t) => [index("tasks_status_due_idx").on(t.status, t.dueDate), index("tasks_parent_idx").on(t.parentId), index("tasks_scope_idx").on(t.scope, t.status)],
 );
 
 export const goals = pgTable("goals", {

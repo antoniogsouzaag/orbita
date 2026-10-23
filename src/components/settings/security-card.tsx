@@ -1,15 +1,15 @@
 "use client";
 
-import { LogOut, ShieldCheck, ShieldOff } from "lucide-react";
+import { KeyRound, LogOut, ShieldCheck, ShieldOff } from "lucide-react";
 import QRCode from "qrcode";
 import * as React from "react";
 import { toast } from "sonner";
-import { confirmTotp, disableTotp, logoutEverywhere, startTotpSetup } from "@/app/actions/auth";
+import { changePassword, confirmTotp, disableTotp, logoutEverywhere, startTotpSetup } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-export function SecurityCard({ totpEnabled, envTotp, passwordMode }: { totpEnabled: boolean; envTotp: boolean; passwordMode: "hash" | "plain" | "none" }) {
+export function SecurityCard({ totpEnabled, envTotp, passwordMode }: { totpEnabled: boolean; envTotp: boolean; passwordMode: "app" | "hash" | "plain" | "none" }) {
   const [setup, setSetup] = React.useState<{ secret: string; qr: string } | null>(null);
   const [code, setCode] = React.useState("");
   const [enabled, setEnabled] = React.useState(totpEnabled);
@@ -20,7 +20,7 @@ export function SecurityCard({ totpEnabled, envTotp, passwordMode }: { totpEnabl
       <div className="space-y-4 px-5 pb-5 text-[13px]">
         <ul className="space-y-1.5 text-muted">
           <li>• Único usuário (você). Sessão assinada, cookie httpOnly, válida por 30 dias.</li>
-          <li>• Senha: {passwordMode === "hash" ? <b className="text-success">guardada como hash (scrypt)</b> : passwordMode === "plain" ? <span className="text-warning">em texto no ambiente — prefira ORBITA_PASSWORD_HASH</span> : <span className="text-danger">não configurada</span>}</li>
+          <li>• Senha: {passwordMode === "app" ? <b className="text-success">definida aqui no app (hash scrypt)</b> : passwordMode === "hash" ? <b className="text-success">guardada como hash (scrypt) na Vercel</b> : passwordMode === "plain" ? <span className="text-warning">em texto no ambiente — prefira ORBITA_PASSWORD_HASH</span> : <span className="text-danger">não configurada</span>}</li>
           <li>• Bloqueio de 5 min após 5 tentativas erradas.</li>
           <li>• Verificação em duas etapas: {enabled ? <b className="text-success">ativa</b> : <span className="text-warning">desativada</span>}</li>
         </ul>
@@ -86,10 +86,54 @@ export function SecurityCard({ totpEnabled, envTotp, passwordMode }: { totpEnabl
           </form>
         )}
         {envTotp && <p className="text-[12px] text-faint">2FA definido pela variável ORBITA_TOTP_SECRET.</p>}
+        <PasswordForm />
         <Button size="sm" variant="secondary" onClick={() => start(async () => { if (confirm("Sair de todos os dispositivos, inclusive este?")) await logoutEverywhere(); })}>
           <LogOut /> Sair de todos os dispositivos
         </Button>
       </div>
     </Card>
+  );
+}
+
+function PasswordForm() {
+  const [open, setOpen] = React.useState(false);
+  const [cur, setCur] = React.useState("");
+  const [next, setNext] = React.useState("");
+  const [again, setAgain] = React.useState("");
+  const [pending, start] = React.useTransition();
+  if (!open)
+    return (
+      <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+        <KeyRound /> Trocar senha
+      </Button>
+    );
+  return (
+    <form
+      className="space-y-2 rounded-xl border border-border p-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (next !== again) return void toast.error("As senhas novas não conferem.");
+        start(async () => {
+          const r = await changePassword(cur, next);
+          if (!r.ok) return void toast.error(r.error);
+          toast.success("Senha trocada. Os outros dispositivos precisam entrar de novo.");
+          setOpen(false);
+          setCur("");
+          setNext("");
+          setAgain("");
+        });
+      }}
+    >
+      <Input type="password" autoComplete="current-password" placeholder="Senha atual" value={cur} onChange={(e) => setCur(e.target.value)} className="h-9" />
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Input type="password" autoComplete="new-password" placeholder="Nova senha (10+ caracteres)" value={next} onChange={(e) => setNext(e.target.value)} className="h-9" />
+        <Input type="password" autoComplete="new-password" placeholder="Repita a nova senha" value={again} onChange={(e) => setAgain(e.target.value)} className="h-9" />
+      </div>
+      <div className="flex gap-2">
+        <Button size="sm" variant="primary" disabled={pending || !cur || next.length < 10}>Salvar nova senha</Button>
+        <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>Cancelar</Button>
+      </div>
+      <p className="text-[12px] text-faint">A senha passa a valer pelo app; a da Vercel deixa de ser usada.</p>
+    </form>
   );
 }

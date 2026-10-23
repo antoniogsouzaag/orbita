@@ -1,7 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { checkTotp, createSession, destroySession, passwordMatches, requireAuth, securityState, updateSecurity } from "@/lib/auth";
+import { checkTotp, createSession, destroySession, passwordMatchesAny, requireAuth, securityState, updateSecurity } from "@/lib/auth";
+import { hashPassword } from "@/lib/password";
 import { generateSecret, otpauthUri, verifyTotp } from "@/lib/totp";
 
 const MAX_FAILS = 5;
@@ -15,7 +16,7 @@ export async function login(_: { error?: string } | undefined, formData: FormDat
   }
   const password = String(formData.get("password") ?? "");
   const code = String(formData.get("code") ?? "");
-  const ok = passwordMatches(password) && (await checkTotp(code));
+  const ok = (await passwordMatchesAny(password)) && (await checkTotp(code));
   if (!ok) {
     const failed = s.failed + 1;
     await updateSecurity({ failed: failed >= MAX_FAILS ? 0 : failed, lockedUntil: failed >= MAX_FAILS ? Date.now() + LOCK_MS : 0 });
@@ -66,5 +67,21 @@ export async function disableTotp(code: string) {
   if (process.env.ORBITA_TOTP_SECRET) return { ok: false, error: "2FA definido por variável de ambiente." };
   if (s.totpEnabled && (!s.totpSecret || !verifyTotp(s.totpSecret, code))) return { ok: false, error: "Código inválido." };
   await updateSecurity({ totpEnabled: false, totpSecret: null });
+  return { ok: true };
+}
+
+/** Troca a senha pelo próprio app. Desconecta os outros dispositivos e mantém este. */
+export async function changePassword(current: string, next: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireAuth();
+  if (!(await passwordMatchesAny(current))) {
+    await new Promise((r) => setTimeout(r, 600));
+    return { ok: false, error: "Senha atual incorreta." };
+  }
+  if (next.length < 10) return { ok: false, error: "A nova senha precisa de pelo menos 10 caracteres." };
+  if (next.length > 200) return { ok: false, error: "Senha longa demais." };
+  if (next === current) return { ok: false, error: "A nova senha é igual à atual." };
+  const s = await securityState(true);
+  await updateSecurity({ passwordHash: hashPassword(next), sessionVersion: s.sessionVersion + 1, failed: 0, lockedUntil: 0 });
+  await createSession();
   return { ok: true };
 }

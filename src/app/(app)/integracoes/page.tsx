@@ -1,4 +1,4 @@
-import { Bot, CalendarDays, CheckCircle2, Circle, Database, GitCommitHorizontal, Image as ImageIcon, LibraryBig, Plug, Sparkles, Workflow } from "lucide-react";
+import { Bot, CalendarDays, CheckCircle2, Circle, Database, GitCommitHorizontal, GitPullRequest, Image as ImageIcon, LibraryBig, Plug, Send, Sparkles, Workflow } from "lucide-react";
 import { headers } from "next/headers";
 import { CopyButton } from "@/components/ops/copy-button";
 import { Card, PageHeader } from "@/components/ui/card";
@@ -23,6 +23,8 @@ export default async function Page() {
     { icon: Workflow, name: "Órbita → n8n (lista de workflows)", ok: has("N8N_INSTANCES"), env: ["N8N_INSTANCES"], desc: "Opcional: com a chave da API pública de cada n8n, a Órbita lista workflows ativos/inativos e aponta os não documentados no vault." },
     { icon: CalendarDays, name: "Agenda (feed para o iPhone)", ok: has("CALENDAR_FEED_TOKEN"), env: ["CALENDAR_FEED_TOKEN"], desc: "Gera o link .ics para assinar no iPhone/Google. Assinaturas de iCloud/Google são adicionadas na própria Agenda." },
     { icon: Bot, name: "Contexto para agentes", ok: has("CONTEXT_TOKEN"), env: ["CONTEXT_TOKEN"], desc: "GET /api/context devolve o contexto operacional (vault + estado ao vivo). Para conexão completa por MCP, com acesso próprio por agente, use a página Agentes." },
+    { icon: Send, name: "Telegram (bom dia e pedidos dos agentes)", ok: has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_CHAT_ID"), env: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "CRON_SECRET"], desc: "Envio direto pelo bot, sem n8n. CRON_SECRET autoriza o agendador da Vercel a disparar o resumo das 7h." },
+    { icon: GitPullRequest, name: "GitHub — Aguardando você", ok: has("GITHUB_INBOX_TOKEN") || has("GITHUB_TOKEN"), env: ["GITHUB_INBOX_TOKEN"], desc: "Lista PRs abertos e propostas sem decisão da aglabs-core na página Empresa. Token fine-grained da organização com leitura de Pull requests, Issues e Metadata." },
     { icon: ImageIcon, name: "Capas do Unsplash", ok: has("UNSPLASH_ACCESS_KEY"), env: ["UNSPLASH_ACCESS_KEY"], desc: "Opcional: busca de capas. Sem ela, há sugestões prontas e URL própria." },
     { icon: GitCommitHorizontal, name: "Sequência de commits", ok: has("GITHUB_USER"), env: ["GITHUB_USER", "GITHUB_TOKEN"], desc: "Opcional: mostra “N dias seguidos de commits” no Início." },
   ];

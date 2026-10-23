@@ -10,7 +10,23 @@ function safeEqual(a: string, b: string) {
   return timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest());
 }
 
-/** ORBITA_PASSWORD_HASH (scrypt, recomendado) ou ORBITA_PASSWORD. */
+/**
+ * Senha definida no próprio app (Configurações → Segurança) tem prioridade;
+ * sem ela, vale ORBITA_PASSWORD_HASH (scrypt) ou ORBITA_PASSWORD do ambiente.
+ */
+export async function passwordMatchesAny(input: string): Promise<boolean> {
+  const s = await securityState(true);
+  if (s.passwordHash) {
+    try {
+      return verifyPassword(input, s.passwordHash);
+    } catch {
+      return false;
+    }
+  }
+  return passwordMatches(input);
+}
+
+/** Só as variáveis de ambiente: ORBITA_PASSWORD_HASH (scrypt, recomendado) ou ORBITA_PASSWORD. */
 export function passwordMatches(input: string): boolean {
   const hash = process.env.ORBITA_PASSWORD_HASH;
   if (hash) {
@@ -27,7 +43,7 @@ export function passwordMatches(input: string): boolean {
 
 /* ── Estado de segurança guardado no banco (2FA, versão da sessão, bloqueio) ── */
 
-type SecurityState = { totpSecret: string | null; totpEnabled: boolean; sessionVersion: number; failed: number; lockedUntil: number };
+type SecurityState = { totpSecret: string | null; totpEnabled: boolean; sessionVersion: number; failed: number; lockedUntil: number; passwordHash: string | null };
 
 async function settingsApi() {
   const { getRawSetting, setRawSetting } = await import("@/server/security-store");
@@ -47,6 +63,7 @@ export async function securityState(fresh = false): Promise<SecurityState> {
     sessionVersion: raw.sessionVersion ?? 0,
     failed: raw.failed ?? 0,
     lockedUntil: raw.lockedUntil ?? 0,
+    passwordHash: raw.passwordHash ?? null,
   };
   cache = { at: Date.now(), state };
   return state;

@@ -84,6 +84,13 @@ export function TaskDetail({ task, projects, onClose }: { task: TaskDetailData; 
                 <Input type="time" value={task.dueTime ?? ""} onChange={(e) => patch({ dueTime: e.target.value || null })} />
               </Field>
             </div>
+            <Field label="Onde">
+              <Segmented
+                value={task.scope}
+                onChange={(v) => patch({ scope: v as "pessoal" | "empresa" })}
+                options={[{ value: "pessoal", label: "Pessoal" }, { value: "empresa", label: "Empresa" }]}
+              />
+            </Field>
             <Field label="Prioridade">
               <Segmented
                 value={String(task.priority)}
@@ -133,7 +140,7 @@ export function TaskDetail({ task, projects, onClose }: { task: TaskDetailData; 
   );
 }
 
-export function NewTaskButton({ projectId }: { projectId?: string }) {
+export function NewTaskButton({ projectId, scope }: { projectId?: string; scope?: "pessoal" | "empresa" }) {
   const router = useRouter();
   const [, start] = React.useTransition();
   return (
@@ -142,7 +149,7 @@ export function NewTaskButton({ projectId }: { projectId?: string }) {
       size="sm"
       onClick={() =>
         start(async () => {
-          const id = await createTask({ title: "Nova tarefa", projectId: projectId ?? null });
+          const id = await createTask({ title: "Nova tarefa", projectId: projectId ?? null, scope });
           router.push(`?task=${id}`);
         })
       }

@@ -1,4 +1,4 @@
-import { CheckSquare } from "lucide-react";
+import { Briefcase, CheckSquare, User } from "lucide-react";
 import { NewTaskButton } from "@/components/tasks/task-detail";
 import { TasksView } from "@/components/tasks/tasks-view";
 import { PageHeader } from "@/components/ui/card";
@@ -12,20 +12,25 @@ const VALID: TaskView[] = ["hoje", "proximos", "atrasadas", "semdata", "todas", 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const view = (VALID.includes(sp.view as TaskView) ? sp.view : "todas") as TaskView;
+  const scopeParam = sp.escopo === "empresa" || sp.escopo === "todas" ? sp.escopo : "pessoal";
+  const scope = scopeParam === "todas" ? undefined : scopeParam;
   const [tasks, projects, tags, counts, detail, hoje, prox, sem] = await Promise.all([
-    listTasks({ view, projectId: sp.project, tag: sp.tag }),
+    listTasks({ view, projectId: sp.project, tag: sp.tag, scope }),
     listProjects(),
     allTags(),
-    taskCounts(),
+    taskCounts(scope),
     sp.task ? getTask(sp.task) : Promise.resolve(null),
-    listTasks({ view: "hoje" }),
-    listTasks({ view: "proximos" }),
-    listTasks({ view: "semdata" }),
+    listTasks({ view: "hoje", scope }),
+    listTasks({ view: "proximos", scope }),
+    listTasks({ view: "semdata", scope }),
   ]);
+  const title = scopeParam === "empresa" ? "Tarefas da empresa" : scopeParam === "pessoal" ? "Tarefas pessoais" : "Todas as tarefas";
+  const icon = scopeParam === "empresa" ? <Briefcase /> : scopeParam === "pessoal" ? <User /> : <CheckSquare />;
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
-      <PageHeader icon={<CheckSquare />} title="Tarefas" description={`${counts.open} abertas · ${counts.today} para hoje · ${counts.overdue} atrasadas`} actions={<NewTaskButton />} />
+      <PageHeader icon={icon} title={title} description={`${counts.open} abertas · ${counts.today} para hoje · ${counts.overdue} atrasadas`} actions={<NewTaskButton scope={scope ?? "pessoal"} />} />
       <TasksView
+        scope={scopeParam}
         tasks={tasks}
         view={view}
         counts={{ hoje: hoje.length, proximos: prox.length, atrasadas: counts.overdue, semdata: sem.length, todas: counts.open }}

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { projects, tasks, type Task } from "@/db/schema";
+import { projects, tasks, type Task, type TaskScope } from "@/db/schema";
 import { shiftDate, today } from "@/lib/dates";
 
 export type TaskRow = Task & {
@@ -31,7 +31,7 @@ async function withMeta(rows: { task: Task; project: { id: string; name: string;
 
 const projectCols = { id: projects.id, name: projects.name, color: projects.color };
 
-export async function listTasks(opts: { view?: TaskView; projectId?: string; tag?: string; limit?: number } = {}): Promise<TaskRow[]> {
+export async function listTasks(opts: { view?: TaskView; projectId?: string; tag?: string; limit?: number; scope?: TaskScope } = {}): Promise<TaskRow[]> {
   const db = await getDb();
   const t = today();
   const where = [isNull(tasks.parentId)];
@@ -44,6 +44,7 @@ export async function listTasks(opts: { view?: TaskView; projectId?: string; tag
   if (view === "semdata") where.push(isNull(tasks.dueDate));
   if (opts.projectId) where.push(eq(tasks.projectId, opts.projectId));
   if (opts.tag) where.push(sql`${opts.tag} = any(${tasks.tags})`);
+  if (opts.scope) where.push(eq(tasks.scope, opts.scope));
 
   const order =
     view === "concluidas"
@@ -69,7 +70,7 @@ export async function getTask(id: string) {
   return { ...withCounts, children: subtasks };
 }
 
-export async function taskCounts() {
+export async function taskCounts(scope?: TaskScope) {
   const db = await getDb();
   const t = today();
   const [c] = await db
@@ -80,19 +81,19 @@ export async function taskCounts() {
       doneToday: sql<number>`count(*) filter (where ${tasks.status} = 'done' and ${tasks.completedAt} >= now() - interval '24 hours')::int`,
     })
     .from(tasks)
-    .where(isNull(tasks.parentId));
+    .where(scope ? and(isNull(tasks.parentId), eq(tasks.scope, scope)) : isNull(tasks.parentId));
   return c;
 }
 
 /** Widget "Tarefas": atrasadas e de hoje primeiro, depois o restante aberto. */
-export async function homeTasks(limit = 6) {
+export async function homeTasks(limit = 6, scope?: TaskScope) {
   const db = await getDb();
   const t = today();
   const rows = await db
     .select({ task: tasks, project: projectCols })
     .from(tasks)
     .leftJoin(projects, eq(tasks.projectId, projects.id))
-    .where(and(isNull(tasks.parentId), ne(tasks.status, "done")))
+    .where(and(isNull(tasks.parentId), ne(tasks.status, "done"), scope ? eq(tasks.scope, scope) : undefined))
     .orderBy(
       sql`case when ${tasks.dueDate} <= ${t} then 0 when ${tasks.dueDate} is not null then 1 else 2 end`,
       sql`${tasks.dueDate} asc nulls last`,

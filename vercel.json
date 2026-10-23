@@ -1,5 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["gru1"],
-  "buildCommand": "node scripts/migrate.mjs && next build"
+  "regions": [
+    "gru1"
+  ],
+  "buildCommand": "node scripts/migrate.mjs && next build",
+  "crons": [
+    {
+      "path": "/api/cron/brief",
+      "schedule": "0 10 * * *"
+    }
+  ]
 }

@@ -4,7 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { AREAS, TASK_STATUS, checkins, goals, habitLogs, habits, notes, projects, tasks } from "@/db/schema";
+import { AREAS, TASK_SCOPES, TASK_STATUS, checkins, goals, habitLogs, habits, notes, projects, tasks } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { today } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
@@ -20,25 +20,27 @@ const timeStr = z.string().regex(/^\d{2}:\d{2}$/);
 
 /* ───────────── Tarefas ───────────── */
 
-export async function quickAddTask(raw: string, projectId?: string | null) {
+export async function quickAddTask(raw: string, projectId?: string | null, scope?: "pessoal" | "empresa") {
   await requireAuth();
   const input = z.string().trim().min(1).max(500).parse(raw);
   const db = await getDb();
   const parsed = parseTaskInput(input, today());
   let pid = projectId ? uuid.parse(projectId) : null;
   let projectName: string | null = null;
+  let projectArea: string | null = null;
   if (parsed.projectQuery) {
-    const all = await db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.archived, false));
+    const all = await db.select({ id: projects.id, name: projects.name, area: projects.area }).from(projects).where(eq(projects.archived, false));
     const p = matchProject(parsed.projectQuery, all);
     if (p) {
       pid = p.id;
       projectName = p.name;
+      projectArea = all.find((x) => x.id === p.id)?.area ?? null;
     } else parsed.title = `${parsed.title} @${parsed.projectQuery}`.trim();
   }
   if (!parsed.title) parsed.title = input;
   const [row] = await db
     .insert(tasks)
-    .values({ title: parsed.title, tags: parsed.tags, priority: parsed.priority, dueDate: parsed.dueDate, dueTime: parsed.dueTime, projectId: pid })
+    .values({ title: parsed.title, tags: parsed.tags, priority: parsed.priority, dueDate: parsed.dueDate, dueTime: parsed.dueTime, projectId: pid, scope: z.enum(TASK_SCOPES).catch("pessoal").parse(scope ?? (projectArea === "empresa" ? "empresa" : "pessoal")) })
     .returning({ id: tasks.id });
   refresh();
   return { id: row.id, parsed: { ...parsed, projectName } };
@@ -50,6 +52,7 @@ const taskSchema = z.object({
   projectId: uuid.nullable().optional(),
   parentId: uuid.nullable().optional(),
   status: z.enum(TASK_STATUS).optional(),
+  scope: z.enum(TASK_SCOPES).optional(),
   priority: z.number().int().min(0).max(3).optional(),
   dueDate: dateStr.nullable().optional(),
   dueTime: timeStr.nullable().optional(),
@@ -292,4 +295,12 @@ export async function revokeCaptureTokenAction() {
   const { revokeCaptureToken } = await import("@/server/capture");
   await revokeCaptureToken();
   refresh();
+}
+
+/* ───────────── Telegram ───────────── */
+
+export async function sendBriefNow(): Promise<{ ok: boolean; error?: string }> {
+  await requireAuth();
+  const [{ buildBrief }, { sendTelegram }] = await Promise.all([import("@/server/brief"), import("@/server/telegram")]);
+  return sendTelegram(await buildBrief());
 }

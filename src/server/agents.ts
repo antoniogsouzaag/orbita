@@ -63,6 +63,13 @@ function slug(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+/** Aviso imediato no Telegram quando um agente pede algo a Antonio. */
+async function notifyAgentAsk(agent: string, title: string, prio: string | null) {
+  const { escHtml, sendTelegram, telegramConfigured } = await import("./telegram");
+  if (!telegramConfigured()) return;
+  await sendTelegram(`🤖 <b>${escHtml(agent)}</b> pediu${prio === "alta" ? " (prioridade alta)" : ""}:\n${escHtml(title)}\n\n<a href="${process.env.APP_URL ?? "https://orb.aglabs.api.br"}/empresa">Ver na Órbita</a>`).catch(() => {});
+}
+
 /* ───────────── Servidor MCP ───────────── */
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -142,9 +149,10 @@ export function buildMcpServer(agent: AgentIdentity) {
           const db = await getDb();
           const [t] = await db
             .insert(tasks)
-            .values({ title: titulo, notes: `${detalhes ?? ""}\n\n— aberta por ${agent.name} via MCP`.trim(), priority: prioridade === "alta" ? 3 : prioridade === "media" ? 2 : prioridade === "baixa" ? 1 : 0, dueDate: prazo ?? null, tags: ["agente", `agente:${slug(agent.name)}`] })
+            .values({ title: titulo, notes: `${detalhes ?? ""}\n\n— aberta por ${agent.name} via MCP`.trim(), priority: prioridade === "alta" ? 3 : prioridade === "media" ? 2 : prioridade === "baixa" ? 1 : 0, dueDate: prazo ?? null, tags: ["agente", `agente:${slug(agent.name)}`], scope: "empresa" })
             .returning({ id: tasks.id });
-          return text(`Tarefa criada (${t.id}). Antonio verá na Órbita.`);
+          await notifyAgentAsk(agent.name, titulo, prioridade ?? null);
+          return text(`Tarefa criada (${t.id}). Antonio verá na Órbita e recebe aviso no Telegram.`);
         }),
     );
     server.registerTool(
