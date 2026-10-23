@@ -90,7 +90,7 @@ A Órbita conversa com o CRM (`aglabs-core/crm-dash`) pelo servidor MCP dele (`/
 - **Bom dia**: oportunidades, receita do mês, suas tarefas do CRM e tarefas vencidas do time.
 - **IA**: busca contatos, abre a ficha, cria tarefa para Maia, Léo, Antonio ou técnico, conclui com motivo e registra interações. E-mail para um contato vira tarefa para o Léo, que já faz o envio.
 
-Para ligar: gere um token (`openssl rand -hex 32`), coloque `CRM_MCP_TOKENS="orbita:<token>:leitura,tarefas,atividades"` na Vercel do CRM e `CRM_MCP_URL` + `CRM_MCP_TOKEN` na Vercel da Órbita.
+Configuração: `CRM_MCP_URL` (`https://crm-dash-chi.vercel.app/api/mcp`) e `CRM_MCP_TOKEN` na Vercel da Órbita; o mesmo token em `CRM_MCP_TOKENS="orbita:<token>:leitura,tarefas,atividades"` na Vercel do CRM. Para trocar o token, gere outro (`openssl rand -hex 32`) e atualize os dois lados. Enquanto o CRM não aceita o token, o card mostra o motivo.
 
 ## Telegram
 
