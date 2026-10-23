@@ -3,13 +3,15 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/card";
 import { VaultGraph } from "@/components/vault/graph";
-import { getVaultIndex, getVaultProvider } from "@/server/vault";
+import { VaultBanner } from "@/components/vault/vault-banner";
+import { getVaultIndexSafe, getVaultProvider } from "@/server/vault";
 
 export const metadata = { title: "Grafo do vault" };
 
 export default async function Page() {
   if (!getVaultProvider()) return <div className="mx-auto max-w-3xl px-4">Vault não configurado.</div>;
-  const idx = await getVaultIndex();
+  const idx = await getVaultIndexSafe();
+  if (!idx) return <div className="mx-auto max-w-3xl px-4 sm:px-6"><VaultBanner /></div>;
   const degree = new Map<string, number>();
   const links: { source: string; target: string }[] = [];
   for (const n of idx.notes.values())

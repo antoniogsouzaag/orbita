@@ -115,6 +115,29 @@ export async function getVaultIndex(force = false): Promise<VaultIndex> {
   return building;
 }
 
+let lastError: { message: string; at: number } | null = null;
+
+/** Igual a getVaultIndex, mas não derruba a página: devolve null e guarda o motivo. */
+export async function getVaultIndexSafe(): Promise<VaultIndex | null> {
+  if (!getVaultProvider()) return null;
+  try {
+    const idx = await getVaultIndex();
+    lastError = null;
+    return idx;
+  } catch (e) {
+    lastError = { message: e instanceof Error ? e.message : String(e), at: Date.now() };
+    console.error("[vault]", lastError.message);
+    return null;
+  }
+}
+
+/** Estado da conexão com o vault (para avisos na interface e no contexto dos agentes). */
+export async function vaultHealth(): Promise<{ configured: boolean; ok: boolean; notes: number; error: string | null }> {
+  if (!getVaultProvider()) return { configured: false, ok: false, notes: 0, error: null };
+  const idx = await getVaultIndexSafe();
+  return { configured: true, ok: Boolean(idx), notes: idx?.notes.size ?? 0, error: idx ? null : (lastError?.message ?? "erro desconhecido") };
+}
+
 export function invalidateVault() {
   if (cached) cached.builtAt = 0;
 }

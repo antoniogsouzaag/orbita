@@ -3,13 +3,14 @@ import Link from "next/link";
 import { Card, PageHeader, SectionLabel } from "@/components/ui/card";
 import { n8nOverview } from "@/server/ops";
 import { liveOps } from "@/server/ops-live";
-import { getVaultIndex, getVaultProvider } from "@/server/vault";
+import { VaultBanner } from "@/components/vault/vault-banner";
+import { getVaultIndexSafe } from "@/server/vault";
 
 export const metadata = { title: "Automações" };
 
 export default async function Page() {
   const [n8n, live] = await Promise.all([n8nOverview(), liveOps()]);
-  const notePath = getVaultProvider() ? (await getVaultIndex()).resolve("Automações Ativas") : null;
+  const notePath = (await getVaultIndexSafe())?.resolve("Automações Ativas") ?? null;
   const liveIds = new Set(n8n.instances.flatMap((i) => i.workflows.map((w) => w.id)));
   const missing = n8n.documented.filter((d) => d.id && /^[A-Za-z0-9]{8,}$/.test(d.id) && !liveIds.has(d.id) && /n8n/i.test(d.where));
   const pushed = live.events.filter((e) => e.kind === "workflow_error");
@@ -22,6 +23,8 @@ export default async function Page() {
         title="Automações"
         description={<>Estado ao vivo dos workflows. A descrição de cada automação está em <Link className="text-accent hover:underline" href={notePath ? `/vault?p=${encodeURIComponent(notePath)}` : "/vault"}>Automações Ativas</Link> no vault.</>}
       />
+
+      <VaultBanner />
 
       <section>
         <SectionLabel className="mb-3">Falhas recentes</SectionLabel>

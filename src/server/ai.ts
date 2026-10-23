@@ -12,7 +12,7 @@ import { listHabits } from "@/server/habits";
 import { focusStats, listWorkouts } from "@/server/life";
 import { getSettings } from "@/server/settings";
 import { listTasks, taskCounts } from "@/server/tasks";
-import { getVaultIndex, getVaultProvider, searchVault } from "@/server/vault";
+import { getVaultIndexSafe, getVaultProvider, searchVault } from "@/server/vault";
 
 /**
  * Provedor de IA: OpenAI (padrão quando OPENAI_API_KEY existe) ou Anthropic.
@@ -101,7 +101,8 @@ export async function vaultContext(question: string): Promise<string> {
   if (!getVaultProvider()) return "";
   const hits = await searchVault(question, 4).catch(() => []);
   if (!hits.length) return "";
-  const idx = await getVaultIndex();
+  const idx = await getVaultIndexSafe();
+  if (!idx) return "";
   return hits
     .map((h) => {
       const n = idx.notes.get(h.path);

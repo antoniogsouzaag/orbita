@@ -7,7 +7,7 @@ import { getDb } from "@/db";
 import { agentActivity, agentTokens, opsEvents, tasks, type AgentScope } from "@/db/schema";
 import { buildContext, contextToMarkdown } from "./context";
 import { liveOps } from "./ops-live";
-import { getVaultIndex, getVaultProvider, searchVault } from "./vault";
+import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -104,8 +104,8 @@ export function buildMcpServer(agent: AgentIdentity) {
       { title: "Ler nota do vault", description: "Lê o conteúdo completo de uma nota do vault pelo caminho (ex.: '02 - Estrutura Interna/Registro de Aplicações.md') ou pelo nome.", inputSchema: { caminho: z.string().min(1).max(400) } },
       async ({ caminho }) =>
         run("ler_nota_do_vault", `leu ${caminho}`, async () => {
-          if (!getVaultProvider()) return text("Vault não configurado na Órbita.", true);
-          const idx = await getVaultIndex();
+          const idx = await getVaultIndexSafe();
+          if (!idx) return text((await vaultHealth()).error ?? "Vault não configurado na Órbita.", true);
           const p = idx.notes.has(caminho) ? caminho : idx.resolve(caminho.replace(/\.md$/i, ""));
           const note = p ? idx.notes.get(p) : null;
           return note ? text(`# ${note.title}\n_caminho: ${note.path}_\n\n${note.content}`) : text("Nota não encontrada.", true);

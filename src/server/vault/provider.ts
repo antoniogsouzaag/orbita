@@ -69,6 +69,16 @@ class LocalProvider implements VaultProvider {
   }
 }
 
+/** Explica em português o que fazer quando o GitHub recusa o token do vault. */
+function githubHint(status: number, repo: string): string | null {
+  const owner = repo.split("/")[0];
+  if (status === 404)
+    return `O token do vault não enxerga ${repo} (GitHub 404). Crie um token fine-grained com “Resource owner” = ${owner} (não a conta pessoal), selecione só este repositório e dê “Contents: Read and write”. Se a organização pedir aprovação, aprove em github.com/organizations/${owner}/settings/personal-access-token-requests. Depois atualize VAULT_GITHUB_TOKEN na Vercel e publique de novo.`;
+  if (status === 401) return "O token do vault é inválido ou expirou (GitHub 401). Gere outro e atualize VAULT_GITHUB_TOKEN na Vercel.";
+  if (status === 403) return `O GitHub recusou o token do vault (403): falta a permissão “Contents” em ${repo}, a organização bloqueia tokens fine-grained ou o limite de requisições foi atingido.`;
+  return null;
+}
+
 class GitHubProvider implements VaultProvider {
   kind = "github" as const;
   constructor(private repo: string, private branch: string, private token: string) {}
@@ -90,7 +100,7 @@ class GitHubProvider implements VaultProvider {
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`GitHub ${res.status}: ${body.slice(0, 200)}`);
+      throw new Error(githubHint(res.status, this.repo) ?? `GitHub ${res.status}: ${body.slice(0, 200)}`);
     }
     return res;
   }

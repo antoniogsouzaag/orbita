@@ -7,7 +7,8 @@ import { Card, CardHeader, PageHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { monitorTargets } from "@/server/ops";
 import { coherence, liveOps } from "@/server/ops-live";
-import { getVaultIndex, getVaultProvider } from "@/server/vault";
+import { VaultBanner } from "@/components/vault/vault-banner";
+import { getVaultIndexSafe } from "@/server/vault";
 
 export const metadata = { title: "Operação" };
 
@@ -46,7 +47,7 @@ export default async function Page() {
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "orbita";
   const base = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
   let monitorNote: string | null = null;
-  if (getVaultProvider()) monitorNote = (await getVaultIndex()).resolve("Monitoramento de Disponibilidade");
+  monitorNote = (await getVaultIndexSafe())?.resolve("Monitoramento de Disponibilidade") ?? null;
 
   const tiles = [
     { label: "No ar agora", value: board.length ? `${board.filter((b) => b.ok).length}/${board.length}` : "—", icon: Activity, tone: board.some((b) => !b.ok) ? "text-danger" : board.length ? "text-success" : "" },
@@ -59,6 +60,7 @@ export default async function Page() {
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6">
       <PageHeader icon={<Gauge />} title="Operação" description="Estado ao vivo da AG LABS. O inventário (servidores, agentes, apps) está no Vault; aqui fica só o que está acontecendo agora." />
+      <VaultBanner />
 
       {silent.length > 0 && (
         <div className="flex items-start gap-3 rounded-2xl border border-danger/40 bg-danger/8 p-4 text-[13.5px]">

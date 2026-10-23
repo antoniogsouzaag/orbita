@@ -1,5 +1,5 @@
 import "server-only";
-import { getVaultIndex, getVaultProvider } from "@/server/vault";
+import { getVaultIndexSafe, vaultHealth } from "@/server/vault";
 import { agents, appRegistry, documentedAutomations, monitorTargets, n8nOverview, vpsList } from "./ops";
 import { liveOps } from "./ops-live";
 
@@ -12,8 +12,9 @@ export async function buildContext(opts: { live?: boolean } = {}) {
   let index: string | null = null;
   let rules: string | null = null;
   let notes: { path: string; title: string; type: string; status: string }[] = [];
-  if (getVaultProvider()) {
-    const idx = await getVaultIndex();
+  const health = await vaultHealth();
+  const idx = health.ok ? await getVaultIndexSafe() : null;
+  if (idx) {
     const inicio = [...idx.notes.values()].find((n) => /in[ií]cio/i.test(n.title) && n.frontmatter.type === "index");
     const guia = [...idx.notes.values()].find((n) => /guia de contribui/i.test(n.title));
     index = inicio?.body ?? null;
@@ -22,7 +23,7 @@ export async function buildContext(opts: { live?: boolean } = {}) {
   }
   return {
     generatedAt: new Date().toISOString(),
-    vault: { index, rules, notes },
+    vault: { index, rules, notes, error: health.configured && !health.ok ? health.error : null },
     agents: ags,
     vps,
     apps,
@@ -38,6 +39,7 @@ export async function buildContext(opts: { live?: boolean } = {}) {
 export function contextToMarkdown(c: Awaited<ReturnType<typeof buildContext>>): string {
   const lines: string[] = [];
   lines.push(`# Contexto operacional — AG LABS`, ``, `Gerado em ${c.generatedAt} pela Órbita a partir do vault canônico. Fonte de verdade: o vault (\`aglabs-core/ag-labs-knowledge\`).`, ``);
+  if (c.vault.error) lines.push(`> ⚠️ Vault indisponível agora — inventário abaixo pode estar vazio. Motivo: ${c.vault.error}`, ``);
   if (c.vault.rules) lines.push(`## Regras do vault`, ``, c.vault.rules.replace(/^#.*\n/, "").trim(), ``);
   lines.push(`## Agentes (${c.agents.length})`, ``, `| Agente | Área | Função | Status | Ficha |`, `|---|---|---|---|---|`);
   for (const a of c.agents) lines.push(`| ${a.emoji} ${a.name} | ${a.area} | ${a.role} | ${a.status} | ${a.path ?? ""} |`);

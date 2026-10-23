@@ -1,13 +1,13 @@
 import "server-only";
 import { firstUrl, firstWikiTarget, parseTables, plainText, type MdTable } from "@/lib/md-tables";
 import { normalize } from "@/lib/text";
-import { getVaultIndex, getVaultProvider, type VaultNote } from "@/server/vault";
+import { getVaultIndexSafe, type VaultNote } from "@/server/vault";
 
 /* ───────────── Leitura do vault ───────────── */
 
 async function noteByName(name: string): Promise<VaultNote | null> {
-  if (!getVaultProvider()) return null;
-  const idx = await getVaultIndex();
+  const idx = await getVaultIndexSafe();
+  if (!idx) return null;
   const path = idx.resolve(name);
   return path ? idx.notes.get(path) ?? null : null;
 }
@@ -43,7 +43,7 @@ export type Agent = { name: string; emoji: string; area: string; role: string; s
 export async function agents(): Promise<Agent[]> {
   const note = await noteByName("Registro de Agentes");
   if (!note) return [];
-  const idx = await getVaultIndex();
+  const idx = (await getVaultIndexSafe())!; // já carregado por noteByName
   const t = parseTables(note.body).find((x) => col(x, "agente") >= 0);
   if (!t) return [];
   const [a, ar, f, s] = [col(t, "agente"), col(t, "area"), col(t, "funcao"), col(t, "status")];
@@ -65,8 +65,8 @@ export async function agents(): Promise<Agent[]> {
 export type Vps = { name: string; path: string; provider: string; identifier: string; panel: string; summary: string; capacity: { k: string; v: string }[] };
 
 export async function vpsList(): Promise<Vps[]> {
-  if (!getVaultProvider()) return [];
-  const idx = await getVaultIndex();
+  const idx = await getVaultIndexSafe();
+  if (!idx) return [];
   return [...idx.notes.values()]
     .filter((n) => n.frontmatter.type === "vps")
     .sort((a, b) => a.title.localeCompare(b.title))
@@ -90,7 +90,7 @@ export type AppRepo = { repo: string; branch: string; check: string; gate: strin
 export async function appRegistry(): Promise<AppRepo[]> {
   const note = await noteByName("Registro de Aplicações");
   if (!note) return [];
-  const idx = await getVaultIndex();
+  const idx = (await getVaultIndexSafe())!; // já carregado por noteByName
   const t = parseTables(note.body).find((x) => col(x, "repositorio") >= 0 && col(x, "portao") >= 0);
   if (!t) return [];
   const [r0, b, c, g, f] = [col(t, "repositorio"), col(t, "branch"), col(t, "comando"), col(t, "portao"), col(t, "ficha")];

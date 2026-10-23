@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { CopyButton } from "@/components/ops/copy-button";
 import { Card, PageHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { vaultConfig } from "@/server/vault";
+import { vaultConfig, vaultHealth } from "@/server/vault";
 
 export const metadata = { title: "Integrações" };
 
@@ -14,9 +14,10 @@ export default async function Page() {
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "orbita";
   const base = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
   const v = vaultConfig();
+  const vh = await vaultHealth();
   const items = [
     { icon: Database, name: "Banco de dados", ok: has("DATABASE_URL"), env: ["DATABASE_URL"], desc: "Neon (Postgres). Sem ele, o app usa um banco local só para desenvolvimento." },
-    { icon: LibraryBig, name: "Vault (Obsidian no GitHub)", ok: v.configured, env: ["VAULT_GITHUB_TOKEN", "VAULT_GITHUB_REPO", "VAULT_GITHUB_BRANCH"], desc: `Lê e grava ${v.repo} (${v.branch}). Cada salvamento é um commit — o GitHub segue como cópia na nuvem e o Obsidian sincroniza pelo obsidian-git. Token fine-grained: só este repositório, permissão “Contents: Read and write”.` },
+    { icon: LibraryBig, name: "Vault (Obsidian no GitHub)", ok: vh.ok, problem: vh.configured && !vh.ok ? vh.error : null, env: ["VAULT_GITHUB_TOKEN", "VAULT_GITHUB_REPO", "VAULT_GITHUB_BRANCH"], desc: `Lê e grava ${v.repo} (${v.branch}). Cada salvamento é um commit — o GitHub segue como cópia na nuvem e o Obsidian sincroniza pelo obsidian-git. Token fine-grained: só este repositório, permissão “Contents: Read and write”.` },
     { icon: Sparkles, name: "IA (OpenAI)", ok: has("OPENAI_API_KEY") || has("ANTHROPIC_API_KEY"), env: ["OPENAI_API_KEY", "OPENAI_MODEL"], desc: "Perguntar à IA, chat e Plano do dia. Modelo padrão: gpt-6-luna (troque em OPENAI_MODEL). Também aceita Claude com ANTHROPIC_API_KEY + AI_PROVIDER=anthropic." },
     { icon: Workflow, name: "n8n → Órbita (status ao vivo)", ok: has("OPS_TOKEN"), env: ["OPS_TOKEN"], desc: "Os monitores do n8n enviam links, domínios e falhas; a Órbita guarda histórico, incidentes e a batida de cada monitor." },
     { icon: Workflow, name: "Órbita → n8n (lista de workflows)", ok: has("N8N_INSTANCES"), env: ["N8N_INSTANCES"], desc: "Opcional: com a chave da API pública de cada n8n, a Órbita lista workflows ativos/inativos e aponta os não documentados no vault." },
@@ -42,8 +43,9 @@ export default async function Page() {
             <div className="flex items-center gap-2">
               <i.icon className="size-4 text-muted" />
               <span className="font-medium">{i.name}</span>
-              <span className={cn("ml-auto flex items-center gap-1 text-[12px]", i.ok ? "text-success" : "text-faint")}>{i.ok ? <CheckCircle2 className="size-3.5" /> : <Circle className="size-3.5" />}{i.ok ? "conectado" : "não configurado"}</span>
+              <span className={cn("ml-auto flex items-center gap-1 text-[12px]", i.ok ? "text-success" : "problem" in i && i.problem ? "text-danger" : "text-faint")}>{i.ok ? <CheckCircle2 className="size-3.5" /> : <Circle className="size-3.5" />}{i.ok ? "conectado" : "problem" in i && i.problem ? "com erro" : "não configurado"}</span>
             </div>
+            {"problem" in i && i.problem && <p className="mt-2 rounded-lg bg-danger/10 px-2.5 py-1.5 text-[12.5px] text-danger">{i.problem}</p>}
             <p className="mt-2 text-[12.5px] text-muted">{i.desc}</p>
             <div className="mt-2 flex flex-wrap gap-1">{i.env.map((e) => <code key={e} className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-faint">{e}</code>)}</div>
           </Card>
