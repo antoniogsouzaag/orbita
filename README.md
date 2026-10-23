@@ -98,6 +98,8 @@ A **Visão geral da Empresa** segue o formato do Início: capa própria do Unspl
 
 O mesmo diagnóstico operacional está em `GET /api/integrations/status`, autenticado pela sessão do dono ou pelo `CONTEXT_TOKEN` já usado para leitura de contexto. A resposta não contém credenciais e não é armazenada em cache público.
 
+Para a consulta de workflows, crie uma chave em **Settings → n8n API → Custom** em cada servidor, com apenas `workflow:list` e `execution:list`. Salve `N8N_INSTANCES` como segredo de produção na Vercel: uma lista de objetos com `name`, `url` e `apiKey`. Use o botão **Copy** do n8n: o campo visível da chave pode conter um valor abreviado. Após salvar ou trocar as chaves, faça um novo deployment e execute o diagnóstico. Acompanhe a validade das credenciais; uma recusa da API não significa que os workflows desapareceram.
+
 **Integrações → PRs e propostas** permite filtrar por tipo, título, repositório e autor. A credencial segue a precedência `GITHUB_INBOX_TOKEN` → `GITHUB_TOKEN` → `VAULT_GITHUB_TOKEN`. O token do Knowledge pode ser reutilizado com as permissões atuais, mas só enxerga os repositórios liberados para ele. Para visão do ecossistema, prefira um `GITHUB_INBOX_TOKEN` separado, de leitura, com os repositórios desejados. A busca carrega até 100 PRs e 100 propostas e informa quando os resultados são parciais.
 
 ## CRM

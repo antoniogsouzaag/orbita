@@ -43,3 +43,15 @@
 - TypeScript e suíte completa passaram: 19 arquivos, 83 testes. Sem alteração de schema.
 - Navegador de produção disponível, mas a Agenda observada ainda contém só Mês/Lista, portanto não valida o checkpoint local com quatro modos.
 - A tentativa de iniciar Next na porta 3012 anunciou Ready, mas encerrou ao detectar outro servidor do projeto na porta 3000 (PID 12312). O navegador recusou conexão na porta 3012 por localhost e pelo IP de rede anunciado. Validação visual das mudanças locais continua pendente. Nenhum deploy executado nesta continuação.
+
+## Integração e publicação — continuação de 23/10
+
+- `d4f1add` publicado na main e em produção; a configuração corrigida do CRM entrou em vigor. O diagnóstico real retornou resumo e tarefas pelo MCP.
+- Banco verificado; Vault retornou 87 notas; monitores retornaram 2/2 batidas recentes. Telegram confirmou bot e destino, sem envio real de teste.
+- Token GitHub dedicado criado com autorização explícita, restrito a Issues/Pull requests/Metadata em leitura para aglabs, viajeki, members, mecard, marketing, barberias, crm-dash e ag-labs-knowledge. Salvo como segredo de produção; o diagnóstico retornou 60 de 60 PRs/propostas visíveis. Expiração informada pelo GitHub: 22/11/2026.
+- Chaves n8n criadas com autorização explícita, limitadas a `workflow:list` e `execution:list`. A captura inicial leu o campo visual abreviado, resultando em HTTP 401. A correção depende de concluir a rotação nas duas telas já preparadas e capturar as chaves completas pelo botão Copy, sem enviá-las no chat. Ainda não considerar a consulta de workflows validada.
+- A revisão automática bloqueou a tentativa de salvar chaves temporárias em JSON local. O arquivo não foi criado (confirmado por Test-Path). O cadastro na Vercel foi feito diretamente pela interface, como Secret e somente Production.
+- `73f754b` publicado e READY na Vercel (`dpl_8K5b3GhuixFSp4ortPvbS4cQ1wmp`): o grafo evita enquadrar coordenadas ainda indefinidas ao pausar/filtrar, e Automações deixa de classificar workflows como ausentes quando alguma API falha.
+- Navegador real: quatro modos da Agenda abriram; filtro Empresa mostrou duas metas e Nova meta abriu com área Empresa; grafo carregou 87 notas/505 conexões, foco mostrou 40 notas/171 conexões, e pausa seguida de foco manteve zoom numérico após a correção. Arraste executado; abertura de nota e interação mobile ainda não concluídas. A tentativa de override 390×844 continuou reportando 1920 px; não vale como evidência mobile.
+- Build local completo e 83 testes passaram antes das duas correções finais de UI. Lint e TypeScript dos arquivos finais passaram; o build de produção das correções também passou. Consulta de logs error/fatal do último deployment, janela de 15 min às 09:35 de São Paulo, não retornou entradas.
+- Sem execução manual do monitor de domínios até este registro: a autorização específica para os possíveis alertas reais no Telegram foi solicitada e permanece pendente. Calendários externos não foram inventados nem conectados sem uma fonte do usuário.
