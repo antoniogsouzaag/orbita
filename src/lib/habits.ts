@@ -1,4 +1,4 @@
-import { lastNDays, shiftDate, startOfWeekISO, weekday } from "./dates";
+import { lastNDays, localDate, shiftDate, startOfWeekISO, weekday } from "./dates";
 
 export type HabitLike = {
   frequency: string;
@@ -28,7 +28,7 @@ export function currentStreak(h: HabitLike, done: Set<string>, today: string): {
     const target = Math.max(1, h.timesPerWeek);
     let weekStart = startOfWeekISO(today);
     let streak = 0;
-    const countWeek = (start: string) => lastNDays(7, shiftDate(start, 6)).filter((d) => done.has(d)).length;
+    const countWeek = (start: string) => lastNDays(7, shiftDate(start, 6)).filter((d) => d <= today && done.has(d)).length;
     if (countWeek(weekStart) >= target) streak++;
     weekStart = shiftDate(weekStart, -7);
     for (let i = 0; i < 520; i++) {
@@ -89,7 +89,7 @@ export function bestStreak(h: HabitLike, done: Set<string>, today: string): numb
     let week = startOfWeekISO(sorted[0]);
     const end = startOfWeekISO(today);
     while (week <= end) {
-      const n = lastNDays(7, shiftDate(week, 6)).filter((d) => done.has(d)).length;
+      const n = lastNDays(7, shiftDate(week, 6)).filter((d) => d <= today && done.has(d)).length;
       cur = n >= Math.max(1, h.timesPerWeek) ? cur + 1 : 0;
       best = Math.max(best, cur);
       week = shiftDate(week, 7);
@@ -114,12 +114,20 @@ export function bestStreak(h: HabitLike, done: Set<string>, today: string): numb
 
 /** Taxa de conclusão nos últimos N dias (apenas dias agendados). */
 export function completionRate(h: HabitLike, done: Set<string>, today: string, n = 30): number {
+  const created = h.createdAt ? new Date(h.createdAt) : null;
+  const createdDate = created && !Number.isNaN(created.getTime()) ? localDate(created) : null;
+  // O calendário aceita histórico anterior ao cadastro: esses registros explícitos
+  // também iniciam o período acompanhado, sem penalizar dias anteriores a ele.
+  const firstDone = [...done].filter((day) => day <= today).sort()[0];
+  const since = createdDate && firstDone && firstDone < createdDate ? firstDone : createdDate;
+  const tracked = lastNDays(n, today).filter((d) => !since || d >= since);
+  if (!tracked.length) return 0;
   if (h.frequency === "weekly") {
-    const days = lastNDays(n, today);
+    const days = tracked;
     const count = days.filter((d) => done.has(d)).length;
-    return Math.min(100, Math.round((count / ((n / 7) * Math.max(1, h.timesPerWeek))) * 100));
+    return Math.min(100, Math.round((count / ((days.length / 7) * Math.max(1, h.timesPerWeek))) * 100));
   }
-  const days = lastNDays(n, today).filter((d) => isScheduled(h, d));
+  const days = tracked.filter((d) => isScheduled(h, d));
   if (!days.length) return 0;
   return Math.round((days.filter((d) => done.has(d)).length / days.length) * 100);
 }

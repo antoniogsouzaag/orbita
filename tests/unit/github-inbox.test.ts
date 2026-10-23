@@ -10,6 +10,16 @@ function credentials(inbox = "", general = "", vault = "") {
 }
 
 describe("GitHub operacional", () => {
+  it("preserva a última lista válida quando uma atualização temporariamente falha", async () => {
+    credentials("token-for-stale-test");
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ items: [{ title: "Revisar", html_url: "https://github.com/org/repo/pull/1", number: 1, updated_at: "2026-10-23", repository_url: "https://api.github.com/repos/org/repo" }], total_count: 1 })));
+    const success = await githubInbox({ force: true });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 429 })));
+    const stale = await githubInbox({ force: true });
+    expect(stale).toMatchObject({ stale: true, checkedAt: success.checkedAt });
+    expect(stale.items).toEqual(success.items);
+    expect(stale.error).toContain("GitHub recusou");
+  });
   it("reutiliza o token Knowledge apenas como reserva e não devolve o segredo", async () => {
     credentials("", "", "vault-secret-never-in-ui");
     const request = vi.fn(async (_url: string, init: RequestInit) => {

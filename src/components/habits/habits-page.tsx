@@ -1,11 +1,12 @@
 "use client";
 
-import { Flame, Pencil, Plus, Repeat, Trophy } from "lucide-react";
+import { Flame, Pencil, Plus, Trophy } from "lucide-react";
 import * as React from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { deleteHabit, saveHabit, toggleHabit } from "@/app/actions/core";
 import { Button } from "@/components/ui/button";
-import { Card, EmptyState } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { ColorPicker } from "@/components/ui/color";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import type { HabitWithStats } from "@/server/habits";
 const SUGGESTIONS = [
   { emoji: "💻", name: "Estudar programação", area: "estudos" },
   { emoji: "🇺🇸", name: "Estudar inglês por 20 min", area: "estudos" },
-  { emoji: "🏋️", name: "Treino / Musculação", area: "saude", frequency: "weekly", timesPerWeek: 5 },
+  { emoji: "🏋️", name: "Treino / Musculação", area: "saude", frequency: "weekly", timesPerWeek: 3 },
   { emoji: "😴", name: "Dormir pelo menos 7h", area: "saude" },
   { emoji: "📚", name: "Ler 20 páginas", area: "estudos" },
   { emoji: "💧", name: "Beber a meta diária de água", area: "saude" },
@@ -30,24 +31,26 @@ const SUGGESTIONS = [
 export function HabitsPage({ habits }: { habits: HabitWithStats[] }) {
   const [editing, setEditing] = React.useState<Habit | null>(null);
   const [open, setOpen] = React.useState(false);
-  const [, start] = React.useTransition();
+  const [pending, start] = React.useTransition();
   const t = today();
 
   const addSuggestion = (s: (typeof SUGGESTIONS)[number]) =>
     start(async () => {
-      await saveHabit(null, { name: s.name, emoji: s.emoji, area: s.area, frequency: "frequency" in s ? s.frequency : "daily", timesPerWeek: "timesPerWeek" in s ? s.timesPerWeek : 7 });
-      toast.success(`Hábito “${s.name}” criado`);
+      try {
+        await saveHabit(null, { name: s.name, emoji: s.emoji, area: s.area, frequency: "frequency" in s ? s.frequency : "daily", timesPerWeek: "timesPerWeek" in s ? s.timesPerWeek : 7 });
+        toast.success(`Hábito “${s.name}” criado`);
+      } catch { toast.error("Não foi possível criar o hábito."); }
     });
 
   return (
     <>
       <div className="mb-4 flex justify-end"><Button variant="primary" size="sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus /> Novo hábito</Button></div>
-      {habits.length === 0 && (
+      {SUGGESTIONS.some((s) => !habits.some((h) => h.name === s.name)) && (
         <Card className="mb-6 p-5">
-          <EmptyState icon={<Repeat />} title="Comece com alguns hábitos" description="Clique para adicionar sugestões — dá para editar depois." className="py-4" />
+          <p className="mb-3 text-sm font-medium">Modelos de hábitos</p><p className="mb-4 text-xs text-muted">Adicione uma base e ajuste a meta. Marque os dias em que fez no calendário; as fichas de exercícios ficam em <Link href="/academia" className="text-accent hover:underline">Academia</Link>.</p>
           <div className="flex flex-wrap justify-center gap-2">
-            {SUGGESTIONS.map((s) => (
-              <button key={s.name} onClick={() => addSuggestion(s)} className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[13px] hover:border-accent/50">{s.emoji} {s.name}</button>
+            {SUGGESTIONS.filter((s) => !habits.some((h) => h.name === s.name)).map((s) => (
+              <button disabled={pending} key={s.name} onClick={() => addSuggestion(s)} className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[13px] hover:border-accent/50 disabled:opacity-50">{s.emoji} {s.name}</button>
             ))}
           </div>
         </Card>
@@ -102,19 +105,15 @@ export function HabitsPage({ habits }: { habits: HabitWithStats[] }) {
           );
         })}
       </div>
-      <HabitDialog open={open} onOpenChange={setOpen} habit={editing} />
+      {open && <HabitDialog open={open} onOpenChange={setOpen} habit={editing} />}
     </>
   );
 }
 
 function HabitDialog({ open, onOpenChange, habit }: { open: boolean; onOpenChange: (v: boolean) => void; habit: Habit | null }) {
   const blank = { name: "", emoji: "", color: "#22d3ee", area: "pessoal" as Habit["area"], frequency: "daily", timesPerWeek: 3, weekdays: [] as number[] };
-  const [f, setF] = React.useState(blank);
+  const [f, setF] = React.useState(habit ? { name: habit.name, emoji: habit.emoji ?? "", color: habit.color, area: habit.area, frequency: habit.frequency, timesPerWeek: habit.timesPerWeek, weekdays: habit.weekdays } : blank);
   const [pending, start] = React.useTransition();
-  React.useEffect(() => {
-    if (open) setF(habit ? { name: habit.name, emoji: habit.emoji ?? "", color: habit.color, area: habit.area, frequency: habit.frequency, timesPerWeek: habit.timesPerWeek, weekdays: habit.weekdays } : blank);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, habit]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title={habit ? "Editar hábito" : "Novo hábito"}>

@@ -180,7 +180,7 @@ export const transactions = pgTable(
   (t) => [index("transactions_date_idx").on(t.date)],
 );
 
-export type WorkoutExercise = { name: string; sets?: number; reps?: string; load?: string };
+export type WorkoutExercise = { name: string; sets?: number; reps?: string; load?: string; instructions?: string; rest?: number; demoUrl?: string };
 
 export const workouts = pgTable("workouts", {
   id: id(),

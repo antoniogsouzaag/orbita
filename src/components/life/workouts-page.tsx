@@ -1,122 +1,63 @@
 "use client";
-
-import { Dumbbell, Plus, Trash2, X } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { BookOpen, Check, Dumbbell, Pencil, Plus, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
-import { deleteWorkout, saveWorkout } from "@/app/actions/life";
+import { deleteTrainingPlan, deleteWorkout, saveTrainingPlan, saveWorkout } from "@/app/actions/life";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import type { Workout, WorkoutExercise } from "@/db/schema";
 import { relativeDay, today } from "@/lib/dates";
+import { TRAINING_BASES, trainingVideoEmbed, type TrainingPlan } from "@/lib/training";
+type Draft = { name: string; minutes?: number | null; notes?: string | null; exercises: WorkoutExercise[]; id?: string };
+type Editor = { mode: "plan" | "log"; base?: Draft; id?: string };
 
-export function WorkoutsPage({ workouts, weekCount, monthCount }: { workouts: Workout[]; weekCount: number; monthCount: number }) {
-  const [open, setOpen] = React.useState(false);
-  const [base, setBase] = React.useState<Workout | null>(null);
-  const [, start] = React.useTransition();
+export function WorkoutsPage({ workouts, plans, weekCount, monthCount }: { workouts: Workout[]; plans: TrainingPlan[]; weekCount: number; monthCount: number }) {
   const params = useSearchParams();
-  React.useEffect(() => {
-    if (params.get("novo") === "1") setOpen(true);
-  }, [params]);
-  const templates = [...new Map(workouts.map((w) => [w.name, w])).values()].slice(0, 6);
-  return (
-    <>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="p-4"><div className="text-2xl font-bold tabular-nums">{weekCount}</div><div className="text-[12px] text-muted">treinos nesta semana</div></Card>
-        <Card className="p-4"><div className="text-2xl font-bold tabular-nums">{monthCount}</div><div className="text-[12px] text-muted">nos últimos 30 dias</div></Card>
-        <div className="col-span-2 flex items-center justify-end gap-2">
-          <Button variant="primary" onClick={() => { setBase(null); setOpen(true); }}><Plus /> Registrar treino</Button>
-        </div>
-      </div>
-      {templates.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-2">
-          <span className="self-center text-[12px] text-faint">Repetir:</span>
-          {templates.map((t) => <button key={t.id} onClick={() => { setBase(t); setOpen(true); }} className="rounded-full border border-border bg-surface-2 px-3 py-1 text-[12.5px] hover:border-accent/50">{t.name}</button>)}
-        </div>
-      )}
-      {workouts.length === 0 ? (
-        <Card><EmptyState icon={<Dumbbell />} title="Nenhum treino registrado" description="Registre treinos com exercícios, séries e cargas." /></Card>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {workouts.map((w) => (
-            <Card key={w.id} className="group p-4">
-              <div className="flex items-start gap-3">
-                <span className="grid size-9 place-items-center rounded-xl bg-rose-500/15 text-rose-400"><Dumbbell className="size-4" /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium">{w.name}</div>
-                  <div className="text-[12px] text-faint">{relativeDay(w.date)}{w.minutes ? ` · ${w.minutes} min` : ""}</div>
-                </div>
-                <button onClick={() => start(async () => { if (confirm("Excluir treino?")) await deleteWorkout(w.id); })} className="rounded p-1 text-faint opacity-0 hover:text-danger group-hover:opacity-100" aria-label="Excluir"><Trash2 className="size-3.5" /></button>
-              </div>
-              {w.exercises.length > 0 && (
-                <div className="mt-3 space-y-1 text-[12.5px]">
-                  {w.exercises.map((e, i) => <div key={i} className="flex justify-between gap-2"><span className="truncate">{e.name}</span><span className="shrink-0 tabular-nums text-muted">{[e.sets && `${e.sets}x`, e.reps, e.load].filter(Boolean).join(" ")}</span></div>)}
-                </div>
-              )}
-              {w.notes && <p className="mt-2 text-[12px] text-faint">{w.notes}</p>}
-            </Card>
-          ))}
-        </div>
-      )}
-      <WorkoutDialog open={open} onOpenChange={setOpen} base={base} />
-    </>
-  );
-}
-
-function WorkoutDialog({ open, onOpenChange, base }: { open: boolean; onOpenChange: (v: boolean) => void; base: Workout | null }) {
-  const [name, setName] = React.useState("");
-  const [date, setDate] = React.useState(today());
-  const [minutes, setMinutes] = React.useState("");
-  const [notes, setNotes] = React.useState("");
-  const [ex, setEx] = React.useState<WorkoutExercise[]>([]);
+  const router = useRouter();
+  const [editor, setEditor] = React.useState<Editor | null>(params.get("novo") === "1" ? { mode: "log" } : null);
   const [pending, start] = React.useTransition();
-  React.useEffect(() => {
-    if (!open) return;
-    setName(base?.name ?? "");
-    setDate(today());
-    setMinutes(base?.minutes ? String(base.minutes) : "");
-    setNotes("");
-    setEx(base?.exercises.map((e) => ({ ...e })) ?? [{ name: "", sets: 3, reps: "12", load: "" }]);
-  }, [open, base]);
-  const upd = (i: number, patch: Partial<WorkoutExercise>) => setEx((l) => l.map((e, k) => (k === i ? { ...e, ...patch } : e)));
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Registrar treino" wide>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            start(async () => {
-              await saveWorkout(null, { name, date, minutes: minutes ? Number(minutes) : null, notes: notes || null, exercises: ex.filter((x) => x.name.trim()).map((x) => ({ ...x, sets: x.sets ? Number(x.sets) : undefined })) });
-              toast.success("Treino registrado 💪");
-              onOpenChange(false);
-            });
-          }}
-          className="space-y-3"
-        >
-          <div className="grid grid-cols-[1fr_150px_100px] gap-2">
-            <Field label="Treino"><Input required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Treino A · Peito, ombros e tríceps" /></Field>
-            <Field label="Data"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-            <Field label="Minutos"><Input inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value)} placeholder="60" /></Field>
-          </div>
-          <div className="space-y-1.5">
-            <div className="grid grid-cols-[1fr_64px_80px_90px_28px] gap-1.5 px-1 text-[11px] text-faint"><span>Exercício</span><span>Séries</span><span>Reps</span><span>Carga</span><span /></div>
-            {ex.map((e, i) => (
-              <div key={i} className="grid grid-cols-[1fr_64px_80px_90px_28px] gap-1.5">
-                <Input value={e.name} onChange={(v) => upd(i, { name: v.target.value })} placeholder="Supino reto" className="h-9" />
-                <Input inputMode="numeric" value={e.sets ?? ""} onChange={(v) => upd(i, { sets: Number(v.target.value) || undefined })} className="h-9" />
-                <Input value={e.reps ?? ""} onChange={(v) => upd(i, { reps: v.target.value })} className="h-9" />
-                <Input value={e.load ?? ""} onChange={(v) => upd(i, { load: v.target.value })} placeholder="40kg" className="h-9" />
-                <button type="button" onClick={() => setEx((l) => l.filter((_, k) => k !== i))} className="grid place-items-center text-faint hover:text-danger" aria-label="Remover"><X className="size-4" /></button>
-              </div>
-            ))}
-            <Button type="button" size="sm" variant="ghost" onClick={() => setEx((l) => [...l, { name: "", sets: 3, reps: "12", load: "" }])}><Plus /> Exercício</Button>
-          </div>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações" className="min-h-14" />
-          <div className="flex justify-end"><Button variant="primary" disabled={pending}>Salvar treino</Button></div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
+  const close = () => { setEditor(null); if (params.get("novo")) router.replace("/academia"); };
+  const remove = (kind: "plan" | "log", id: string) => {
+    if (!confirm(kind === "plan" ? "Excluir esta ficha? O histórico será preservado." : "Excluir este registro de treino?")) return;
+    start(async () => { try { await (kind === "plan" ? deleteTrainingPlan(id) : deleteWorkout(id)); toast.success("Excluído"); } catch { toast.error("Não foi possível excluir."); } });
+  };
+  return <div className="space-y-7">
+    <Card className="overflow-hidden border-accent/20 bg-gradient-to-br from-accent/10 via-surface to-surface p-5 sm:p-7">
+      <p className="text-xs font-medium uppercase tracking-widest text-accent">Seu espaço de treino</p><h2 className="mt-2 text-2xl font-semibold">Uma ficha clara. Um treino por vez.</h2><p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">Em Hábitos, marque os dias em que foi. Aqui, prepare sua ficha, veja como executar e registre as cargas ao concluir.</p>
+      <div className="mt-5 flex flex-wrap gap-2"><Button variant="primary" onClick={() => setEditor({ mode: "plan" })}><Plus />Montar ficha</Button><Button onClick={() => setEditor({ mode: "log" })}><Check />Registrar treino feito</Button><Button asChild variant="ghost"><Link href="/habitos">Frequência em Hábitos</Link></Button></div>
+      <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted"><span><b className="text-fg">{weekCount}</b> registros nesta semana</span><span><b className="text-fg">{monthCount}</b> nos últimos 30 dias</span><span><b className="text-fg">{plans.length}</b> fichas salvas</span></div>
+    </Card>
+    <section><div className="mb-3 flex items-center gap-2"><BookOpen className="size-4 text-accent" /><h2 className="font-semibold">Minhas fichas</h2></div>
+      {!plans.length ? <Card><EmptyState icon={<Dumbbell />} title="Sua rotina começa aqui" description="Adapte um modelo abaixo ou monte uma ficha com seu instrutor. Salvar uma ficha não registra um treino realizado." /></Card> : <div className="grid gap-3 lg:grid-cols-2">{plans.map((plan) => <Card key={plan.id} className="p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{plan.name}</h3><p className="mt-1 text-xs text-muted">{plan.exercises.length} exercícios · cerca de {plan.minutes} min</p></div><button disabled={pending} onClick={() => remove("plan", plan.id)} aria-label={`Excluir ficha ${plan.name}`} className="p-1 text-faint hover:text-danger"><Trash2 className="size-4" /></button></div><ExerciseGuide exercises={plan.exercises} /><p className="mt-3 whitespace-pre-line text-xs leading-relaxed text-muted">{plan.notes}</p><div className="mt-4 flex flex-wrap gap-2"><Button size="sm" variant="primary" onClick={() => setEditor({ mode: "log", base: plan })}><Check />Concluir e registrar</Button><Button size="sm" onClick={() => setEditor({ mode: "plan", base: plan, id: plan.id })}><Pencil />Editar ficha</Button></div></Card>)}</div>}
+    </section>
+    <section><h2 className="font-semibold">Modelos para começar</h2><p className="mt-1 text-xs leading-relaxed text-muted">Bases educativas editáveis, sem cargas prescritas. Ajuste os exercícios ao seu condicionamento com um profissional.</p><div className="mt-3 grid gap-3 lg:grid-cols-3">{TRAINING_BASES.map((plan) => <Card key={plan.id} className="flex flex-col p-5"><div className="mb-3 text-xs text-accent">{plan.minutes} min · {plan.exercises.length} exercícios</div><h3 className="font-semibold">{plan.name}</h3><ExerciseGuide exercises={plan.exercises} /><p className="my-4 text-xs leading-relaxed text-muted">{plan.notes}</p><Button className="mt-auto" size="sm" onClick={() => setEditor({ mode: "plan", base: plan })}>Adaptar e salvar ficha</Button></Card>)}</div></section>
+    <section><h2 className="mb-3 font-semibold">Histórico realizado</h2>{workouts.length >= 120 && <p className="mb-3 text-xs text-muted">Mostrando os 120 registros mais recentes. Os indicadores consideram todo o histórico.</p>}{!workouts.length ? <p className="rounded-xl border border-dashed border-border p-5 text-sm text-muted">Nenhum treino registrado. Modelos e fichas não contam como presença.</p> : <div className="grid gap-3 md:grid-cols-2">{workouts.map((workout) => <Card key={workout.id} className="p-5"><div className="flex justify-between gap-3"><div><h3 className="font-medium">{workout.name}</h3><p className="mt-1 text-xs text-muted">{relativeDay(workout.date)}{workout.minutes ? ` · ${workout.minutes} min` : ""}</p></div><button disabled={pending} onClick={() => remove("log", workout.id)} aria-label={`Excluir registro ${workout.name}`} className="p-1 text-faint hover:text-danger"><Trash2 className="size-4" /></button></div><ExerciseGuide exercises={workout.exercises} />{workout.notes && <p className="mt-3 text-xs text-muted">{workout.notes}</p>}<Button className="mt-3" size="sm" variant="ghost" onClick={() => setEditor({ mode: "log", base: workout })}>Repetir treino</Button></Card>)}</div>}</section>
+    {editor && <WorkoutEditor key={`${editor.mode}:${editor.base?.id ?? "new"}`} editor={editor} close={close} />}
+  </div>;
+}
+function ExerciseGuide({ exercises }: { exercises: WorkoutExercise[] }) {
+  return <ol className="mt-4 divide-y divide-border">{exercises.map((exercise, index) => <li key={index} className="py-2.5"><details><summary className="cursor-pointer text-[13px]"><span className="font-medium">{index + 1}. {exercise.name}</span><span className="mt-1 block pl-4 text-xs text-muted">{exercise.sets ?? "—"} {exercise.sets === 1 ? "série" : "séries"} · {exercise.reps || "reps a definir"}{exercise.load ? ` · ${exercise.load}` : ""}{exercise.rest != null ? ` · pausa ${exercise.rest}s` : ""}</span></summary><div className="mt-3 rounded-xl bg-surface-2 p-3 text-xs leading-relaxed text-muted">{exercise.demoUrl && trainingVideoEmbed(exercise.demoUrl) && <iframe className="mb-3 aspect-video w-full rounded-lg" src={trainingVideoEmbed(exercise.demoUrl)!} title={`Demonstração de ${exercise.name}`} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation" allowFullScreen />}<p>{exercise.instructions || "Adicione as orientações do seu instrutor ao editar a ficha."}</p><a className="mt-2 inline-block text-accent hover:underline" href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${exercise.name} execução correta educação física`)}`} target="_blank" rel="noopener noreferrer">Buscar demonstrações em vídeo ↗</a><p className="mt-1 text-[11px] text-faint">Busca externa; confira a técnica com seu instrutor.</p></div></details></li>)}</ol>;
+}
+function WorkoutEditor({ editor, close }: { editor: Editor; close: () => void }) {
+  const { mode, base } = editor;
+  const [name, setName] = React.useState(base?.name ?? "");
+  const [date, setDate] = React.useState(today());
+  const [minutes, setMinutes] = React.useState(String(base?.minutes ?? 40));
+  const [notes, setNotes] = React.useState(mode === "plan" ? base?.notes ?? "" : "");
+  const [exercises, setExercises] = React.useState<WorkoutExercise[]>(base?.exercises.map((e) => ({ ...e })) ?? [{ name: "", sets: 2, reps: "8–12", load: "", rest: 90 }]);
+  const [pending, start] = React.useTransition();
+  const update = (index: number, patch: Partial<WorkoutExercise>) => setExercises((list) => list.map((item, i) => i === index ? { ...item, ...patch } : item));
+  return <Dialog open onOpenChange={(open) => { if (!open && !pending) close(); }}><DialogContent title={mode === "plan" ? "Montar ficha de treino" : "Registrar treino realizado"} wide><form className="space-y-4" onSubmit={(event) => { event.preventDefault(); start(async () => { try {
+    const data = { name, minutes: Number(minutes), notes, exercises: exercises.filter((item) => item.name.trim()) };
+    if (mode === "plan") await saveTrainingPlan(editor.id ?? null, data); else await saveWorkout(null, { ...data, date });
+    toast.success(mode === "plan" ? "Ficha salva. Nenhum treino foi registrado." : "Treino registrado"); close();
+  } catch { toast.error("Não foi possível salvar. Confira nome, data, duração e exercícios."); } }); }}>
+    <div className="grid gap-3 sm:grid-cols-2"><Field label="Nome"><Input aria-label="Nome do treino" required autoFocus maxLength={160} value={name} onChange={(e) => setName(e.target.value)} placeholder="Treino A" /></Field><Field label="Duração em minutos"><Input aria-label="Duração em minutos" type="number" min={1} max={240} required value={minutes} onChange={(e) => setMinutes(e.target.value)} /></Field>{mode === "log" && <Field label="Dia em que treinou"><Input aria-label="Dia em que treinou" type="date" required max={today()} value={date} onChange={(e) => setDate(e.target.value)} /></Field>}</div>
+    <div className="max-h-[45vh] space-y-3 overflow-y-auto pr-1">{exercises.map((exercise, index) => <fieldset key={index} className="rounded-xl border border-border p-3"><legend className="px-1 text-xs text-muted">Exercício {index + 1}</legend><div className="flex gap-2"><Input aria-label={`Nome do exercício ${index + 1}`} value={exercise.name} onChange={(e) => update(index, { name: e.target.value })} placeholder="Exercício" maxLength={120} /><button type="button" aria-label={`Remover exercício ${index + 1}`} onClick={() => setExercises((list) => list.filter((_, i) => i !== index))}><X className="size-4 text-faint" /></button></div><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4"><Field label="Séries"><Input aria-label={`Séries ${index + 1}`} type="number" min={1} max={30} value={exercise.sets ?? ""} onChange={(e) => update(index, { sets: e.target.value ? Number(e.target.value) : undefined })} /></Field><Field label="Repetições / tempo"><Input aria-label={`Repetições ${index + 1}`} value={exercise.reps ?? ""} onChange={(e) => update(index, { reps: e.target.value })} maxLength={40} /></Field><Field label="Carga utilizada"><Input aria-label={`Carga ${index + 1}`} value={exercise.load ?? ""} onChange={(e) => update(index, { load: e.target.value })} placeholder="A definir" maxLength={40} /></Field><Field label="Pausa (segundos)"><Input aria-label={`Pausa ${index + 1}`} type="number" min={0} max={600} value={exercise.rest ?? ""} onChange={(e) => update(index, { rest: e.target.value ? Number(e.target.value) : undefined })} /></Field></div><Textarea aria-label={`Como fazer ${index + 1}`} className="mt-2 min-h-16" value={exercise.instructions ?? ""} onChange={(e) => update(index, { instructions: e.target.value })} placeholder="Como fazer · ajuste do aparelho, postura e execução" maxLength={1500} /><Input aria-label={`Vídeo do exercício ${index + 1}`} className="mt-2" type="url" value={exercise.demoUrl ?? ""} onChange={(e) => update(index, { demoUrl: e.target.value })} placeholder="Vídeo do YouTube (opcional)" maxLength={500} /></fieldset>)}</div>
+    <Button type="button" size="sm" variant="ghost" disabled={exercises.length >= 60} onClick={() => setExercises((list) => [...list, { name: "", sets: 2, reps: "8–12", rest: 90 }])}><Plus />Exercício</Button><Textarea aria-label="Observações" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações e orientações" maxLength={4000} /><div className="flex justify-end gap-2"><Button type="button" disabled={pending} onClick={close}>Cancelar</Button><Button variant="primary" disabled={pending}>{pending ? "Salvando…" : mode === "plan" ? "Salvar ficha" : "Salvar treino realizado"}</Button></div>
+  </form></DialogContent></Dialog>;
 }

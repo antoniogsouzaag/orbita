@@ -1,10 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { currentStreak, dayStreak, isScheduled, lastDays, nextMilestone, weekCount } from "@/lib/habits";
+import { bestStreak, completionRate, currentStreak, dayStreak, isScheduled, lastDays, nextMilestone, weekCount } from "@/lib/habits";
 
 const daily = { frequency: "daily", timesPerWeek: 7, weekdays: [] as number[] };
 const TODAY = "2026-10-22"; // quinta
 
 describe("hábitos", () => {
+  it("não penaliza um hábito por dias anteriores ao cadastro", () => {
+    expect(completionRate({ ...daily, createdAt: "2026-10-22T12:00:00Z" }, new Set([TODAY]), TODAY)).toBe(100);
+  });
+  it("inclui registros retroativos anteriores ao cadastro no período acompanhado", () => {
+    expect(completionRate({ ...daily, createdAt: "2026-10-22T12:00:00Z" }, new Set(["2026-10-21"]), TODAY)).toBe(50);
+  });
+  it("registros futuros não completam uma meta semanal", () => {
+    const weekly = { ...daily, frequency: "weekly", timesPerWeek: 3 };
+    const done = new Set([TODAY, "2026-10-23", "2026-10-24"]);
+    expect(currentStreak(weekly, done, TODAY).value).toBe(0);
+    expect(bestStreak(weekly, done, TODAY)).toBe(0);
+  });
   it("sequência diária não quebra com hoje pendente", () => {
     const done = new Set(["2026-10-19", "2026-10-20", "2026-10-21"]);
     expect(currentStreak(daily, done, TODAY)).toEqual({ value: 3, unit: "dias" });

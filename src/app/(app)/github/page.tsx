@@ -1,16 +1,14 @@
+import { Suspense } from "react";
 import { GitFork } from "lucide-react";
 import { GithubInbox } from "@/components/agents/github-inbox";
-import { GitHubActivityGrid } from "@/components/ui/github-activity-grid";
-import { Card, PageHeader } from "@/components/ui/card";
+import { GithubCalendar } from "@/components/agents/github-calendar";
+import { PageHeader } from "@/components/ui/card";
 import { githubActivity } from "@/server/github";
 import { githubInbox } from "@/server/github-inbox";
-
 export const metadata = { title: "GitHub" };
-export default async function Page() {
-  const [inbox, activity] = await Promise.all([githubInbox(), githubActivity()]);
-  return <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-6">
-    <PageHeader icon={<GitFork />} title="GitHub" description={`Contribuições${activity.user ? ` de ${activity.user}` : ""}, seu fluxo de revisão e propostas da ${inbox.org}.`} actions={<a href={`https://github.com/${activity.user || inbox.org}`} target="_blank" rel="noopener noreferrer" className="rounded-full border border-border px-4 py-2 text-xs text-muted transition hover:bg-surface-2 hover:text-fg">Abrir GitHub ↗</a>} />
-    {activity.error ? <Card className="p-5 text-sm text-muted">{activity.error}</Card> : <GitHubActivityGrid days={activity.days} />}
-    <GithubInbox initial={inbox} />
-  </div>;
+export default function Page() {
+  return <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-6"><PageHeader icon={<GitFork />} title="GitHub" description="Contribuições, revisões e propostas do ecossistema." /><Suspense fallback={<Loading label="Consultando contribuições…" />}><Activity /></Suspense><Suspense fallback={<Loading label="Consultando PRs e propostas…" />}><Inbox /></Suspense></div>;
 }
+function Loading({ label }: { label: string }) { return <div role="status" className="loading-shimmer rounded-xl border border-border p-5 text-sm text-muted">{label}</div>; }
+async function Activity() { return <GithubCalendar initial={await githubActivity()} />; }
+async function Inbox() { return <GithubInbox initial={await githubInbox()} />; }

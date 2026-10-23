@@ -17,6 +17,7 @@ export type GithubInbox = {
   total: number;
   truncated: boolean;
   warning: string;
+  stale?: boolean;
 };
 
 let cache: { key: string; at: number; data: GithubInbox } | null = null;
@@ -68,6 +69,7 @@ export async function githubInbox(options: { force?: boolean } = {}): Promise<Gi
   } catch (e) {
     // Mensagens de transporte podem carregar URLs/cabeçalhos. Só erros conhecidos chegam à UI.
     const message = e instanceof Error && /^(Token do GitHub|O GitHub|A organização|GitHub respondeu)/.test(e.message) ? e.message : "Não foi possível consultar o GitHub agora. Tente novamente.";
+    if (cache?.key === key && !cache.data.error && cache.data.items.length) return { ...cache.data, error: message, stale: true };
     const data: GithubInbox = { ...empty, checkedAt: new Date().toISOString(), error: message };
     cache = { key, at: Date.now() - 4 * 60_000, data };
     return data;

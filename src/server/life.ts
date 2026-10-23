@@ -45,6 +45,16 @@ export async function listWorkouts(limit = 60) {
   return db.select().from(workouts).orderBy(desc(workouts.date), desc(workouts.createdAt)).limit(limit);
 }
 
+export async function workoutStats() {
+  const db = await getDb();
+  const t = today();
+  const [row] = await db.select({
+    week: sql<number>`count(*) filter (where ${workouts.date} >= ${startOfWeekISO(t)})::int`,
+    month: sql<number>`count(*) filter (where ${workouts.date} >= ${shiftDate(t, -29)})::int`,
+  }).from(workouts).where(lte(workouts.date, t));
+  return row;
+}
+
 export async function listBooks() {
   const db = await getDb();
   return db.select().from(books).orderBy(sql`case ${books.status} when 'lendo' then 0 when 'quero' then 1 else 2 end`, desc(books.createdAt));

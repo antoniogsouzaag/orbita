@@ -1,23 +1,45 @@
 import Link from "next/link";
-import { Building2 } from "lucide-react";
-import { PageHeader } from "@/components/ui/card";
-import { appRegistry } from "@/server/ops";
+import { Building2, ArrowUpRight, Globe, Radio, Users, GitPullRequest } from "lucide-react";
+import { BusinessTask } from "@/components/empresa/business-task";
+import { Card, PageHeader } from "@/components/ui/card";
+import { BARBERIAS, belongsToBarberias } from "@/lib/business";
 import { liveOps } from "@/server/ops-live";
 import { githubInbox } from "@/server/github-inbox";
+import { socialChannels, socialConfigured } from "@/server/social";
+import { crmUrl } from "@/server/crm";
+import { listTasks } from "@/server/tasks";
+import { appRegistry } from "@/server/ops";
 
-export const metadata = { title: "Negócios" };
+export const metadata = { title: "Negócios · Barberias" };
 export default async function Page() {
-  const [apps, live, github] = await Promise.all([appRegistry(), liveOps(), githubInbox()]);
-  return <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-6"><PageHeader icon={<Building2 />} title="Negócios" description="Uma visão por aplicação, a partir do inventário canônico e das fontes conectadas." />
-    <p className="text-xs text-muted">CRM mantém clientes e acompanhamento comercial. Órbita reúne operação, tarefas internas e contexto. Dados sem vínculo explícito com um produto não são atribuídos por suposição.</p>
-    <div className="grid gap-4 md:grid-cols-2">{apps.map((app) => {
-      const name = app.repo.split("/").at(-1) ?? app.repo;
-      const prs = github.items.filter((item) => item.repo.toLowerCase() === name.toLowerCase());
-      const status = live.status.filter((item) => item.group?.toLowerCase() === name.toLowerCase());
-      return <section key={app.repo} className="rounded-2xl border border-border bg-surface p-5"><h2 className="text-lg font-semibold">{app.page ?? name}</h2><p className="mt-1 text-xs text-faint">{app.repo}</p>
-        <div className="mt-4 flex flex-wrap gap-3 text-xs"><span>{prs.length} PRs/propostas visíveis</span><span>{status.length ? `${status.filter((item) => item.ok).length}/${status.length} endereços no ar` : "Monitoramento sem grupo explicitamente vinculado"}</span></div>
-        <div className="mt-5 flex flex-wrap gap-3 text-xs text-accent">{app.pagePath && <Link href={`/vault?p=${encodeURIComponent(app.pagePath)}`}>Manual ↗</Link>}<Link href="/github">Revisões ↗</Link><Link href="/operacao">Operação ↗</Link><Link href="/redes">Redes sociais ↗</Link><Link href="/tarefas?escopo=empresa">Tarefas ↗</Link></div>
-      </section>;
-    })}</div>{!apps.length && <p className="text-sm text-muted">O inventário de aplicações não retornou dados nesta consulta.</p>}
+  const [liveResult, githubResult, socialResult, tasksResult, registryResult] = await Promise.allSettled([liveOps(), githubInbox(), socialConfigured() ? socialChannels() : Promise.resolve([]), listTasks({ scope: "empresa", tag: BARBERIAS.tag, limit: 20 }), appRegistry()]);
+  const live = liveResult.status === "fulfilled" ? liveResult.value.status.filter((item) => belongsToBarberias(item.url)) : [];
+  const github = githubResult.status === "fulfilled" ? githubResult.value : null;
+  const issues = github?.items.filter((item) => item.repo === BARBERIAS.repo) ?? [];
+  const channels = socialResult.status === "fulfilled" ? socialResult.value.filter((item) => item.customer?.id === BARBERIAS.postizGroupId) : [];
+  const tasks = tasksResult.status === "fulfilled" ? tasksResult.value : [];
+  const app = registryResult.status === "fulfilled" ? registryResult.value.find((item) => item.repo.split("/").at(-1) === BARBERIAS.repo) : null;
+  const crm = crmUrl();
+  return <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-6">
+    <PageHeader icon={<Building2 />} title="Negócios" description="Começando pelo Barberias: presença, aquisição e execução." />
+    <Card className="overflow-hidden bg-gradient-to-br from-amber-500/15 via-surface to-surface p-6 sm:p-8"><p className="text-xs uppercase tracking-[.2em] text-amber-400">AG LABS · produto próprio</p><div className="mt-3 flex flex-wrap items-start justify-between gap-5"><div><h2 className="text-3xl font-semibold tracking-tight">Barberias</h2><p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">Da descoberta do sistema à primeira agenda. Acompanhe os pontos de entrada e transforme pendências em próximas ações.</p></div><a href="https://barberias.com.br/sobre" target="_blank" rel="noopener noreferrer" className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs text-amber-300">Ver produto ↗</a></div><div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">{[
+      { label: "Canais vinculados", value: socialResult.status === "rejected" || !socialConfigured() ? "—" : channels.length, note: "grupo Barberias no Postiz" },
+      { label: "Próximas ações", value: tasksResult.status === "rejected" ? "—" : tasks.length, note: tasks.length === 20 ? "até 20 abertas exibidas" : "tarefas com tag barberias" },
+      { label: "PRs e propostas", value: !github?.configured || github.error ? "—" : issues.length, note: "repositório barberias" },
+      { label: "Endereços monitorados", value: liveResult.status === "rejected" ? "—" : live.length, note: "domínio barberias.com.br" },
+    ].map((item) => <div key={item.label} className="rounded-xl border border-border/60 bg-surface/60 p-3"><p className="text-[11px] text-muted">{item.label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{item.value}</p><p className="mt-1 text-[10px] text-faint">{item.note}</p></div>)}</div></Card>
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"><div className="space-y-5">
+      <Card className="p-5"><h2 className="flex items-center gap-2 font-semibold"><Globe className="size-4 text-amber-400" />Páginas e pontos de entrada</h2><div className="mt-4 grid gap-2 sm:grid-cols-2">{BARBERIAS.pages.map((page) => <a key={page.path} className="group rounded-xl border border-border p-3 hover:bg-surface-2" href={`https://${BARBERIAS.domain}${page.path}`} target="_blank" rel="noopener noreferrer"><div className="flex justify-between text-sm font-medium">{page.label}<ArrowUpRight className="size-4 text-faint group-hover:text-accent" /></div><p className="mt-1 text-xs text-muted">{page.purpose}</p><p className="mt-2 text-[11px] text-faint">{page.path}</p></a>)}</div><p className="mt-3 text-[11px] leading-relaxed text-faint">O teste do gestor e a demonstração do agendamento são experiências diferentes. A demonstração não representa uma conta de cliente real.</p></Card>
+      <Card className="p-5"><h2 className="flex items-center gap-2 font-semibold"><Users className="size-4 text-amber-400" />Aquisição e relacionamento</h2><p className="mt-2 text-sm text-muted">O CRM é a fonte dos leads e das interações. O produto é a fonte do uso e da assinatura.</p><ol className="mt-4 grid gap-2 sm:grid-cols-3">{[
+        ["1. Interesse", "Lead com interesse comercial identificado; prospecção fria fica fora do funil."],
+        ["2. Ativação", "Cadastro e teste iniciado não comprovam configuração ou primeiro uso."],
+        ["3. Receita", "Pagamento confirmado e valor líquido; acesso liberado não comprova receita."],
+      ].map(([title, description]) => <li key={title} className="rounded-xl bg-surface-2 p-3"><h3 className="text-xs font-medium">{title}</h3><p className="mt-2 text-[11px] leading-relaxed text-muted">{description}</p><p className="mt-3 text-[11px] text-faint">Total por produto: indisponível</p></li>)}</ol><p className="mt-4 text-xs leading-relaxed text-muted">Os indicadores comerciais por produto ainda não chegam a esta central. Consulte os leads e as interações no CRM; a ativação e as assinaturas, no Barberias. Esta visão será preenchida quando essas fontes estiverem conectadas por produto.</p>{crm && <a href={crm} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex text-xs font-medium text-accent hover:underline">Abrir carteira e funil no CRM ↗</a>}</Card>
+      <Card className="p-5"><h2 className="font-semibold">Próximas ações do Barberias</h2><p className="mt-1 text-xs text-muted">Tarefas internas da Órbita, vinculadas explicitamente pela tag barberias.</p>{tasksResult.status === "rejected" ? <p className="mt-4 text-sm text-warning">Não foi possível consultar as tarefas.</p> : !tasks.length ? <p className="mt-4 text-sm text-muted">Nenhuma ação aberta com este vínculo. Adicione a próxima decisão ou melhoria.</p> : <ul className="mt-4 divide-y divide-border">{tasks.map((task) => <li key={task.id}><Link href={`/tarefas?escopo=empresa&tag=barberias&task=${task.id}`} className="block py-3 text-sm hover:text-accent">{task.title}{task.dueDate && <span className="mt-1 block text-[11px] text-faint">Prazo: {task.dueDate}</span>}</Link></li>)}</ul>}<BusinessTask /></Card>
+    </div><div className="space-y-5">
+      <Card className="p-5"><h2 className="flex items-center gap-2 font-semibold"><Radio className="size-4 text-amber-400" />Canais do negócio</h2>{socialResult.status === "rejected" ? <p className="mt-4 text-xs text-warning">Não foi possível consultar os canais do Postiz.</p> : !channels.length ? <p className="mt-4 text-xs text-muted">{socialConfigured() ? "Nenhum canal com o grupo Barberias retornado." : "Postiz ainda não conectado neste ambiente."}</p> : <ul className="mt-4 space-y-2">{channels.map((channel) => <li key={channel.id}><Link href={`/redes?canal=${encodeURIComponent(channel.id)}`} prefetch={false} className="flex items-center justify-between gap-2 rounded-xl bg-surface-2 p-3"><span><span className="block text-sm">{channel.name}</span><span className="mt-1 block text-[11px] text-muted">{channel.identifier.replace("-standalone", "")} · {channel.disabled ? "desativado" : "listado no Postiz"}</span></span><ArrowUpRight className="size-4 text-faint" /></Link></li>)}</ul>}<p className="mt-3 text-[11px] leading-relaxed text-faint">Vínculo pelo grupo do Postiz, sem associação por semelhança de nome.</p></Card>
+      <Card className="p-5"><h2 className="font-semibold">Operação do produto</h2>{liveResult.status === "rejected" ? <p className="mt-4 text-xs text-warning">Consulta de monitoramento indisponível.</p> : !live.length ? <p className="mt-4 text-xs text-muted">Nenhuma verificação recebida para este domínio.</p> : <ul className="mt-3 divide-y divide-border">{live.map((item) => <li key={item.url} className="py-3 text-xs"><p className="flex justify-between gap-3"><span>{item.name}</span><span className={item.ok ? "text-success" : "text-warning"}>{item.ok ? "Respondeu" : "Falhou"}</span></p><p className="mt-1 text-[10px] text-faint">{new Date(item.checkedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p></li>)}</ul>}<Link href="/operacao" className="mt-4 inline-block text-xs text-accent hover:underline">Ver monitoramento e incidentes ↗</Link></Card>
+      <Card className="p-5"><h2 className="flex items-center gap-2 font-semibold"><GitPullRequest className="size-4 text-amber-400" />Evolução do produto</h2>{!github || github.error || !github.configured ? <p className="mt-4 text-xs text-warning">Consulta GitHub indisponível. Veja a conexão e tente novamente.</p> : !issues.length ? <p className="mt-4 text-xs text-muted">Nenhum PR ou proposta visível para este repositório.</p> : <ul className="mt-3 divide-y divide-border">{issues.slice(0, 5).map((item) => <li key={item.url}><a href={item.url} target="_blank" rel="noopener noreferrer" className="block py-3 text-xs leading-relaxed hover:text-accent">{item.title}<span className="mt-1 block text-[10px] text-faint">#{item.number} · {item.kind === "pr" ? "PR" : "Proposta"}</span></a></li>)}</ul>}<div className="mt-3 flex flex-wrap gap-3 text-xs text-accent"><Link href="/github">Todas as revisões ↗</Link>{app?.pagePath && <Link href={`/vault?p=${encodeURIComponent(app.pagePath)}`}>Ficha no vault ↗</Link>}</div></Card>
+    </div></div>
   </div>;
 }

@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, Eye, EyeOff, LayoutGrid } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import { updateSettings } from "@/app/actions/core";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
@@ -21,7 +22,7 @@ export function Customize({ order, hidden, labels, field = "widgets", title = "P
       return next;
     });
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(value) => { if (value) { setO(order); setH(hidden); } setOpen(value); }}>
       <DialogTrigger className="flex items-center gap-1.5 text-[12.5px] text-muted hover:text-fg">
         <LayoutGrid className="size-3.5" /> Personalizar
       </DialogTrigger>
@@ -39,7 +40,7 @@ export function Customize({ order, hidden, labels, field = "widgets", title = "P
           ))}
         </div>
         <div className="mt-4 flex justify-end">
-          <Button variant="primary" disabled={pending} onClick={() => start(async () => { await updateSettings({ [field]: { order: o as never, hidden: h as never } }); setOpen(false); })}>Salvar</Button>
+          <Button variant="primary" disabled={pending} onClick={() => start(async () => { try { await updateSettings({ [field]: { order: o as never, hidden: h as never } }); setOpen(false); } catch { toast.error("Não foi possível salvar a organização dos blocos."); } })}>Salvar</Button>
         </div>
       </DialogContent>
     </Dialog>
