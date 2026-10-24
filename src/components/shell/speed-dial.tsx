@@ -139,7 +139,7 @@ export function SpeedDial({ onQuickAdd, onOpenChange, scope, open }: { open: boo
       {open && createPortal(
         <>
           <button type="button" tabIndex={-1} aria-label="Fechar menu de atalhos" className={styles.backdrop} onClick={() => changeOpen(false)} />
-          <div ref={menuRef} id={menuId} role="menu" aria-label={`Captura e atalhos · ${scope === "empresa" ? "Empresa" : "Pessoal"}`} aria-describedby={helpId} className={styles.orbit} style={anchor} onKeyDown={(event) => {
+          <div ref={menuRef} id={menuId} data-shell-layer="open" role="menu" aria-label={`Captura e atalhos · ${scope === "empresa" ? "Empresa" : "Pessoal"}`} aria-describedby={helpId} className={styles.orbit} style={anchor} onKeyDown={(event) => {
             const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')];
             const index = buttons.indexOf(event.target as HTMLButtonElement);
             const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : ["ArrowRight", "ArrowDown"].includes(event.key) ? (index + 1) % buttons.length : ["ArrowLeft", "ArrowUp"].includes(event.key) ? (index + buttons.length - 1) % buttons.length : -1;

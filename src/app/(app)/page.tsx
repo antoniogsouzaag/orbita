@@ -32,7 +32,7 @@ export default async function HomePage() {
     tarefas: () => <TasksWidget tasks={data.tasks} counts={data.counts} />,
     agenda: () => <AgendaWidget agenda={data.agenda} />,
     plano: () => <PlanWidget plan={data.plan} aiEnabled={data.aiEnabled} />,
-    checkin: () => <CheckinWidget checkin={data.checkin} />,
+    checkin: () => <CheckinWidget key={data.date} date={data.date} checkin={data.checkin} />,
     operacao: () => <OpsWidget />,
     foco: () => <FocusWidget focus={data.focus} />,
     treino: () => <WorkoutWidget workout={data.lastWorkout} />,

@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  ArrowRight, BookOpen, CalendarDays, CheckSquare, ChevronLeft, ChevronRight, Dumbbell, Flame, Goal, Loader2, Repeat, Server, Smile, Sparkles, Timer, Trophy, Wallet, X,
+  ArrowRight, BookOpen, CalendarDays, CheckSquare, ChevronLeft, ChevronRight, Dumbbell, Flame, Goal, Loader2, Repeat, Server, Sparkles, Timer, Trophy, Wallet, X,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
-import { saveCheckin, toggleHabit, toggleTask } from "@/app/actions/core";
+import { toggleHabit, toggleTask } from "@/app/actions/core";
 import { TaskItem } from "@/components/tasks/task-item";
 import { Card, CardHeader, EmptyState } from "@/components/ui/card";
 import { CheckButton, Progress, Tooltip } from "@/components/ui/misc";
@@ -228,42 +228,7 @@ export function GoalsWidget({ goals, href = "/metas" }: { goals: HomeData["goals
 }
 
 /* ───────── Como foi hoje? ───────── */
-const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
-export function CheckinWidget({ checkin }: { checkin: HomeData["checkin"] }) {
-  const [mood, setMood] = React.useState<number | null>(checkin?.mood ?? null);
-  const [energy, setEnergy] = React.useState<number | null>(checkin?.energy ?? null);
-  const [note, setNote] = React.useState(checkin?.note ?? "");
-  const [, start] = React.useTransition();
-  const save = (patch: Parameters<typeof saveCheckin>[0]) => start(() => saveCheckin(patch));
-  return (
-    <Card className="h-full">
-      <CardHeader icon={<Smile />} title="Como foi hoje?" href="/revisao" hrefLabel="Revisão" />
-      <div className="space-y-3 px-5 pb-5">
-        <div className="flex items-center gap-3">
-          <span className="w-14 text-[12px] text-muted">Humor</span>
-          <div className="flex flex-1 justify-between gap-1">
-            {MOODS.map((m, k) => (
-              <button key={m} onClick={() => { const v = mood === k + 1 ? null : k + 1; setMood(v); save({ mood: v }); }} className={cn("grid size-9 place-items-center rounded-xl border text-lg transition", mood === k + 1 ? "border-accent bg-accent/15 scale-105" : "border-border bg-surface-2 opacity-70 hover:opacity-100")} aria-label={`Humor ${k + 1}`}>
-                {m}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="w-14 text-[12px] text-muted">Energia</span>
-          <div className="flex flex-1 justify-between gap-1">
-            {[1, 2, 3, 4, 5].map((lv) => (
-              <button key={lv} onClick={() => { const v = energy === lv ? null : lv; setEnergy(v); save({ energy: v }); }} className={cn("flex h-9 w-9 items-end justify-center gap-[2px] rounded-xl border pb-2 transition", energy === lv ? "border-accent bg-accent/15" : "border-border bg-surface-2 hover:border-border-strong")} aria-label={`Energia ${lv}`}>
-                {[1, 2, 3, 4, 5].map((b) => <span key={b} className="w-[3px] rounded-sm" style={{ height: 3 + b * 2.5, background: b <= lv ? "var(--accent)" : "var(--border-strong)" }} />)}
-              </button>
-            ))}
-          </div>
-        </div>
-        <Input value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== (checkin?.note ?? "") && save({ note })} placeholder="Uma linha sobre o dia (opcional)" className="h-9" />
-      </div>
-    </Card>
-  );
-}
+export { DailyCheckin as CheckinWidget } from "@/components/life/daily-checkin";
 
 /* ───────── Plano do dia (IA) ───────── */
 export function PlanWidget({ plan, aiEnabled }: { plan: HomeData["plan"]; aiEnabled: boolean }) {

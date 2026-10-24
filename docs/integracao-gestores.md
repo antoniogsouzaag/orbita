@@ -6,8 +6,6 @@ Este guia documenta os contratos de conexão e os critérios de validação por 
 
 Verificação registrada: [ativação do Hermes Oracle em 23/10/2026](hermes-oracle-ativacao-2026-10-23.md), com leitura funcional e atividade correlacionada na central.
 
-Verificação registrada: [ativação do Hermes Oracle em 23/10/2026](hermes-oracle-ativacao-2026-10-23.md), com leitura funcional e atividade correlacionada na central.
-
 ## Dois sentidos independentes
 
 | Sentido | Mecanismo | O que significa |
@@ -40,7 +38,7 @@ Nunca compartilhar o mesmo token entre os três gestores. Revogar o token interr
 
 O Hermes oferece webhooks nativos que podem iniciar execuções do agente. São uma opção adequada para despacho assíncrono, desde que o gateway tenha a plataforma habilitada e a rota seja publicada com autenticação. Não é necessário expor um servidor MCP adicional só para receber esse gatilho.
 
-A Órbita ainda precisa de um adaptador de saída; o código atual não o implementa. Antes de ativar:
+A Órbita possui um adaptador manual para o receptor dedicado preparado por Hermes Oracle. A ativação permanece pendente de serviço, rota pública e chave. Veja [contrato de saída](hermes-dispatch.md). O webhook nativo descrito abaixo é uma referência e não o contrato do receptor dedicado. Antes de ativar:
 
 - definir ações permitidas e um gestor responsável por cada ação; conteúdo externo é dado, não autorização para comandos arbitrários;
 - configurar rota dedicada, segredo próprio e TLS, preservando autenticação e rotas existentes;

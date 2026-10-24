@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  distDir: process.env.ORBITA_DIST_DIR || ".next",
   // App totalmente dinâmico (dados pessoais por requisição): usamos o modelo
   // clássico de cache em vez de Cache Components.
   cacheComponents: false,
