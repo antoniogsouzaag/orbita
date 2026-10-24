@@ -1,7 +1,8 @@
 import "server-only";
-import { eq, like, sql } from "drizzle-orm";
+import { eq, inArray, like, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { settings } from "@/db/schema";
+import { DIRECTORS } from "@/lib/team";
 
 /* Fotos dos agentes: guardadas no banco (uma chave por agente), servidas por /api/agents/<id>/avatar. */
 
@@ -23,6 +24,9 @@ export async function setAgentAvatar(id: string, value: StoredAgentAvatar | null
   const db = await getDb();
   if (!value) await db.delete(settings).where(eq(settings.key, PREFIX + id));
   else await db.insert(settings).values({ key: PREFIX + id, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
+  // Foto gravada num id antigo do mesmo diretor (ex.: oracle) deixa de valer ao trocar ou remover.
+  const aliases = DIRECTORS.find((d) => d.id === id)?.aliases ?? [];
+  if (aliases.length) await db.delete(settings).where(inArray(settings.key, aliases.map((a) => PREFIX + a)));
 }
 
 /** URL versionada da foto de cada agente que tem uma (sem trazer as imagens). */

@@ -10,7 +10,7 @@ import { dispatches, type Dispatch, type DispatchStatus, type DispatchTarget } f
  * e o próprio agente informa execução e resultado por registrar_resultado (MCP).
  */
 
-export const TARGET_LABEL: Record<DispatchTarget, string> = { openclaw: "Tom · OpenClaw (VPS-02)", hermes: "Oracle · Hermes (VPS-03)" };
+export const TARGET_LABEL: Record<DispatchTarget, string> = { openclaw: "Tom · OpenClaw (VPS-02)", hermes: "Hermes Oracle · Hermes (VPS-03)" };
 
 /** Estados em que o pedido ainda espera o agente. */
 export const OPEN_STATUSES: DispatchStatus[] = ["sending", "accepted", "running"];

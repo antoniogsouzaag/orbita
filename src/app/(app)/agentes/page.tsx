@@ -11,7 +11,7 @@ import { Card, CardHeader, PageHeader } from "@/components/ui/card";
 import { agentActivitySummary, agentTasks, listAgentTokens, recentActivity } from "@/server/agents";
 import { agentReports } from "@/server/agent-reports";
 import { buildTeam } from "@/server/team";
-import { agentSlug } from "@/lib/team";
+import { canonicalAgentId } from "@/lib/team";
 
 export const metadata = { title: "Agentes" };
 
@@ -56,7 +56,7 @@ export default async function Page() {
           ) : (
             <ul className="divide-y divide-border">
               {[...groupedActivity].map(([agent, calls]) => (
-                <li key={agent} className="py-2.5"><details><summary className="flex cursor-pointer items-center gap-3 text-[13px]"><Bot className="size-4 text-accent" /><Link href={`/agentes/${agentSlug(agent)}`} className="font-medium hover:text-accent hover:underline">{agent}</Link><span className="ml-auto text-xs tabular-nums text-muted">{calls.length} chamadas · {calls.filter(call => !call.ok).length} falhas</span></summary><ul className="mt-2 divide-y divide-border pl-7">{calls.map(a => <li key={a.id} className="flex items-start gap-3 py-2">
+                <li key={agent} className="py-2.5"><details><summary className="flex cursor-pointer items-center gap-3 text-[13px]"><Bot className="size-4 text-accent" /><Link href={`/agentes/${canonicalAgentId(agent)}`} className="font-medium hover:text-accent hover:underline">{agent}</Link><span className="ml-auto text-xs tabular-nums text-muted">{calls.length} chamadas · {calls.filter(call => !call.ok).length} falhas</span></summary><ul className="mt-2 divide-y divide-border pl-7">{calls.map(a => <li key={a.id} className="flex items-start gap-3 py-2">
                   {a.ok ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" /> : <XCircle className="mt-0.5 size-4 shrink-0 text-danger" />}
                   <div className="min-w-0 flex-1"><p className="break-words text-[12px] text-muted">{a.summary}</p><code className="mt-1 block break-all font-mono text-[10px] text-faint">{a.tool}</code></div>
                   <time dateTime={a.createdAt.toISOString()} className="shrink-0 text-[11px] text-faint">{ago(a.createdAt)}</time>

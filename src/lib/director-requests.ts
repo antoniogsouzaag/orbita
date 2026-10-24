@@ -5,7 +5,7 @@ export type RequestGroup = "open" | "attention" | "completed";
 export type DirectorRequest = {
   key: string;
   id: string;
-  agent: "Tom" | "Oracle";
+  agent: "Tom" | "Hermes Oracle";
   title: string;
   status: string;
   group: RequestGroup;
@@ -46,7 +46,7 @@ export function directorRequests(tom: DispatchView[], oracle: HermesOperation[])
       detail: row.summary || row.detail, evidence: row.evidence, silent: row.silent,
     })),
     ...oracle.map((row): DirectorRequest => ({
-      key: `oracle:${row.id}`, id: row.id, agent: "Oracle",
+      key: `oracle:${row.id}`, id: row.id, agent: "Hermes Oracle",
       title: ACTIONS[row.action] ?? row.action, status: LABELS[row.status] ?? row.status,
       group: group(row.status, false), createdAt: new Date(row.createdAt).toISOString(), updatedAt: new Date(row.checkedAt).toISOString(),
       detail: row.detail, silent: false,
