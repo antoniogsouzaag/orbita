@@ -10,6 +10,27 @@ function credentials(inbox = "", general = "", vault = "") {
 }
 
 describe("GitHub operacional", () => {
+  it("consulta execução e decisão sem esconder aprovadas ainda abertas", async () => {
+    credentials("fixture-triage");
+    const request = vi.fn(async (url: string) => {
+      const q = new URL(url).searchParams.get("q")!;
+      if (q.includes("is:pr")) return Response.json({items:[],total_count:0});
+      expect(q).toContain("label:proposta,execucao,decisao");
+      expect(q).not.toContain("-label:aprovado");
+      return Response.json({items:[
+        {title:"Correção",html_url:"https://github.com/org/app/issues/1",number:1,updated_at:"2026-10-24",repository_url:"https://api.github.com/repos/org/app",labels:[{name:"execucao"},{name:"bloqueado"}]},
+        {title:"Mudança de preço",html_url:"https://github.com/org/app/issues/2",number:2,updated_at:"2026-10-24",repository_url:"https://api.github.com/repos/org/app",labels:[{name:"decisao"}]},
+        {title:"Proposta legada",html_url:"https://github.com/org/app/issues/3",number:3,updated_at:"2026-10-24",repository_url:"https://api.github.com/repos/org/app",labels:[{name:"proposta"}]}
+      ],total_count:3});
+    });
+    vi.stubGlobal("fetch",request);
+    const result = await githubInbox({force:true});
+    expect(result.total).toBe(3);
+    expect(result.items.map(i => i.stage)).toEqual(["execution","decision","triage"]);
+    expect(result.items[0].blocked).toBe(true);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it("preserva a última lista válida quando uma atualização temporariamente falha", async () => {
     credentials("token-for-stale-test");
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ items: [{ title: "Revisar", html_url: "https://github.com/org/repo/pull/1", number: 1, updated_at: "2026-10-23", repository_url: "https://api.github.com/repos/org/repo" }], total_count: 1 })));

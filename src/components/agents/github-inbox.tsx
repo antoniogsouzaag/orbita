@@ -5,16 +5,18 @@ import * as React from "react";
 import { Card, EmptyState } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { GithubInbox as Inbox } from "@/server/github-inbox";
+import { GITHUB_STAGES, stageLabel } from "@/lib/github-triage";
 
 export function GithubInbox({ initial: data }: { initial: Inbox }) {
   const [query, setQuery] = React.useState("");
   const [kind, setKind] = React.useState("all");
   const [repo, setRepo] = React.useState("all");
   const repositories = [...new Set(data.items.map((item) => item.repo))].sort();
-  const items = data.items.filter((item) => (repo === "all" || item.repo === repo) && `${item.title} ${item.repo} ${item.author} #${item.number}`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR")) && (kind === "all" || kind === "proposta" && item.kind === "proposta" || kind === "draft" && item.kind === "pr" && item.draft || kind === "pr" && item.kind === "pr" && !item.draft));
+  const items = data.items.filter((item) => (repo === "all" || item.repo === repo) && `${item.title} ${item.repo} ${item.author} #${item.number}`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR")) && (kind === "all" || item.kind === "proposta" && kind === (item.stage ?? "triage") || kind === "draft" && item.kind === "pr" && item.draft || kind === "pr" && item.kind === "pr" && !item.draft));
 
   return (
     <div className="space-y-5">
+      <p className="text-[12px] text-muted">Correções e melhorias de baixo risco seguem na fila técnica. Só decisões estruturais, comerciais ou sensíveis aguardam Antonio. Rótulos não aprovam código nem dispensam testes, revisão ou deploy.</p>
       <div className="flex flex-wrap gap-2" aria-label="Repositórios">
         <button type="button" aria-pressed={repo === "all"} onClick={() => setRepo("all")} className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${repo === "all" ? "border-accent/30 bg-accent/10 text-accent" : "border-border text-muted hover:bg-surface-2"}`}>Todos · {data.items.length}</button>
         {repositories.map((name) => <button key={name} type="button" aria-pressed={repo === name} onClick={() => setRepo(name)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${repo === name ? "border-accent/30 bg-accent/10 text-accent" : "border-border text-muted hover:bg-surface-2"}`}><FolderGit2 className="size-3" />{name}<span className="text-faint">{data.items.filter((item) => item.repo === name).length}</span></button>)}
@@ -22,7 +24,7 @@ export function GithubInbox({ initial: data }: { initial: Inbox }) {
       <Card className="overflow-hidden !rounded-2xl">
         <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
           <div className="relative min-w-0 flex-1 basis-56"><Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-faint" /><Input aria-label="Buscar PRs por título, repositório ou autor" className="h-9 pl-9" placeholder="Buscar título, repositório, autor…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
-          <select aria-label="Filtrar tipo de pendência" value={kind} onChange={(event) => setKind(event.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-[12px] text-fg"><option value="all">Todas as pendências</option><option value="pr">PRs para revisar</option><option value="draft">Rascunhos</option><option value="proposta">Propostas</option></select>
+          <select aria-label="Filtrar tipo de pendência" value={kind} onChange={(event) => setKind(event.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-[12px] text-fg"><option value="all">Todas as pendências</option><option value="pr">PRs para revisar</option><option value="draft">Rascunhos</option>{GITHUB_STAGES.map(stage => <option key={stage.id} value={stage.id}>{stage.label}</option>)}</select>
 
         </div>
         {data.stale && data.error && <p role="alert" className="border-b border-border px-5 py-3 text-xs text-warning">{data.error} Exibindo a última resposta válida; os dados podem estar desatualizados.</p>}
@@ -32,7 +34,7 @@ export function GithubInbox({ initial: data }: { initial: Inbox }) {
               <li key={item.url}>
                 <a href={item.url} target="_blank" rel="noopener noreferrer" className="group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-2">
                   <span className="mt-0.5 rounded-lg bg-surface-2 p-2 text-muted">{item.kind === "pr" ? <GitPullRequest className="size-4" /> : <Lightbulb className="size-4" />}</span>
-                  <div className="min-w-0 flex-1"><p className="text-[13px] font-medium leading-snug">{item.title}</p><div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint"><span>{item.repo} #{item.number}</span><span>{item.author}</span><span>Atualizado {new Date(item.updatedAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span><span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-muted">{item.kind === "proposta" ? "Proposta" : item.draft ? "Rascunho" : "PR aberto"}</span></div></div>
+                  <div className="min-w-0 flex-1"><p className="text-[13px] font-medium leading-snug">{item.title}</p><div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint"><span>{item.repo} #{item.number}</span><span>{item.author}</span><span>Atualizado {new Date(item.updatedAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span><span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-muted">{stageLabel(item)}</span></div></div>
                   <ArrowUpRight className="mt-1 size-4 shrink-0 text-faint transition-colors group-hover:text-accent" />
                 </a>
               </li>
@@ -50,10 +52,9 @@ export function GithubInbox({ initial: data }: { initial: Inbox }) {
   );
 }
 
-export function GithubStats({ data }: { data: Inbox }) { return (<div className="grid grid-cols-3 gap-2 sm:gap-3">
+export function GithubStats({ data }: { data: Inbox }) { return (<div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         {[
-          { label: "PRs para revisar", value: data.items.filter((item) => item.kind === "pr" && !item.draft).length },
-          { label: "Rascunhos", value: data.items.filter((item) => item.kind === "pr" && item.draft).length },
-          { label: "Propostas abertas", value: data.items.filter((item) => item.kind === "proposta").length },
+          { label: "PRs abertos", value: data.items.filter((item) => item.kind === "pr").length },
+          ...GITHUB_STAGES.map(stage => ({ label: stage.label, value: data.items.filter(item => item.kind === "proposta" && (item.stage ?? "triage") === stage.id).length })),
         ].map((stat) => <Card key={stat.label} className="!rounded-2xl p-3 sm:p-4"><p className="text-[11px] text-muted">{stat.label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{data.error && !data.stale || !data.configured ? "—" : stat.value}</p></Card>)}
       </div>); }
