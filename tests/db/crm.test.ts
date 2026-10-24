@@ -1,3 +1,4 @@
+import { assistantTools, runAssistantTool } from "@/server/assistant";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -75,16 +76,13 @@ describe("CRM pela Órbita", () => {
   });
 
   it("as ferramentas crm_* só aparecem para a IA com o CRM conectado", async () => {
-    const { assistantTools } = await import("@/server/assistant");
     expect(assistantTools().filter((t) => t.name.startsWith("crm_"))).toHaveLength(7);
     delete process.env.CRM_MCP_URL;
     expect(assistantTools().some((t) => t.name.startsWith("crm_"))).toBe(false);
-    const { runAssistantTool } = await import("@/server/assistant");
     expect((await runAssistantTool("crm_resumo", {})).ok).toBe(false);
   });
 
   it("a IA cria tarefa para o Léo sem mandar campos nulos e leva o link do CRM", async () => {
-    const { runAssistantTool } = await import("@/server/assistant");
     const r = await runAssistantTool("crm_criar_tarefa", JSON.stringify({ titulo: "Enviar proposta por e-mail", responsavel: "leo", descricao: null, prazo: "2026-10-24", prioridade: null, contato_id: null }));
     expect(r.ok, r.text).toBe(true);
     expect(r.text).toContain("para Léo");
@@ -94,7 +92,6 @@ describe("CRM pela Órbita", () => {
   });
 
   it("erro de validação do CRM volta como falha legível", async () => {
-    const { runAssistantTool } = await import("@/server/assistant");
     const r = await runAssistantTool("crm_contato", { contato_id: "22222222-2222-4222-8222-222222222222" });
     expect(r).toMatchObject({ ok: false, text: "Falhou: contato não encontrado" });
     expect((await runAssistantTool("crm_contato", { contato_id: "abc" })).text).toMatch(/Argumentos inválidos/);

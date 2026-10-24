@@ -1,6 +1,8 @@
 # Saída Órbita → Hermes Oracle
 
-Contrato fornecido pelo gestor em 23/10/2026. Receptor preparado em `/home/ubuntu/projects/operations/orbita-hermes-receiver/README.md`; não ativado nem publicado na evidência recebida. URL proposta: `https://hermes.aglabs.api.br/webhooks/orbita-hermes`, loopback `127.0.0.1:8651`. Não é a rota nativa da porta 8644.
+Estado atual: receptor ativo; as três variáveis Production da Órbita estão configuradas, incluindo chave dedicada como Secret e despacho habilitado. Prova independente assinada 202/200 concluída. Cópias temporárias locais removidas. A execução pelo código publicado ainda depende de atualização da Órbita. Os registros abaixo preservam as etapas e evidências anteriores.
+
+Contrato fornecido pelo gestor em 23/10/2026. Receptor inicialmente preparado em `/home/ubuntu/projects/operations/orbita-hermes-receiver/README.md`; ativado posteriormente com autorização explícita. URL ativa: `https://hermes.aglabs.api.br/webhooks/orbita-hermes`, loopback `127.0.0.1:8651`. Não é a rota nativa da porta 8644.
 
 Configure no servidor `HERMES_WEBHOOK_URL`, `HERMES_WEBHOOK_SECRET` (chave dedicada transferida por secret store) e só depois `HERMES_DISPATCH_ENABLED=true`. Nenhum segredo é aceito na interface ou registrado no histórico. MCP é independente e a credencial recusada precisa de validação sem ampliar escopo.
 
@@ -19,3 +21,11 @@ Antonio autorizou nesta conversa iniciar o serviço dedicado, publicar somente a
 Pendente: o gestor não encontrou autenticação Vercel e não criou as três variáveis no destino. A chave permaneceu protegida no VPS. Não houve publicação do código local. Transferência deve ocorrer diretamente do arquivo ao secret store do projeto/equipe corretos, sem valor em chat, logs, Git ou argumentos.
 
 Verificação independente do Codex: POST público sem assinatura retornou HTTP 401. As provas assinadas permanecem reportadas pelo Hermes, pois a chave não foi transferida ao destino.
+
+## Configuração Production concluída — continuação
+
+Projeto Vercel `prj_Tc8KxzT1UHc3aqpoNYb5NfwxMbAT`, equipe `team_YyEI6KlTzQMqFslAkW9Gwt4d`, domínio `orb.aglabs.api.br` conferidos pelo conector. As três variáveis foram configuradas exclusivamente em Production: URL dedicada, HERMES_WEBHOOK_SECRET como sensitive/Secret e HERMES_DISPATCH_ENABLED=true. Nenhum deployment foi acionado nesta configuração.
+
+A revisão automática bloqueou inicialmente o download por criar cópia local de credencial. Antonio autorizou explicitamente a cópia temporária protegida, transferência à Vercel e exclusão posterior. O arquivo foi obtido pelo download do painel autenticado Hermes sem abrir o valor, restringido ao usuário local e importado na Vercel como Secret, somente Production. Metadados conferidos pelo conector sem decrypt. O arquivo temporário e a cópia em Downloads foram excluídos; existência negativa confirmada. Nenhuma credencial entrou em chat, Git ou argumentos. A credencial local da CLI recebeu 403, então a gravação foi feita pelo painel já autenticado.
+
+Prova independente assinada a partir deste computador: diagnostics.read retornou 202 accepted e result.read retornou 200 com request_id correlacionado. Isso verifica o receptor, não a execução pela versão publicada da Órbita. O lembrete consultado retorna scheduled antes do vencimento; esse estado agora é aceito pelo adaptador e coberto por teste.

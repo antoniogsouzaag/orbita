@@ -46,3 +46,11 @@ TypeScript final aprovado após todos os ajustes. Servidores e builds de QA fora
 - Suíte: 149/150; o teste de streaming OpenAI só estoura o tempo sob carga e passa isolado, igual ao main.
 - Corrigida acentuação corrompida em `src/components/shell/interactions.ts`.
 - Pendente fora do código: criar `HERMES_WEBHOOK_URL`, `HERMES_WEBHOOK_SECRET` e `HERMES_DISPATCH_ENABLED` na Vercel. Sem elas o despacho segue desabilitado.
+
+## Continuação: validação e secret store
+
+Build Next.js/Turbopack aprovado em diretório independente `.next-build-final`, incluindo TypeScript e geração de rotas. A lentidão de importação foi reproduzida no teste de streaming: o módulo de IA levava mais de 30 s para importar e o teste expirava antes do request. Import estático separa inicialização do trecho cronometrado; os dois testes OpenAI passaram sem aumentar o timeout. Mesma correção aplicada aos testes de ferramentas, CRM e resumo diário.
+
+Produção Vercel: URL, chave dedicada como Secret somente Production e habilitação configuradas. Cópias temporárias explicitamente autorizadas e excluídas após confirmação dos metadados. Prova assinada independente 202/200 confirmada. Não houve deploy nesta continuação e a validação originada na versão publicada da Órbita ainda precisa ocorrer após atualização.
+
+Resultado final desta continuação: 35 arquivos e 151 testes aprovados com um worker. O build canônico Next.js/Turbopack concluiu com êxito em diretório limpo. O diagnóstico e o ajuste de importação de testes não alteraram o modelo/provedor nem chamaram a API real de IA.

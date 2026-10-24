@@ -12,7 +12,7 @@ export const hermesCommand = z.discriminatedUnion("action", [
   z.object({ action: z.literal("reminder.internal"), params: z.object({ text: z.string().trim().min(1).max(1000), due_at: z.number().int() }).strict() }).strict(),
 ]);
 type Command = z.infer<typeof hermesCommand>;
-export type HermesOperation = { id: string; action: Command["action"]; status: "sending" | "accepted" | "completed" | "failed" | "interrupted" | "due" | "unknown"; createdAt: string; checkedAt: string; detail: string };
+export type HermesOperation = { id: string; action: Command["action"]; status: "sending" | "accepted" | "scheduled" | "completed" | "failed" | "interrupted" | "due" | "unknown"; createdAt: string; checkedAt: string; detail: string };
 const key = (id: string) => `hermes-operation:${id}`;
 export function hermesConfiguration() {
   return { enabled: process.env.HERMES_DISPATCH_ENABLED === "true", endpointConfigured: !!process.env.HERMES_WEBHOOK_URL, secretConfigured: !!process.env.HERMES_WEBHOOK_SECRET };
@@ -49,7 +49,7 @@ export async function readHermesResult(input: string): Promise<HermesOperation> 
   const previous = await getRawSetting(key(id)) as HermesOperation | undefined;
   if (!previous) throw new Error("Operação não encontrada.");
   const result = await request(id, "result.read", {});
-  const status = z.enum(["accepted", "completed", "failed", "interrupted", "due"]).parse(result.status);
+  const status = z.enum(["accepted", "scheduled", "completed", "failed", "interrupted", "due"]).parse(result.status);
   if (result.action !== previous.action) throw new Error("Ação divergente na resposta.");
   const operation = { ...previous, status, checkedAt: new Date().toISOString(), detail: status === "completed" ? "Execução concluída pelo receptor." : status === "due" ? "Lembrete vencido na caixa interna." : `Estado informado pelo receptor: ${status}` };
   // Resultados técnicos brutos podem conter informações privadas; guardamos só o estado correlacionado.

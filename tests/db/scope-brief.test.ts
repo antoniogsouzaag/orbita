@@ -1,3 +1,4 @@
+import { buildBrief } from "@/server/brief";
 import { beforeAll, describe, expect, it } from "vitest";
 import { getDb } from "@/db";
 import { opsEvents, opsStatus, tasks } from "@/db/schema";
@@ -26,7 +27,6 @@ describe("pessoal × empresa e bom dia", () => {
   });
 
   it("monta o bom dia com as duas listas, pedidos dos agentes e HTML escapado", async () => {
-    const { buildBrief } = await import("@/server/brief");
     const text = await buildBrief();
     expect(text).toContain("<b>Pessoal</b>");
     expect(text).toContain("Pagar academia");

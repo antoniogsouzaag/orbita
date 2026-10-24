@@ -1,3 +1,4 @@
+import { askStream } from "@/server/ai";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -40,7 +41,6 @@ afterAll(() => server?.close());
 
 describe("IA com ações", () => {
   it("executa a ferramenta, devolve o resultado ao modelo e marca a ação no fluxo", async () => {
-    const { askStream } = await import("@/server/ai");
     const { splitActions } = await import("@/lib/ai-stream");
     const raw = await new Response(await askStream([{ role: "user", content: "cria tarefa revisar proposta da Gabi amanhã 10h, alta" }])).text();
     const { text, actions } = splitActions(raw);
