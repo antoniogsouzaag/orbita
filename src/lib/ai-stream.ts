@@ -1,18 +1,30 @@
-/** Separa o texto da IA dos marcadores de ação (\u001e{json}\u001e) enviados no mesmo fluxo. */
+/** Marcadores emitidos pelo servidor. Texto do modelo não é recibo de execução. */
 export type AiAction = { label: string; href: string };
-const MARK = "\u001e";
+export type AiSource = { name: string; ok: boolean };
+export const ACTION_MARK = "\u001e";
 
-export function splitActions(raw: string): { text: string; actions: AiAction[] } {
-  const actions: AiAction[] = [];
-  const parts = raw.split(MARK);
+export function modelText(text: string) { return text.replaceAll(ACTION_MARK, ""); }
+export function sourceMarker(source: AiSource) { return ACTION_MARK + JSON.stringify({ kind: "source", ...source }) + ACTION_MARK; }
+export function actionMarker(action: AiAction) { return ACTION_MARK + JSON.stringify({ kind: "action", ...action }) + ACTION_MARK; }
+
+export function splitActions(raw: string): { text: string; actions: AiAction[]; sources: AiSource[] } {
+  const actions: AiAction[] = [], sources: AiSource[] = [];
+  const parts = raw.split(ACTION_MARK);
   let text = "";
   for (let i = 0; i < parts.length; i++) {
     if (i % 2 === 0) text += parts[i];
     else if (i < parts.length - 1) {
       try {
-        actions.push(JSON.parse(parts[i]) as AiAction);
-      } catch {}
-    } // marcador ainda incompleto no fim do fluxo: ignora até chegar o resto
+        const value: unknown = JSON.parse(parts[i]);
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+        const v = value as Record<string, unknown>;
+        if (v.kind === "source" && typeof v.name === "string" && /^[a-z][a-z0-9_]{0,79}$/.test(v.name) && typeof v.ok === "boolean") {
+          if (!sources.some(s => s.name === v.name && s.ok === v.ok)) sources.push({ name: v.name, ok: v.ok });
+        } else if ((v.kind === undefined || v.kind === "action") && typeof v.label === "string" && v.label.length > 0 && v.label.length <= 1000 && typeof v.href === "string" && /^\/(?!\/)[^\\\u0000-\u0020]*$/.test(v.href)) {
+          actions.push({ label: v.label, href: v.href });
+        }
+      } catch { /* marcador incompleto ou inválido não vira recibo */ }
+    }
   }
-  return { text, actions };
+  return { text, actions, sources };
 }

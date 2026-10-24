@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, CheckCircle2, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUp, CheckCircle2, Sparkles, Square, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -8,14 +8,16 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { splitActions, type AiAction } from "@/lib/ai-stream";
+import { type AiAction, type AiSource } from "@/lib/ai-stream";
+import { readChatStream } from "@/lib/ai-chat-stream";
+import { boundedChatHistory, CHAT_LIMITS } from "@/lib/orbe-chat";
 import { cn } from "@/lib/utils";
 
-type Msg = { role: "user" | "assistant"; content: string; actions?: AiAction[] };
+type Msg = { role: "user" | "assistant"; content: string; actions?: AiAction[]; sources?: AiSource[] };
 const SUGGESTIONS = ["O que devo priorizar hoje?", "Reorganize minhas tarefas atrasadas", "Cria tarefa: revisar proposta amanhã às 10h", "O que está fora do ar agora?", "Quais agentes cuidam do VPS-03?", "Quais sites são P1 e o que fazer se um cair?", "Resuma as regras do vault", "Monte um plano para quitar minha dívida"];
 const EMPTY_HISTORY = "[]";
 function subscribeHistory(listener: () => void) { window.addEventListener("storage", listener); return () => window.removeEventListener("storage", listener); }
-function parseHistory(raw: string): Msg[] { try { const rows = JSON.parse(raw); return Array.isArray(rows) ? rows.filter(m => (m.role === "user" || m.role === "assistant") && typeof m.content === "string").slice(-30) : []; } catch { return []; } }
+function parseHistory(raw: string): Msg[] { try { const rows = JSON.parse(raw); return Array.isArray(rows) ? boundedChatHistory(rows.filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")) : []; } catch { return []; } }
 
 export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope?: "pessoal" | "empresa" }) {
   const storageKey = `orbita:chat:${scope}`;
@@ -24,9 +26,12 @@ export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope
   const saved = React.useMemo(() => parseHistory(savedHistory), [savedHistory]);
   const [current, setCurrent] = React.useState<Msg[] | null>(null);
   const msgs = current ?? saved;
-  function setMsgs(next: Msg[]) { setCurrent(next); try { sessionStorage.setItem(storageKey, JSON.stringify(next.slice(-30))); } catch {} }
+  function setMsgs(next: Msg[]) { setCurrent(next); try { sessionStorage.setItem(storageKey, JSON.stringify(boundedChatHistory(next))); } catch {} }
   const [input, setInput] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [readOnly, setReadOnly] = React.useState(false);
+  const active = React.useRef<AbortController | null>(null);
+  React.useEffect(() => () => { const pending = active.current; active.current = null; pending?.abort(); }, []);
   const end = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -34,39 +39,36 @@ export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope
 
   const send = async (text: string) => {
     const q = text.trim();
-    if (!q || busy) return;
+    if (!q || busy || active.current) return;
+    const controller = new AbortController();
+    active.current = controller;
+    const update = (next: Msg[]) => { if (active.current === controller) setMsgs(next); };
     const history: Msg[] = [...msgs, { role: "user", content: q }];
     setMsgs([...history, { role: "assistant", content: "" }]);
     setInput("");
     setBusy(true);
     try {
-      const res = await fetch("/api/ai/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scope, messages: history.slice(-20).map(({ role, content }) => ({ role, content })) }) });
+      const res = await fetch("/api/ai/ask", { method: "POST", headers: { "content-type": "application/json" }, signal: controller.signal, body: JSON.stringify({ scope, readOnly, messages: boundedChatHistory(history).map(({ role, content }) => ({ role, content })) }) });
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: "Falha ao consultar a IA" }));
-        setMsgs([...history, { role: "assistant", content: `⚠️ ${err.error}` }]);
+        update([...history, { role: "assistant", content: `⚠️ ${err.error}` }]);
         return;
       }
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let acc = "";
-      let parsed = splitActions("");
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        acc += dec.decode(value, { stream: true });
-        parsed = splitActions(acc);
-        setMsgs([...history, { role: "assistant", content: parsed.text, actions: parsed.actions }]);
-      }
-      if (parsed.actions.length) router.refresh();
+      const parsed = await readChatStream(res.body, value => update([...history, { role: "assistant", content: value.text, actions: value.actions, sources: value.sources }]));
+      if (parsed.actions.length && active.current === controller) router.refresh();
     } catch {
-      setMsgs([...history, { role: "assistant", content: "⚠️ Não foi possível falar com ORBE agora." }]);
+      update([...history, { role: "assistant", content: controller.signal.aborted ? "⚠️ Resposta interrompida. Ações já iniciadas podem concluir; confira o estado antes de repetir." : "⚠️ Não foi possível falar com ORBE agora." }]);
     } finally {
-      setBusy(false);
+      if (active.current === controller) { active.current = null; setBusy(false); }
     }
   };
 
   return (
     <Card className="flex min-h-[70vh] flex-col overflow-hidden">
+      <div className="border-b border-border px-5 py-3 text-[12px] text-muted">
+        <label className="flex items-center gap-2"><input type="checkbox" checked={readOnly} disabled={busy} onChange={e => setReadOnly(e.target.checked)} /> Somente leitura — consultar sem executar escritas</label>
+        <p className="mt-1">Histórico só nesta aba, separado por espaço; não é memória permanente. Interromper não desfaz ações já iniciadas.</p>
+      </div>
       <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-8">
         {msgs.length === 0 && (
           <div className="mx-auto flex max-w-xl flex-col items-center pt-10 text-center">
@@ -93,6 +95,7 @@ export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope
                     ))}
                   </div>
                 )}
+                {!!m.sources?.length && <div className="flex flex-wrap gap-1.5" aria-label="Consultas realizadas">{m.sources.map((source, j) => <span key={j} className="rounded-full border border-border bg-surface-2 px-2 py-1 text-[11px] text-muted">{source.ok ? "Consultou" : "Falhou"}: {source.name.replaceAll("_", " ")}</span>)}</div>}
                 <div className="prose-orbita text-[14px]">{m.content ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown> : !m.actions?.length && <span className="animate-pulse text-muted">Pensando…</span>}</div>
               </div>
             )}
@@ -101,16 +104,18 @@ export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope
         <div ref={end} />
       </div>
       <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex items-end gap-2 border-t border-border p-3">
-        {msgs.length > 0 && <Button type="button" size="icon" variant="ghost" onClick={() => setMsgs([])} aria-label="Limpar conversa"><Trash2 /></Button>}
+        {msgs.length > 0 && <Button type="button" size="icon" variant="ghost" disabled={busy} onClick={() => setMsgs([])} aria-label="Limpar conversa"><Trash2 /></Button>}
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
           rows={1}
+          maxLength={CHAT_LIMITS.user}
           disabled={!enabled}
           placeholder={enabled ? "Converse com ORBE: ideias, dúvidas, objetivos ou ações…" : "IA desativada — configure OPENAI_API_KEY"}
           className="max-h-40 min-h-11 flex-1 resize-none rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-[14px] outline-none focus:border-accent/60"
         />
+        {busy && <Button type="button" size="icon" variant="ghost" onClick={() => active.current?.abort()} aria-label="Interromper resposta"><Square /></Button>}
         <button disabled={busy || !input.trim() || !enabled} className="grid size-11 place-items-center rounded-xl bg-fg text-bg disabled:bg-surface-3 disabled:text-faint" aria-label="Enviar"><ArrowUp className="size-4" /></button>
       </form>
     </Card>

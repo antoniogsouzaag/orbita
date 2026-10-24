@@ -212,7 +212,7 @@ export const buscarNoVault = {
   async run(v: z.infer<typeof buscarNoVaultSchema>): Promise<ActionResult> {
     if (!getVaultProvider()) return { text: "Vault não configurado." };
     const health = await vaultHealth();
-    if (!health.ok) return { text: `Vault indisponível: ${health.error}` };
+    if (!health.ok) return { text: "Vault indisponível nesta consulta. Tente novamente mais tarde." };
     const hits = await searchVault(v.consulta, 8);
     return { text: hits.length ? hits.map((h) => `- ${h.title} — \`${h.path}\`: ${h.snippet}`).join("\n") : "Nada encontrado no vault." };
   },
@@ -223,7 +223,7 @@ export const lerNotaDoVault = {
   schema: lerNotaDoVaultSchema,
   async run(v: z.infer<typeof lerNotaDoVaultSchema>): Promise<ActionResult> {
     const idx = await getVaultIndexSafe();
-    if (!idx) return { text: (await vaultHealth()).error ?? "Vault não configurado." };
+    if (!idx) return { text: "Vault indisponível ou não configurado nesta consulta." };
     const p = idx.notes.has(v.caminho) ? v.caminho : idx.resolve(v.caminho.replace(/\.md$/i, ""));
     const n = p ? idx.notes.get(p) : null;
     return n ? { text: `# ${n.title} (${n.path})\nVersão: ${n.sha}\n\n${n.body.slice(0, 12_000)}` } : { text: "Nota não encontrada no vault." };
@@ -383,33 +383,33 @@ type Tool = { name: string; description: string; schema: z.ZodObject; run: (v: n
 
 export const ASSISTANT_TOOLS: Tool[] = [
   { name: "metricas_produto", description: "Consulta na mesma fonte do painel usuários de equipe, contas, acesso, teste, assinatura, cortesia e ativação do app. Use antes de responder números do produto. Não substitui o CRM nem receita conciliada. Informa não conectado/indisponível/desatualizado sem presumir zero; não executa operações no app.", readOnly: true, ...metricasProduto },
-  { name: "listar_metas", description: "Consulta metas e objetivos do espaço atual com progresso, prazo e contexto. Use para discutir prioridades e evolução.", ...listarMetas },
+  { name: "listar_metas", readOnly: true, description: "Consulta metas e objetivos do espaço atual com progresso, prazo e contexto. Use para discutir prioridades e evolução.", ...listarMetas },
   { name: "criar_meta", description: "Registra uma meta somente quando Antonio pedir para criar ou salvar, com título, indicador, alvo e prazo acordados. Sugestão de meta não autoriza gravação. Não invente linha de base ou progresso.", ...criarMeta },
   { name: "salvar_nota_vault", description: "Cria ou atualiza nota canônica do vault com controle de versão. Leia antes e forneça o SHA. Só registre mudanças de política, produto ou responsabilidade explicitamente aprovadas por Antonio; nunca salve segredos ou dados de clientes.", schema: editVaultSchema, run: editVault, requires: () => Boolean(getVaultProvider()) },
   { name: "criar_tarefa", description: "Cria uma tarefa para Antonio. Use datas absolutas (AAAA-MM-DD) calculadas a partir de hoje.", ...criarTarefa },
-  { name: "listar_tarefas", description: "Lista tarefas com id, prazo, prioridade e projeto. Use antes de atualizar ou concluir.", ...listarTarefas },
+  { name: "listar_tarefas", readOnly: true, description: "Lista tarefas com id, prazo, prioridade e projeto. Use antes de atualizar ou concluir.", ...listarTarefas },
   { name: "atualizar_tarefa", description: "Altera ou conclui uma tarefa existente (status done = concluir). Para reorganizar, mude prazo e prioridade.", ...atualizarTarefa },
   { name: "criar_evento", description: "Cria um compromisso na agenda da Órbita.", ...criarEvento },
-  { name: "ver_agenda", description: "Mostra os compromissos de um período (inclui calendários assinados do iCloud/Google).", ...verAgenda },
+  { name: "ver_agenda", readOnly: true, description: "Mostra os compromissos de um período (inclui calendários assinados do iCloud/Google).", ...verAgenda },
   { name: "registrar_lancamento", description: "Registra uma despesa ou receita pessoal em Finanças.", ...registrarLancamento },
   { name: "criar_nota", description: "Cria uma nota pessoal na Órbita (não no vault).", ...criarNota },
-  { name: "buscar_notas", description: "Busca nas notas pessoais da Órbita.", ...buscarNotas },
-  { name: "buscar_no_vault", description: "Busca no vault da AG LABS (manual canônico da empresa).", ...buscarNoVault },
-  { name: "ler_nota_do_vault", description: "Lê uma nota inteira do vault pelo caminho ou nome.", ...lerNotaDoVault },
-  { name: "status_operacao", description: "Estado ao vivo: sites fora do ar, incidentes, falhas de workflow, monitores e domínios.", ...statusOperacao },
+  { name: "buscar_notas", readOnly: true, description: "Busca nas notas pessoais da Órbita.", ...buscarNotas },
+  { name: "buscar_no_vault", readOnly: true, description: "Busca no vault da AG LABS (manual canônico da empresa).", ...buscarNoVault },
+  { name: "ler_nota_do_vault", readOnly: true, description: "Lê uma nota inteira do vault pelo caminho ou nome.", ...lerNotaDoVault },
+  { name: "status_operacao", readOnly: true, description: "Estado ao vivo: sites fora do ar, incidentes, falhas de workflow, monitores e domínios.", ...statusOperacao },
   { name: "crm_resumo", readOnly: true, description: "Agregados do CRM: funil comercial, contas (não equivalem a pagantes), receita e tarefas. produto opcional (ex.: barberias); sem produto, CRM inteiro. Preserva fonte e indisponibilidade.", requires: crmConfigured, ...crmResumo },
   { name: "crm_funil_emails", readOnly: true, description: "Leitura agregada de e-mails registrados no CRM; produto, dias (1–365, padrão 30) e categoria opcionais. Sem contatos ou envios. Aberturas por pixel não comprovam leitura humana; taxas sem base são null.", requires: crmConfigured, ...crmFunilEmails },
-  { name: "crm_tarefas", description: "Tarefas pendentes do CRM (Maia, Léo, Antonio, técnico), das mais urgentes; filtra por responsável e situação.", requires: crmConfigured, ...crmTarefas },
-  { name: "crm_buscar_contatos", description: "Procura clientes e leads no CRM por nome, empresa, e-mail ou Instagram. Use antes de agir sobre um contato.", requires: crmConfigured, ...crmBuscarContatos },
-  { name: "crm_contato", description: "Ficha de um contato do CRM: etapa, produto, últimas interações, tarefas e receita.", requires: crmConfigured, ...crmContato },
+  { name: "crm_tarefas", readOnly: true, description: "Tarefas pendentes do CRM (Maia, Léo, Antonio, técnico), das mais urgentes; filtra por responsável e situação.", requires: crmConfigured, ...crmTarefas },
+  { name: "crm_buscar_contatos", readOnly: true, description: "Procura clientes e leads no CRM por nome, empresa, e-mail ou Instagram. Use antes de agir sobre um contato.", requires: crmConfigured, ...crmBuscarContatos },
+  { name: "crm_contato", readOnly: true, description: "Ficha de um contato do CRM: etapa, produto, últimas interações, tarefas e receita.", requires: crmConfigured, ...crmContato },
   { name: "crm_criar_tarefa", description: "Cria tarefa no CRM com responsável. Para enviar e-mail a um contato, crie para leo com o contato e o conteúdo.", requires: crmConfigured, ...crmCriarTarefa },
   { name: "crm_concluir_tarefa", description: "Conclui tarefa do CRM com o motivo (também para cancelada ou substituída).", requires: crmConfigured, ...crmConcluirTarefa },
   { name: "crm_registrar_atividade", description: "Registra na ficha do contato uma interação que já aconteceu. Não muda a etapa do funil.", requires: crmConfigured, ...crmRegistrarAtividade },
 ] as Tool[];
 
 /** Ferramentas disponíveis agora (as do CRM só aparecem com o CRM conectado). */
-export function assistantTools(scope?: TaskScope) {
-  return ASSISTANT_TOOLS.filter((t) => (!t.requires || t.requires()) && !(scope === "pessoal" && (t.name.startsWith("crm_") || t.name === "metricas_produto")) && !(scope === "empresa" && ["registrar_lancamento", "criar_nota", "buscar_notas", "ver_agenda", "criar_evento"].includes(t.name)));
+export function assistantTools(scope?: TaskScope, options: { readOnly?: boolean } = {}) {
+  return ASSISTANT_TOOLS.filter((t) => (!options.readOnly || t.readOnly === true) && (!t.requires || t.requires()) && !(scope === "pessoal" && (t.name.startsWith("crm_") || t.name === "metricas_produto")) && !(scope === "empresa" && ["registrar_lancamento", "criar_nota", "buscar_notas", "ver_agenda", "criar_evento"].includes(t.name)));
 }
 
 export function toolJsonSchema(t: Tool): Record<string, unknown> {
@@ -419,9 +419,11 @@ export function toolJsonSchema(t: Tool): Record<string, unknown> {
 }
 
 /** Executa uma ferramenta pelo nome com argumentos em JSON (vindos do modelo). */
-export async function runAssistantTool(name: string, rawArgs: string | Record<string, unknown>, context?: { scope: TaskScope }): Promise<ActionResult & { ok: boolean }> {
-  const tool = assistantTools(context?.scope).find((t) => t.name === name);
+export async function runAssistantTool(name: string, rawArgs: string | Record<string, unknown>, context?: { scope: TaskScope; readOnly?: boolean; signal?: AbortSignal }): Promise<ActionResult & { ok: boolean }> {
+  const tool = assistantTools(context?.scope, { readOnly: context?.readOnly }).find((t) => t.name === name);
   if (!tool) return { ok: false, text: `Ferramenta desconhecida: ${name}` };
+  try {
+  context?.signal?.throwIfAborted();
   let args: unknown = rawArgs;
   if (typeof rawArgs === "string") {
     try {
@@ -449,9 +451,9 @@ export async function runAssistantTool(name: string, rawArgs: string | Record<st
   }
   const parsed = tool.schema.safeParse(args ?? {});
   if (!parsed.success) return { ok: false, text: `Argumentos inválidos: ${parsed.error.issues.map((i) => `${i.path.join(".") || "entrada"}: ${i.message}`).join("; ")}` };
-  try {
+    context?.signal?.throwIfAborted();
     return { ok: true, ...(await tool.run(parsed.data as never)) };
-  } catch (e) {
-    return { ok: false, text: `Falhou: ${e instanceof Error ? e.message : String(e)}` };
+  } catch {
+    return { ok: false, text: context?.signal?.aborted ? "Consulta interrompida. Ações já iniciadas podem concluir; confira o estado antes de repetir." : "Não foi possível executar a ferramenta nesta consulta. Confira o estado antes de repetir uma escrita." };
   }
 }
