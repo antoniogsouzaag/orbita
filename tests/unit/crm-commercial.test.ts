@@ -28,6 +28,15 @@ describe("CRM comercial por produto", () => {
     expect(result.data?.por_produto).toBeUndefined();
   });
 
+  it("preserva resumo global com produtos legados sem repassar rótulos livres", async () => {
+    call.mockResolvedValue({ hoje: summary.hoje, produto: null, clientes: 2, por_produto: {
+      barberias: { clientes: 0 }, "conteúdo": { clientes: 1 }, "private@example.test": { clientes: 1 },
+    } });
+    const result = await crmCommercialSummary();
+    expect(result).toMatchObject({ status: "ok", data: { clientes: 2, por_produto: { barberias: { clientes: 0 } }, agrupamentos_sem_slug: 2 } });
+    expect(JSON.stringify(result)).not.toMatch(/conteúdo|private@/);
+  });
+
   it.each([undefined, null, "mecard"])("nunca atribui resumo global ou outro produto ao Barberias (%s)", async (produto) => {
     call.mockResolvedValue({ ...summary, produto });
     const result = await crmCommercialSummary({ produto: "barberias" });

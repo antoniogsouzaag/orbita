@@ -263,7 +263,7 @@ const crmLink = (label: string, path: string) => {
 export const crmResumo = {
   schema: crmSummaryInput,
   async run(input: z.infer<typeof crmSummaryInput> = {}): Promise<ActionResult> {
-    return { text: `CRM — resumo: ${JSON.stringify({ ...await crmCommercialSummary(input), coverage: input.produto ? crmCommercialNotes.coverage : "CRM inteiro. Contas não comprovam pagamento." })}` };
+    return { text: `CRM — resumo: ${JSON.stringify({ ...await crmCommercialSummary(input), coverage: input.produto ? crmCommercialNotes.coverage : "CRM inteiro. Contas não comprovam pagamento. Divisão por produto só usa slugs válidos; agrupamentos_sem_slug informa quantos rótulos legados ficaram fora da divisão, sem alterar os totais globais." })}` };
   },
 };
 

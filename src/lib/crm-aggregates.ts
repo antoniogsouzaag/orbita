@@ -27,7 +27,17 @@ const productTotals = z.object({
 });
 
 // Whitelist: never forward unknown fields, contact records, or free text from the CRM.
-export const crmSummarySchema = z.object({
+function safeProductGroups(raw: unknown) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const input = raw as Record<string, unknown>;
+  const groups = input.por_produto;
+  if (!groups || typeof groups !== "object" || Array.isArray(groups)) return raw;
+  const entries = Object.entries(groups);
+  const valid = entries.filter(([key]) => /^[a-z0-9][a-z0-9_-]{1,59}$/.test(key));
+  // Não inventar slug para nomes legados nem repassar rótulos livres à IA.
+  return { ...input, por_produto: Object.fromEntries(valid), agrupamentos_sem_slug: entries.length - valid.length };
+}
+export const crmSummarySchema = z.preprocess(safeProductGroups, z.object({
   hoje: z.iso.date().optional(), produto: crmProductSchema.nullish(),
   funil: counts(CRM_FUNNEL).optional(), contas_no_produto: crmAccountsSchema.optional(),
   oportunidades_abertas: count.optional(), clientes: count.optional(), clientes_inativos: count.optional(),
@@ -35,7 +45,8 @@ export const crmSummarySchema = z.object({
   receita_mes: amount.optional(), receita_mes_anterior: amount.optional(),
   tarefas: z.object({ pendentes: count.optional(), vencidas: count.optional(), para_hoje: count.optional(), por_responsavel: counts(["maia", "leo", "antonio", "tecnico", "sem_responsavel"]).optional() }).optional(),
   por_produto: z.record(z.string().regex(/^[a-z0-9][a-z0-9_-]{1,59}$/), productTotals).optional(),
-});
+  agrupamentos_sem_slug: count.optional(),
+}));
 const rate = z.number().finite().nonnegative().nullable().optional();
 export const crmEmailTotalsSchema = z.object({
   enviados: count.optional(), entregues: count.optional(), abertos: count.optional(), cliques: count.optional(), respostas: count.optional(),
