@@ -171,7 +171,6 @@ export async function askStream(history: ChatTurn[], opts: { tools?: boolean; sc
   if (!provider) throw new Error("IA não configurada");
   const useTools = opts.tools ?? true;
   const scope = opts.scope ?? "pessoal";
-  const question = history.at(-1)?.content ?? "";
   const [personal, vault] = await Promise.all([scope === "empresa" ? empresaContext() : personalContext(), vaultContext(history.filter(turn => turn.role === "user").slice(-3).map(turn => turn.content).join("\n"), scope)]);
   const context = `<contexto_do_dia>\n${personal}\n</contexto_do_dia>${vault ? `\n<vault>\n${vault}\n</vault>` : ""}`;
   const turns = history.map((m, i) => (i === history.length - 1 ? { role: "user" as const, content: `${context}\n\n<pergunta>\n${m.content}\n</pergunta>` } : m));
