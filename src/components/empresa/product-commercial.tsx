@@ -54,12 +54,12 @@ function SummaryBody({ data }: { data: CrmAggregateSummary }) {
       { label: "Receita líquida do mês", value: data.receita_mes == null ? null : brl(data.receita_mes) },
       { label: "Base de prospecção", value: data.base_prospeccao },
     ]} />
-    <p className="text-[11px] text-muted">Clientes pagantes: classificação comercial na etapa Cliente do CRM; não inferida de trial ou conta ativa e não comprova cobrança recorrente atual.{data.hoje && <> Data de referência do resumo: {data.hoje}.</>}</p>
+    <p className="text-[11px] text-muted">Etapa Cliente é a classificação comercial do CRM; não comprova pagamento ou cobrança atual. Não é inferida de trial ou conta ativa.{data.hoje && <> Data de referência do resumo: {data.hoje}.</>}</p>
     <ol className="space-y-2" aria-label="Etapas comerciais">{CRM_FUNNEL.map((stage) => {
       const value = data.funil?.[stage];
       return <li key={stage} className="flex items-center gap-3 text-xs"><span className="w-24 shrink-0 text-muted">{stage}</span><span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">{value !== undefined && <span className="block h-full rounded-full bg-accent/70" style={{ width: `${(value / max) * 100}%` }} />}</span><span className="w-8 text-right tabular-nums">{value ?? "—"}</span></li>;
     })}</ol>
-    <div className="border-t border-border pt-4"><h3 className="mb-3 text-sm font-medium">Contas no produto · separadas de clientes pagantes</h3>
+    <div className="border-t border-border pt-4"><h3 className="mb-3 text-sm font-medium">Contas no produto · separadas do funil comercial</h3>
       <Metrics items={CRM_ACCOUNTS.map((state) => ({ label: ACCOUNT_LABELS[state], value: data.contas_no_produto?.[state] }))} />
       {!data.contas_no_produto && <p className="mt-2 text-xs text-muted">Contas não informadas nesta versão do CRM.</p>}
     </div>

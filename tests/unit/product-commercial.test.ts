@@ -12,7 +12,7 @@ const render = (s = summary, e = emails) => renderToStaticMarkup(createElement(C
 describe("painel comercial existente do produto", () => {
   it("separa quatro estados de conta e etapa Cliente, com origem e ressalvas", () => {
     const html = render();
-    for (const label of ["Funil comercial", "Clientes · etapa Cliente", "Trial", "Trial encerrado", "Ativo", "Cancelado", "separadas de clientes pagantes", "CRM MCP · crm_resumo", "CRM MCP · crm_funil_emails", "Atualização na origem não informada", "pixel", "não comprova leitura humana", "30 dias"]) expect(html).toContain(label);
+    for (const label of ["Funil comercial", "Clientes · etapa Cliente", "Trial", "Trial encerrado", "Ativo", "Cancelado", "separadas do funil comercial", "CRM MCP · crm_resumo", "CRM MCP · crm_funil_emails", "Atualização na origem não informada", "pixel", "não comprova leitura humana", "30 dias"]) expect(html).toContain(label);
     expect(html).toMatch(new RegExp("Clientes · etapa Cliente</dt><dd[^>]*>2</dd>"));
     expect(html).toMatch(new RegExp("Ativo</dt><dd[^>]*>3</dd>"));
   });
