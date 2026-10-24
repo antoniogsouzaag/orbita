@@ -120,10 +120,13 @@ describe("central dos agentes (MCP)", () => {
     const token = await createAgentToken("Coordenador", ["admin"]);
     expect(await toolNames(token)).toContain("orbita_registrar_lancamento");
     expect(await toolNames(token)).toContain("contexto_pessoal");
+    const tools = (await rpc(token, "tools/list")).body.result!.tools as { name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }[];
+    expect(tools.find(t => t.name === "orbita_metricas_produto")?.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
     const identity = await verifyAgentToken(token);
     await updateAgentScopes(identity!.id, ["contexto", "status"]);
     const names = await toolNames(token);
     expect(names).not.toContain("orbita_registrar_lancamento");
+    expect(names).not.toContain("orbita_metricas_produto");
     expect(names).not.toContain("criar_tarefa_para_antonio");
     expect(names).toContain("contexto_operacional");
   });
