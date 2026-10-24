@@ -1,13 +1,13 @@
 import { AlertTriangle, ArrowLeft, ArrowUpRight, Bot, CheckCircle2, Megaphone, Circle, ExternalLink, FileText, KeyRound, ListTodo, XCircle } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AgentAvatarEditor } from "@/components/agents/agent-avatar";
 import { AgentSheet } from "@/components/agents/agent-sheet";
 import { HermesIntegration } from "@/components/agents/hermes-integration";
 import { OpenclawIntegration } from "@/components/agents/openclaw-integration";
 import { Card, CardHeader, EmptyState } from "@/components/ui/card";
 import { Big, ColumnBars, WidgetShell, lastDays } from "@/components/ui/mini-charts";
-import { agentSlug, agoLabel } from "@/lib/team";
+import { agoLabel, canonicalAgentId } from "@/lib/team";
 import { cn } from "@/lib/utils";
 import { agentActivityByDay, agentTasks, listAgentTokens, recentActivity } from "@/server/agents";
 import { listDispatches, toView } from "@/server/dispatch";
@@ -28,11 +28,13 @@ const when = (d: Date) => d.toLocaleString("pt-BR", { timeZone: "America/Sao_Pau
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // Links antigos (ex.: /agentes/oracle) levam ao integrante canônico.
+  if (canonicalAgentId(id) !== id) redirect(`/agentes/${canonicalAgentId(id)}`);
   const [tokens, activity, daily, team] = await Promise.all([listAgentTokens(), recentActivity(300), agentActivityByDay(14)]).then(async ([t, a, d]) => [t, a, d, await buildTeam({ tokens: t, activity: a })] as const);
   const member = team.find((m) => m.id === id);
   if (!member) notFound();
 
-  const mine = (name: string) => agentSlug(name) === member.id;
+  const mine = (name: string) => canonicalAgentId(name) === member.id;
   const [tasks, idx, tomHistory, oracleHistory, events] = await Promise.all([
     agentTasks(member.name).catch(() => []),
     member.path ? getVaultIndexSafe() : Promise.resolve(null),
@@ -124,6 +126,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <aside className="min-w-0 space-y-4">
           {member.director === "tom" && <OpenclawIntegration config={openclawConfiguration()} initial={tomHistory.map((row) => toView(row))} />}
           {member.director === "oracle" && <HermesIntegration config={hermesConfiguration()} initial={oracleHistory} />}
+          {member.director === "easypanel" && <Card className="p-5 text-xs leading-relaxed text-muted">Pedidos pela Órbita ainda não estão conectados a este diretor. O acesso MCP funciona normalmente; o envio de pedidos segue o contrato do Hermes Oracle e entra numa etapa própria.</Card>}
 
           <div className="card h-[200px]">
             <WidgetShell title="Chamadas MCP" meta="14 dias">

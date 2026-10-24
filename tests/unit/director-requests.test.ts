@@ -14,7 +14,7 @@ const tom = (status: DispatchView["status"], silent = false): DispatchView => ({
 describe("acompanhamento da diretoria", () => {
   it("não trata admissão como conclusão nem mistura identificadores entre receptores", () => {
     const rows = directorRequests([tom("accepted")], [oracle("completed")]);
-    expect(rows.map(row => row.agent)).toEqual(["Oracle", "Tom"]);
+    expect(rows.map(row => row.agent)).toEqual(["Hermes Oracle", "Tom"]);
     expect(new Set(rows.map(row => row.key)).size).toBe(2);
     expect(rows[0].group).toBe("completed");
     expect(rows[1].group).toBe("open");
