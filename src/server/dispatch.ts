@@ -27,8 +27,16 @@ export async function createDispatch(input: { id: string; target: DispatchTarget
 
 export async function updateDispatch(id: string, patch: Partial<Pick<Dispatch, "status" | "detail" | "runId">>) {
   const db = await getDb();
-  const [row] = await db.update(dispatches).set({ ...patch, updatedAt: new Date() }).where(eq(dispatches.id, id)).returning();
-  return row;
+  // O agente pode retornar antes da resposta HTTP. Admissão atrasada nunca
+  // regride running/completed/failed para accepted/unknown/rejected.
+  const [row] = await db.update(dispatches).set({ ...patch, updatedAt: new Date() }).where(and(eq(dispatches.id, id), eq(dispatches.status, "sending"))).returning();
+  if (row) return row;
+  if (patch.runId) {
+    const [current] = await db.update(dispatches).set({ runId: patch.runId }).where(eq(dispatches.id, id)).returning();
+    return current;
+  }
+  const [current] = await db.select().from(dispatches).where(eq(dispatches.id, id));
+  return current;
 }
 
 export async function listDispatches(opts: { target?: DispatchTarget; open?: boolean; limit?: number } = {}) {
@@ -64,14 +72,20 @@ export async function reportDispatchResult(agent: string, raw: z.input<typeof re
   const [row] = await db.select().from(dispatches).where(eq(dispatches.id, input.pedido_id));
   if (!row) return { ok: false, message: "Pedido não encontrado." };
   const status = STATE[input.estado];
-  if (row.status === status && row.summary === input.resumo) return { ok: true, message: "Resultado já registrado." };
+  if (row.status === status && row.summary === input.resumo && row.evidence === (input.evidencia ?? null)) return { ok: true, message: "Resultado já registrado." };
   if (FINAL_STATUSES.includes(row.status)) return { ok: false, message: `O pedido já está encerrado (${row.status}).` };
   if (row.status === "running" && status === "running") return { ok: true, message: "Execução já registrada." };
   // "sending"/"unknown" seguem: o agente só recebe o pedido depois da admissão, então o retorno dele resolve a incerteza do envio.
   const finished = status === "completed" || status === "failed";
-  await db
+  const [updated] = await db
     .update(dispatches)
     .set({ status, summary: input.resumo, evidence: input.evidencia ?? null, reportedBy: agent, detail: finished ? "Resultado informado pelo agente." : "Agente iniciou a execução.", updatedAt: new Date(), ...(finished ? { finishedAt: new Date() } : {}) })
-    .where(eq(dispatches.id, input.pedido_id));
+    .where(and(eq(dispatches.id, input.pedido_id), eq(dispatches.status, row.status)))
+    .returning({ id: dispatches.id });
+  if (!updated) {
+    const [current] = await db.select().from(dispatches).where(eq(dispatches.id, input.pedido_id));
+    if (current?.status === status && current.summary === input.resumo && current.evidence === (input.evidencia ?? null)) return { ok: true, message: "Resultado já registrado." };
+    return { ok: false, message: "O pedido mudou durante o registro. Consulte o estado antes de repetir." };
+  }
   return { ok: true, message: finished ? "Resultado registrado na Órbita." : "Execução registrada na Órbita." };
 }
