@@ -15,6 +15,16 @@ Verificação registrada: [ativação do Hermes Oracle em 23/10/2026](hermes-ora
 
 Um servidor MCP na Órbita não é um canal de despacho bidirecional. Também não concede terminal, controle da VPS nem acesso à sessão desktop de Antonio.
 
+| Gestor | Entrada MCP | Saída da Órbita |
+| --- | --- | --- |
+| Tom · OpenClaw (VPS-02) | `mcp.servers.orbita` no gateway, Bearer em `ORBITA_MCP_TOKEN` (ambiente do gateway), só o agente `main` | Rota mapeada `/hooks/orbita` → [contrato](openclaw-dispatch.md); resultado por `registrar_resultado` |
+| Hermes Oracle (VPS-03) | Cliente MCP do Hermes, ver abaixo | Receptor HMAC dedicado → [contrato](hermes-dispatch.md) |
+| Hermes EasyPanel (VPS-01) | Cliente MCP do Hermes, ver abaixo | Ainda sem saída |
+
+## Conectar o OpenClaw (Tom)
+
+O gateway OpenClaw não aceita SecretRef em cabeçalho MCP; o token vai para o arquivo de ambiente do serviço e o config usa substituição: `headers.Authorization = "Bearer ${ORBITA_MCP_TOKEN}"`, com `codex.agents: ["main"]` para que só o Tom receba o perfil Administrador. A entrada do token é mascarada (`scripts/orbita-token.sh` no workspace do Tom), validada contra `tools/list` antes de salvar. Mudança de variável de ambiente exige restart do gateway; `openclaw mcp doctor orbita --probe` confirma a conexão.
+
 ## Conectar Hermes Oracle ou Hermes EasyPanel
 
 1. O proprietário cria um acesso individual em **Agentes**, com nome inequívoco e perfil explícito. A política canônica concede Administrador a Oracle, EasyPanel e Tom; outros agentes começam em leitura. Administrador inclui dados pessoais e escrita: não é apenas status da infraestrutura.
@@ -33,6 +43,10 @@ Um servidor MCP na Órbita não é um canal de despacho bidirecional. Também n�
 6. Validar separadamente a escrita com um evento operacional aprovado. Ler de volta o evento na central antes de afirmar sucesso. Não criar tarefa como teste sem avaliar o aviso Telegram que ela dispara.
 
 Nunca compartilhar o mesmo token entre os três gestores. Revogar o token interrompe novas chamadas; remover a entrada do cliente é uma etapa distinta.
+
+## Órbita chamar OpenClaw
+
+Ver [openclaw-dispatch.md](openclaw-dispatch.md): webhook mapeado com lista fechada de ações, pedido gravado antes do envio, `Idempotency-Key` igual ao id e retorno do Tom por `registrar_resultado`. WebSocket não é usado: a Vercel não mantém conexão e o WebSocket do gateway é protocolo de operador.
 
 ## Órbita chamar Hermes
 

@@ -323,3 +323,36 @@ export const agentActivity = pgTable(
 
 export type AgentToken = typeof agentTokens.$inferSelect;
 export type AgentActivity = typeof agentActivity.$inferSelect;
+
+/* ───────────── Pedidos aos diretores (Órbita → runtimes) ───────────── */
+
+/** Runtimes que recebem pedidos da Órbita. O id do pedido é o mesmo request_id/Idempotency-Key enviado. */
+export const DISPATCH_TARGETS = ["openclaw"] as const;
+export type DispatchTarget = (typeof DISPATCH_TARGETS)[number];
+/** sending → accepted | rejected | unknown; depois o agente informa running → completed | failed. */
+export const DISPATCH_STATUSES = ["sending", "accepted", "rejected", "unknown", "running", "completed", "failed"] as const;
+export type DispatchStatus = (typeof DISPATCH_STATUSES)[number];
+
+export const dispatches = pgTable(
+  "dispatches",
+  {
+    id: uuid("id").primaryKey(),
+    target: text("target").$type<DispatchTarget>().notNull(),
+    action: text("action").notNull(),
+    params: jsonb("params").$type<Record<string, unknown>>().notNull().default({}),
+    status: text("status").$type<DispatchStatus>().notNull(),
+    /** Mensagem da admissão (HTTP) ou do último estado; nunca inclui segredo. */
+    detail: text("detail").notNull().default(""),
+    /** Resumo e evidência informados pelo agente em registrar_resultado. */
+    summary: text("summary"),
+    evidence: text("evidence"),
+    reportedBy: text("reported_by"),
+    runId: text("run_id"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [index("dispatches_target_created_idx").on(t.target, t.createdAt)],
+);
+
+export type Dispatch = typeof dispatches.$inferSelect;

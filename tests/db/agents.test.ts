@@ -49,7 +49,7 @@ describe("central dos agentes (MCP)", () => {
   it("expõe só as ferramentas dos escopos do agente", async () => {
     const t = await createAgentToken("Só leitura", ["status"]);
     expect((await init(t)).body.result).toMatchObject({ serverInfo: { name: "orbita" } });
-    expect(await toolNames(t)).toEqual(["automacoes_operacionais", "documentacao_canonica", "pendencias_github", "status_ao_vivo"]);
+    expect(await toolNames(t)).toEqual(["automacoes_operacionais", "documentacao_canonica", "eventos_recentes", "pendencias_github", "status_ao_vivo"]);
     const call = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "não deveria" } });
     expect(JSON.stringify(call.body)).toMatch(/not found|não|error/i);
   });
@@ -74,7 +74,7 @@ describe("central dos agentes (MCP)", () => {
 
   it("agente abre tarefa para Antonio e registra evento, tudo com log", async () => {
     const t = await createAgentToken("Hermes Oracle", ["tarefas", "eventos"]);
-    expect(await toolNames(t)).toEqual(["criar_tarefa_para_antonio", "documentacao_canonica", "minhas_tarefas", "registrar_evento"]);
+    expect(await toolNames(t)).toEqual(["criar_tarefa_para_antonio", "documentacao_canonica", "minhas_tarefas", "pedidos_recebidos", "registrar_evento", "registrar_resultado"]);
 
     const r = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "Aprovar renovação do domínio", prioridade: "alta", prazo: "2026-11-01" } });
     expect(JSON.stringify(r.body.result)).toContain("Tarefa criada");
