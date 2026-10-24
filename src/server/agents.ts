@@ -11,6 +11,8 @@ import { githubInbox } from "./github-inbox";
 import { n8nOverview } from "./ops";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
 import { assistantTools, runAssistantTool } from "./assistant";
+import { TARGET_LABEL, isSilent, listDispatches, reportDispatchResult, resultInput } from "./dispatch";
+import { DISPATCH_TARGETS } from "@/db/schema";
 import { AGENT_MANUAL_URI, AGENT_MANUAL_VERSION, agentManualMarkdown } from "@/lib/agent-handbook";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -186,6 +188,18 @@ export function buildMcpServer(agent: AgentIdentity) {
           return text(lines.join("\n"));
         }),
     );
+    server.registerTool(
+      "eventos_recentes",
+      { title: "Eventos recentes", description: "Lê os eventos da Operação: quedas, falhas de workflow, alertas de domínio e relatos dos agentes. Use para conferir o que você mesmo registrou ou o que outro diretor relatou.", inputSchema: { horas: z.number().int().min(1).max(168).optional().describe("Janela em horas (padrão 24)"), origem: z.string().max(80).optional().describe("Prefixo da origem, ex.: agente:tom, n8n"), tipo: z.string().max(40).optional().describe("Tipo exato, ex.: workflow_error, agente_resumo") }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+      async ({ horas, origem, tipo }) =>
+        run("eventos_recentes", `consultou eventos (${horas ?? 24}h)`, async () => {
+          const db = await getDb();
+          const since = new Date(Date.now() - (horas ?? 24) * 3_600_000);
+          const rows = await db.select().from(opsEvents).where(and(gte(opsEvents.createdAt, since), origem ? sql`${opsEvents.source} like ${`${origem.replace(/[%_\\]/g, "\\$&")}%`}` : undefined, tipo ? eq(opsEvents.kind, tipo) : undefined)).orderBy(desc(opsEvents.createdAt)).limit(50);
+          if (!rows.length) return text(`Nenhum evento nas últimas ${horas ?? 24}h com esse filtro.`);
+          return text(rows.map((e) => `- ${e.createdAt.toISOString()} · ${e.kind} · ${e.severity} · ${e.source}${e.resolvedAt ? " · resolvido" : ""}\n  ${e.subject}${typeof e.detail?.message === "string" && e.detail.message ? ` — ${e.detail.message.slice(0, 300)}` : ""} (${e.id})`).join("\n"));
+        }),
+    );
   }
 
   if (can("tarefas")) {
@@ -223,6 +237,25 @@ export function buildMcpServer(agent: AgentIdentity) {
           const db = await getDb();
           await db.insert(opsEvents).values({ kind: `agente_${tipo}`, severity: tipo === "incidente" ? "critical" : tipo === "alerta" ? "warning" : "info", source: `agente:${slug(agent.name)}`, subject: assunto, detail: { message: detalhe ?? "", agent: agent.name } });
           return text("Evento registrado na Operação.");
+        }),
+    );
+    server.registerTool(
+      "pedidos_recebidos",
+      { title: "Pedidos da Órbita em aberto", description: "Lista pedidos que a Órbita enviou a um diretor e que ainda esperam execução ou resultado. Use se o webhook não chegou ou para retomar um pedido.", inputSchema: { destino: z.enum(DISPATCH_TARGETS).optional() }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+      async ({ destino }) =>
+        run("pedidos_recebidos", "consultou pedidos em aberto", async () => {
+          const rows = await listDispatches({ target: destino, open: true, limit: 20 });
+          if (!rows.length) return text("Nenhum pedido em aberto.");
+          return text(rows.map((d) => `- ${d.id} · ${TARGET_LABEL[d.target]} · ${d.action} · ${d.status}${isSilent(d) ? " (sem retorno)" : ""} · ${d.createdAt.toISOString()}\n  parâmetros: ${JSON.stringify(d.params).slice(0, 600)}`).join("\n"));
+        }),
+    );
+    server.registerTool(
+      "registrar_resultado",
+      { title: "Registrar resultado de pedido", description: "Informa à Órbita a execução de um pedido recebido: em_execucao ao começar; concluido ou falhou ao terminar, com resumo objetivo e evidência (comando, arquivo, PR ou link). Sem segredos ou dados pessoais de clientes.", inputSchema: resultInput.shape, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+      async (args) =>
+        run("registrar_resultado", `informou ${args.estado} do pedido ${args.pedido_id}`, async () => {
+          const result = await reportDispatchResult(agent.name, args);
+          return text(result.message, !result.ok);
         }),
     );
   }

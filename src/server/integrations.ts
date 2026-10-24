@@ -8,6 +8,7 @@ import { n8nInstances, n8nOverview } from "./ops";
 import { liveOps } from "./ops-live";
 import { vaultConfig, vaultHealth } from "./vault";
 import { socialChannels } from "./social";
+import { openclawConfiguration } from "./openclaw";
 
 export type IntegrationHealthRow = {
   id: string;
@@ -38,6 +39,7 @@ export function integrationConfiguration(): IntegrationHealthRow[] {
     row("brief", "Resumo diário · 7h", validToken("CRON_SECRET") && has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_CHAT_ID"), "Precisa do agendador da Vercel, CRON_SECRET e Telegram. Configuração não comprova execução do resumo.", ["CRON_SECRET"], "/agenda"),
     row("calendar", "Agenda · Assinaturas e feed", validToken("CALENDAR_FEED_TOKEN"), "Calendários externos são adicionados na Agenda. O feed da Órbita pode ser assinado no iPhone ou Google.", ["CALENDAR_FEED_TOKEN"], "/agenda"),
     row("context", "Agentes · Contexto e MCP", validToken("CONTEXT_TOKEN"), "GET /api/context usa CONTEXT_TOKEN. O MCP usa acessos individuais criados em Agentes, independente deste token.", ["CONTEXT_TOKEN"], "/agentes"),
+    row("openclaw", "OpenClaw · Pedidos ao Tom", Object.values(openclawConfiguration()).every(Boolean), "Saída para a rota /hooks/orbita do gateway do VPS-02. O diagnóstico não envia pedido; a primeira solicitação em Integrações confirma a comunicação.", ["OPENCLAW_DISPATCH_ENABLED", "OPENCLAW_HOOK_URL", "OPENCLAW_HOOK_TOKEN"], "/integracoes"),
     row("ai", "IA · Assistente", has("OPENAI_API_KEY") || has("ANTHROPIC_API_KEY"), "Assistente com ações em tarefas, agenda, finanças e CRM, além de consulta ao vault. Este botão verifica a configuração; converse na IA para usar o assistente.", ["OPENAI_API_KEY", "OPENAI_MODEL", "ANTHROPIC_API_KEY"], "/ia"),
     row("jev", "Jev · Decisões opcionais", has("OPENROUTER_API_KEY"), "Via OpenRouter. Seleciona uma próxima ação entre tarefas existentes, somente quando você pedir. Usa confiança mínima e preserva a ordem por regras quando houver dúvida. Não substitui o chat nem executa ações.", ["OPENROUTER_API_KEY", "OPENROUTER_JEV_MODEL"], "/"),
     row("postiz", "Postiz · Redes sociais", has("POSTIZ_API_URL") && has("POSTIZ_API_KEY"), "Canais e séries de métricas na página Redes sociais. A cobertura depende da versão instalada e das permissões de cada rede.", ["POSTIZ_API_URL", "POSTIZ_API_KEY"], "/redes"),
