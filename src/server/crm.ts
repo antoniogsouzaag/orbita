@@ -1,4 +1,5 @@
 import "server-only";
+import type { CrmAccounts, CrmAggregateSummary } from "@/lib/crm-aggregates";
 
 /**
  * Cliente do servidor MCP do CRM (aglabs-core/crm-dash, docs/mcp.md).
@@ -18,6 +19,11 @@ export type CrmTask = {
 };
 
 export type CrmSummary = {
+  /** Optional additions from CRM #41; legacy CRM remains supported. */
+  produto?: string | null;
+  contas_no_produto?: CrmAccounts;
+  por_produto?: CrmAggregateSummary["por_produto"];
+  cobertura?: string;
   hoje: string;
   funil: Record<"Lead" | "Contatado" | "Atendimento" | "Proposta" | "Pagamento", number>;
   oportunidades_abertas: number;

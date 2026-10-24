@@ -20,9 +20,9 @@ Corpo exato: `{ version: 1, source: "orbita", request_id: <uuid v4>, action, par
 | --- | --- | --- |
 | `diagnostics.read` | `{}` | Diagnóstico somente leitura do VPS-02 (gateway, memória, disco, containers, rotinas com falha). |
 | `incident.diagnose` | `{ assunto ≤200, detalhe? ≤2000, evento_id? uuid }` | Diagnóstico somente leitura de um incidente escolhido; aponta o gestor responsável se for de outro VPS. |
-| `request.tom` | `{ texto 3–2000 }` | Pedido livre de Antonio, executado dentro da autoridade normal do Tom. Envio externo, ação financeira, destrutiva ou em outro VPS continuam exigindo confirmação. |
+| `request.tom` | `{ texto 3–2000 }` | Pedido livre de Antonio para levantamento e proposta pelo adaptador. Mudanças ficam com Tom e Antonio; não são executadas automaticamente por esta interface. |
 
-No gateway, o mapping `orbita` só aceita `source: "orbita"`, roda um transform (`~/.openclaw/hooks/transforms/orbita.mjs`) que valida versão, UUID, ação e parâmetros exatos, e abre um turno **isolado** do agente `main` com `deliver: false`. Contrato inválido retorna **204** sem execução. `hooks.allowedAgentIds = ["main"]`; o token da rota é dedicado (`OPENCLAW_HOOKS_TOKEN` no ambiente do gateway).
+No gateway, o mapping `orbita` só aceita `source: "orbita"`, roda um transform (`~/.openclaw/hooks/transforms/orbita.mjs`) que valida versão, UUID, ação e parâmetros exatos, e abre um turno **isolado** do adaptador interno `tom-orbita` com `deliver: false`. Contrato inválido retorna **204** sem execução. `hooks.allowedAgentIds = ["tom-orbita"]`; o token da rota é dedicado (`OPENCLAW_HOOKS_TOKEN` no ambiente do gateway).
 
 ## Estados
 
@@ -51,12 +51,18 @@ O callback do agente pode chegar antes da resposta HTTP de admissão. A atualiza
 
 ## Ativação
 
-1. Gateway (feito pelo Tom no VPS-02): `hooks.token = "${OPENCLAW_HOOKS_TOKEN}"`, `allowedAgentIds: ["main"]`, mapping `orbita` com o transform, restart do gateway para carregar a variável.
+1. Gateway (feito pelo Tom no VPS-02): `hooks.token = "${OPENCLAW_HOOKS_TOKEN}"`, `allowedAgentIds: ["tom-orbita"]`, mapping `orbita` com o transform, restart do gateway para carregar a variável.
 2. Vercel, somente Production: `OPENCLAW_HOOK_URL=https://tom.aglabs.ia.br/hooks/orbita`, `OPENCLAW_HOOK_TOKEN` (Sensitive; valor obtido no VPS-02 com `bash /root/.openclaw/workspace/scripts/orbita-hook-token.sh --mostrar`) e, por último, `OPENCLAW_DISPATCH_ENABLED=true`.
 3. Deploy com a migration `0004_despachos`.
 4. Prova: `diagnostics.read` em Integrações → `accepted` → o Tom registra `em_execucao` e `concluido` com evidência. Sem token, a rota responde 401.
 
 Rotacionar: `orbita-hook-token.sh --rotacionar` no VPS-02, atualizar a variável na Vercel e reiniciar o gateway.
+
+## Adaptador interno do Tom
+
+A entrada usa `tom-orbita`, com workspace e agentDir próprios, sem binding/bot público e sem heartbeat. Isso preserva o wildcard restritivo dos canais públicos do `main`; o token do webhook não finge identidade do proprietário. Ferramentas permitidas: `read`, `exec`, `process`, `session_status` e `orbita__*`; controles de execução não foram ampliados. O MCP está habilitado para `main` e `tom-orbita`. Os diagnósticos não alteram serviços; pedidos livres nesta interface produzem levantamento/proposta.
+
+Prova em produção: `5da3404c-29c7-467f-90f8-33f5a44e36c6`, `diagnostics.read`, recebido → em execução → concluído com comandos e evidências.
 
 ## Limites
 

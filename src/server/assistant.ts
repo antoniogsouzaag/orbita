@@ -10,6 +10,8 @@ import { insertTask, patchTask } from "./task-write";
 import { eventsBetween } from "./calendar";
 import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./crm";
 import { liveOps } from "./ops-live";
+import { crmCommercialSummary, crmEmailFunnel, crmCommercialNotes } from "./crm-commercial";
+import { crmSummaryInput, crmEmailInput } from "@/lib/crm-aggregates";
 import { listTasks, type TaskView } from "./tasks";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
 import { editVault, editVaultSchema } from "./vault-edit";
@@ -258,11 +260,17 @@ const crmLink = (label: string, path: string) => {
   return href ? { label, href } : undefined;
 };
 
-const crmResumoSchema = z.object({});
 export const crmResumo = {
-  schema: crmResumoSchema,
-  async run(): Promise<ActionResult> {
-    return { text: `CRM — resumo: ${JSON.stringify(await crmCall("crm_resumo"))}` };
+  schema: crmSummaryInput,
+  async run(input: z.infer<typeof crmSummaryInput> = {}): Promise<ActionResult> {
+    return { text: `CRM — resumo: ${JSON.stringify({ ...await crmCommercialSummary(input), coverage: input.produto ? crmCommercialNotes.coverage : "CRM inteiro. Contas não comprovam pagamento. Divisão por produto só usa slugs válidos; agrupamentos_sem_slug informa quantos rótulos legados ficaram fora da divisão, sem alterar os totais globais." })}` };
+  },
+};
+
+export const crmFunilEmails = {
+  schema: crmEmailInput,
+  async run(input: z.infer<typeof crmEmailInput> = {}): Promise<ActionResult> {
+    return { text: `CRM — funil de e-mails: ${JSON.stringify({ ...await crmEmailFunnel(input), observation: crmCommercialNotes.pixel, rates: "Entrega sobre enviados; abertura, clique e resposta sobre entregues. Sem denominador: null, nunca zero presumido." })}` };
   },
 };
 
@@ -354,7 +362,8 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "buscar_no_vault", description: "Busca no vault da AG LABS (manual canônico da empresa).", ...buscarNoVault },
   { name: "ler_nota_do_vault", description: "Lê uma nota inteira do vault pelo caminho ou nome.", ...lerNotaDoVault },
   { name: "status_operacao", description: "Estado ao vivo: sites fora do ar, incidentes, falhas de workflow, monitores e domínios.", ...statusOperacao },
-  { name: "crm_resumo", description: "CRM da AG LABS: funil por etapa, novos contatos, receita líquida do mês e tarefas por responsável.", requires: crmConfigured, ...crmResumo },
+  { name: "crm_resumo", description: "Agregados do CRM: funil comercial, contas (não equivalem a pagantes), receita e tarefas. produto opcional (ex.: barberias); sem produto, CRM inteiro. Preserva fonte e indisponibilidade.", requires: crmConfigured, ...crmResumo },
+  { name: "crm_funil_emails", description: "Leitura agregada de e-mails registrados no CRM; produto, dias (1–365, padrão 30) e categoria opcionais. Sem contatos ou envios. Aberturas por pixel não comprovam leitura humana; taxas sem base são null.", requires: crmConfigured, ...crmFunilEmails },
   { name: "crm_tarefas", description: "Tarefas pendentes do CRM (Maia, Léo, Antonio, técnico), das mais urgentes; filtra por responsável e situação.", requires: crmConfigured, ...crmTarefas },
   { name: "crm_buscar_contatos", description: "Procura clientes e leads no CRM por nome, empresa, e-mail ou Instagram. Use antes de agir sobre um contato.", requires: crmConfigured, ...crmBuscarContatos },
   { name: "crm_contato", description: "Ficha de um contato do CRM: etapa, produto, últimas interações, tarefas e receita.", requires: crmConfigured, ...crmContato },

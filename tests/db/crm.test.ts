@@ -29,7 +29,8 @@ beforeAll(async () => {
       calls.push({ auth: req.headers.authorization, name, args });
       const ok = (data: unknown) => ({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data, isError: false } });
       let out: unknown;
-      if (name === "crm_resumo") out = ok(RESUMO);
+      if (name === "crm_resumo") out = ok(args.produto ? { ...RESUMO, produto: args.produto, contas_no_produto: { trial: 5, trial_encerrado: 1, ativo: 2, cancelado: 0 } } : RESUMO);
+      else if (name === "crm_funil_emails") out = ok({ produto: args.produto ?? null, categoria: args.categoria ?? null, dias: args.dias, desde: "2026-09-24T03:00:00.000Z", total: { enviados: 4, entregues: 2, taxa_abertura: 50, respostas: 0 } });
       else if (name === "crm_tarefas" && args.responsavel === "antonio") out = ok({ total: 2, tarefas: [task("a1", "antonio", "2026-10-22", true), task("a2", "antonio", "2026-10-30")] });
       else if (name === "crm_tarefas") out = ok({ total: 3, tarefas: [task("a1", "antonio", "2026-10-22", true), task("l1", "leo", "2026-10-21", true), task("m1", "maia", "2026-10-23")] });
       else if (name === "crm_criar_tarefa") out = args.responsavel ? ok({ criada: { id: "11111111-1111-4111-8111-111111111111", titulo: args.titulo } }) : null;
@@ -76,10 +77,24 @@ describe("CRM pela Órbita", () => {
   });
 
   it("as ferramentas crm_* só aparecem para a IA com o CRM conectado", async () => {
-    expect(assistantTools().filter((t) => t.name.startsWith("crm_"))).toHaveLength(7);
+    expect(assistantTools().filter((t) => t.name.startsWith("crm_"))).toHaveLength(8);
     delete process.env.CRM_MCP_URL;
     expect(assistantTools().some((t) => t.name.startsWith("crm_"))).toBe(false);
     expect((await runAssistantTool("crm_resumo", {})).ok).toBe(false);
+  });
+
+  it("IA encaminha agregados por produto e mantém o CRM fora do espaço pessoal", async () => {
+    const summary = await runAssistantTool("crm_resumo", { produto: "BarberPro" }, { scope: "empresa" });
+    expect(summary.ok).toBe(true);
+    expect(summary.text).toContain("contas_no_produto");
+    expect(calls.at(-1)).toMatchObject({ name: "crm_resumo", args: { produto: "barberias" } });
+    const email = await runAssistantTool("crm_funil_emails", { produto: "barberias", dias: 7, categoria: "campanha" }, { scope: "empresa" });
+    expect(email.text).toContain("pixel");
+    expect(calls.at(-1)).toMatchObject({ name: "crm_funil_emails", args: { produto: "barberias", dias: 7, categoria: "campanha" } });
+    expect((await runAssistantTool("crm_funil_emails", {}, { scope: "pessoal" })).ok).toBe(false);
+    const before = calls.length;
+    expect((await runAssistantTool("crm_funil_emails", { dias: 366 })).ok).toBe(false);
+    expect(calls).toHaveLength(before);
   });
 
   it("a IA cria tarefa para o Léo sem mandar campos nulos e leva o link do CRM", async () => {

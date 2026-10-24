@@ -37,7 +37,7 @@ export function OpenclawIntegration({ config, initial }: { config: ReturnType<ty
       try {
         const item = await sendOpenclaw(command);
         setHistory((old) => [item, ...old.filter((row) => row.id !== item.id)].slice(0, 30));
-        if (item.status === "accepted") { toast.success("Pedido recebido pelo gateway do Tom."); reset?.(); }
+        if (["accepted", "running", "completed"].includes(item.status)) { toast.success(item.status === "completed" ? "Resultado do Tom disponível." : "Pedido recebido pelo gateway do Tom."); reset?.(); }
         else toast.error(item.detail);
       } catch { toast.error("Não foi possível registrar o pedido."); }
     });
@@ -51,7 +51,7 @@ export function OpenclawIntegration({ config, initial }: { config: ReturnType<ty
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-semibold">Tom · OpenClaw (VPS-02)</h2>
-          <p className="mt-1 text-sm text-muted">{ready ? "Pedidos entram pela rota /hooks/orbita do gateway. O Tom executa e devolve o resultado aqui pelo MCP." : "Saída para o OpenClaw pendente de configuração no servidor."}</p>
+          <p className="mt-1 text-sm text-muted">{ready ? "Pedidos entram pela rota /hooks/orbita. O adaptador interno do Tom devolve diagnóstico e proposta aqui pelo MCP." : "Saída para o OpenClaw pendente de configuração no servidor."}</p>
         </div>
         <Button size="sm" variant="ghost" disabled={pending} onClick={refresh} aria-label="Atualizar pedidos"><RefreshCw className="size-4" />Atualizar</Button>
       </div>
@@ -64,7 +64,7 @@ export function OpenclawIntegration({ config, initial }: { config: ReturnType<ty
       <div className="grid gap-4 lg:grid-cols-2">
         <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); send({ action: "request.tom", params: { texto } }, () => setTexto("")); }}>
           <label htmlFor="pedido-tom" className="text-xs font-medium text-muted">Pedido ao Tom</label>
-          <Textarea id="pedido-tom" required minLength={3} maxLength={2000} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="O que o Tom deve fazer no VPS-02 ou com os agentes do OpenClaw" />
+          <Textarea id="pedido-tom" required minLength={3} maxLength={2000} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="O que o Tom deve analisar ou propor para o VPS-02 e os agentes do OpenClaw" />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" disabled={!ready || pending}><Send className="size-4" />Enviar pedido</Button>
             <Button size="sm" type="button" variant="outline" disabled={!ready || pending} onClick={() => send({ action: "diagnostics.read", params: {} })}><Stethoscope className="size-4" />Diagnóstico do VPS-02</Button>
@@ -77,7 +77,7 @@ export function OpenclawIntegration({ config, initial }: { config: ReturnType<ty
           <Button size="sm" variant="outline" disabled={!ready || pending}>Pedir diagnóstico</Button>
         </form>
       </div>
-      <p className="text-xs text-muted">Recebido significa só que o gateway aceitou o pedido. Execução e resultado aparecem quando o Tom registra. Envio incerto não é repetido sozinho: confira antes de reenviar.</p>
+      <p className="text-xs text-muted">Diagnósticos são somente leitura; pedidos livres retornam análise e proposta, sem mudanças automáticas. Recebido significa só que o gateway aceitou o pedido. Execução e resultado aparecem quando o Tom registra. Envio incerto não é repetido sozinho: confira antes de reenviar.</p>
 
       <div className="divide-y divide-border">
         {history.length === 0 && <p className="py-3 text-sm text-muted">Nenhum pedido enviado ainda.</p>}
