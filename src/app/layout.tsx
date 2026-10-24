@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
-const mono = JetBrains_Mono({ variable: "--font-mono", subsets: ["latin"] });
+const inter = localFont({ src: "./fonts/inter-latin.woff2", variable: "--font-inter", weight: "100 900", style: "normal", display: "swap" });
+const mono = localFont({ src: "./fonts/jetbrains-mono-latin.woff2", variable: "--font-mono", weight: "100 800", style: "normal", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Órbita", template: "%s · Órbita" },

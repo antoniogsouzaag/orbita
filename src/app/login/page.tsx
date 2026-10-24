@@ -1,3 +1,4 @@
+import { EarthBlaze } from "@/components/ui/earth-blaze";
 import { securityState } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
@@ -9,7 +10,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const s = await securityState(true).catch(() => ({ totpEnabled: false }));
   return (
     <div className="relative grid min-h-dvh place-items-center overflow-hidden px-4">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,color-mix(in_oklab,var(--accent)_22%,transparent),transparent_60%)]" />
+      <EarthBlaze interactive={false} starCount={900} style={{ position: "absolute", inset: 0, height: "100%", aspectRatio: "auto" }} /><div className="pointer-events-none absolute inset-0 bg-black/15" />
       <LoginForm next={next ?? "/"} totp={s.totpEnabled} />
     </div>
   );

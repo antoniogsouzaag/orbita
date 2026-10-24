@@ -10,12 +10,12 @@ import { Input } from "@/components/ui/input";
 export function LoginForm({ next, totp }: { next: string; totp: boolean }) {
   const [state, action, pending] = useActionState(login, undefined);
   return (
-    <form action={action} className="card relative w-full max-w-sm p-7 shadow-soft">
+    <form action={action} className="relative w-full max-w-sm rounded-3xl border border-white/15 bg-black/55 p-7 text-white shadow-2xl backdrop-blur-xl">
       <div className="mb-6 flex flex-col items-center gap-3 text-center">
         <Logo className="size-11" />
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Órbita</h1>
-          <p className="text-[13px] text-muted">Sua central operacional</p>
+          <p className="text-[13px] text-white/60">Sua central operacional</p>
         </div>
       </div>
       <input type="hidden" name="next" value={next} />

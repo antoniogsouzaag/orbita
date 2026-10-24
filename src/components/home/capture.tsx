@@ -60,7 +60,7 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
         router.refresh();
       }
     } catch {
-      setAnswer("⚠️ Não foi possível falar com a IA agora.");
+      setAnswer("⚠️ Não foi possível falar com ORBE agora.");
     } finally {
       setAsking(false);
     }

@@ -1,3 +1,5 @@
+import { ProductAppMetrics } from "@/components/empresa/product-app-metrics";
+import { CRM_EMAIL_CATEGORIES } from "@/lib/crm-aggregates";
 import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -14,7 +16,10 @@ import { listTasks } from "@/server/tasks";
 import { appRegistry } from "@/server/ops";
 
 export const metadata = { title: "Negócios · Barberias" };
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ dias?: string; categoria?: string }> }) {
+  const sp = await searchParams;
+  const days = [7,30,90].includes(Number(sp.dias)) ? Number(sp.dias) : 30;
+  const category = CRM_EMAIL_CATEGORIES.find(item => item === sp.categoria);
   const [liveResult, githubResult, socialResult, tasksResult, registryResult] = await Promise.allSettled([liveOps(), githubInbox(), socialConfigured() ? socialChannels() : Promise.resolve([]), listTasks({ scope: "empresa", tag: BARBERIAS.tag, limit: 20 }), appRegistry()]);
   const live = liveResult.status === "fulfilled" ? liveResult.value.status.filter((item) => belongsToBarberias(item.url)) : [];
   const github = githubResult.status === "fulfilled" ? githubResult.value : null;
@@ -23,7 +28,7 @@ export default async function Page() {
   const tasks = tasksResult.status === "fulfilled" ? tasksResult.value : [];
   const app = registryResult.status === "fulfilled" ? registryResult.value.find((item) => item.repo.split("/").at(-1) === BARBERIAS.repo) : null;
   const crm = crmUrl();
-  return <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-6">
+  return <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6">
     <Link href="/empresa/negocios" className="inline-flex text-xs text-muted hover:text-fg">← Todos os negócios</Link>
     <PageHeader icon={<Image src={BARBERIAS.logo} alt="" width={36} height={36} className="size-9 object-contain" />} title="Barberias" description="Indicadores e prioridades do negócio, consultados nas fontes conectadas." />
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[
@@ -33,7 +38,9 @@ export default async function Page() {
       { label: "Disponibilidade observada", value: liveResult.status === "rejected" || !live.length ? "—" : `${live.filter((item) => item.ok).length}/${live.length}`, note: "Última resposta dos monitores" },
     ].map((item) => <Card key={item.label} className="p-4"><p className="text-xs text-muted">{item.label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{item.value}</p><p className="mt-2 text-[10px] text-faint">{item.note}</p></Card>)}</div>
     <p className="text-[11px] text-faint">Consultado em {new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} · cada fonte informa sua própria cobertura e atualização.</p>
-    <Suspense fallback={<Card className="p-5" role="status">Consultando funil comercial e e-mails do Barberias no CRM…</Card>}><ProductCommercial produto={BARBERIAS.id} /></Suspense>
+    <Suspense fallback={<Card className="p-5 text-xs text-muted">Consultando dados administrativos do app…</Card>}><ProductAppMetrics product="barberias" /></Suspense>
+    <form className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-surface p-4"><label className="space-y-1 text-xs text-muted"><span className="block">Janela de e-mails</span><select name="dias" defaultValue={String(days)} className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-fg">{[7,30,90].map(day => <option key={day} value={day}>{day} dias</option>)}</select></label><label className="space-y-1 text-xs text-muted"><span className="block">Categoria</span><select name="categoria" defaultValue={category ?? ""} className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-fg"><option value="">Todas</option>{CRM_EMAIL_CATEGORIES.map(item => <option key={item}>{item}</option>)}</select></label><button className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-fg">Aplicar</button></form>
+    <Suspense key={`${days}:${category}`} fallback={<Card className="p-5" role="status">Consultando funil comercial e e-mails do Barberias no CRM…</Card>}><ProductCommercial produto={BARBERIAS.id} dias={days} categoria={category} /></Suspense>
     <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"><div className="space-y-5">
       <Card className="p-5"><h2 className="font-semibold">Decisões que precisam de atenção</h2><ul className="mt-4 space-y-3 text-sm text-muted">{live.some((item) => !item.ok) && <li className="rounded-xl bg-warning/10 p-3">{live.filter((item) => !item.ok).length} verificações falharam. Consulte os incidentes antes de retomar divulgação.</li>}{issues.filter((item) => item.kind === "pr" && !item.draft).length > 0 && <li><Link className="text-accent" href="/github">Revisar {issues.filter((item) => item.kind === "pr" && !item.draft).length} PRs abertos do produto ↗</Link></li>}<li className="rounded-xl border border-border p-3"><p className="font-medium text-fg">Comercial na origem</p><p className="mt-2 text-xs leading-relaxed">Os indicadores comerciais acima consultam somente o produto barberias no CRM. Contas e etapa comercial são sinais distintos; confirme cobranças e próximos passos nos sistemas de origem. O resumo geral nunca substitui dados indisponíveis do produto.</p><div className="mt-3 flex flex-wrap gap-3 text-xs">{crm && <a href={crm} target="_blank" rel="noopener noreferrer" className="text-accent">Abrir CRM ↗</a>}<a href="https://barberias.com.br/super-admin" target="_blank" rel="noopener noreferrer" className="text-accent">Abrir administração do Barberias ↗</a></div></li></ul></Card>
       <Card className="p-5"><h2 className="font-semibold">Próximas ações do Barberias</h2><p className="mt-1 text-xs text-muted">Tarefas internas da Órbita, vinculadas explicitamente pela tag barberias.</p>{tasksResult.status === "rejected" ? <p className="mt-4 text-sm text-warning">Não foi possível consultar as tarefas.</p> : !tasks.length ? <p className="mt-4 text-sm text-muted">Nenhuma ação aberta com este vínculo. Adicione a próxima decisão ou melhoria.</p> : <ul className="mt-4 divide-y divide-border">{tasks.map((task) => <li key={task.id}><Link href={`/tarefas?escopo=empresa&tag=barberias&task=${task.id}`} className="block py-3 text-sm hover:text-accent">{task.title}{task.dueDate && <span className="mt-1 block text-[11px] text-faint">Prazo: {task.dueDate}</span>}</Link></li>)}</ul>}<BusinessTask /></Card>

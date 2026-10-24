@@ -327,10 +327,10 @@ export type AgentActivity = typeof agentActivity.$inferSelect;
 /* ───────────── Pedidos aos diretores (Órbita → runtimes) ───────────── */
 
 /** Runtimes que recebem pedidos da Órbita. O id do pedido é o mesmo request_id/Idempotency-Key enviado. */
-export const DISPATCH_TARGETS = ["openclaw"] as const;
+export const DISPATCH_TARGETS = ["openclaw", "hermes"] as const;
 export type DispatchTarget = (typeof DISPATCH_TARGETS)[number];
 /** sending → accepted | rejected | unknown; depois o agente informa running → completed | failed. */
-export const DISPATCH_STATUSES = ["sending", "accepted", "rejected", "unknown", "running", "completed", "failed"] as const;
+export const DISPATCH_STATUSES = ["sending", "accepted", "rejected", "unknown", "running", "completed", "failed", "scheduled", "interrupted", "due"] as const;
 export type DispatchStatus = (typeof DISPATCH_STATUSES)[number];
 
 export const dispatches = pgTable(

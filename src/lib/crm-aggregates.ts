@@ -38,6 +38,7 @@ function safeProductGroups(raw: unknown) {
   return { ...input, por_produto: Object.fromEntries(valid), agrupamentos_sem_slug: entries.length - valid.length };
 }
 export const crmSummarySchema = z.preprocess(safeProductGroups, z.object({
+  consultado_em: z.iso.datetime().optional(), pagamentos_mes: count.optional(), pagantes_mes: count.optional(), pagamentos_sem_contato_mes: count.optional(),
   hoje: z.iso.date().optional(), produto: crmProductSchema.nullish(),
   funil: counts(CRM_FUNNEL).optional(), contas_no_produto: crmAccountsSchema.optional(),
   oportunidades_abertas: count.optional(), clientes: count.optional(), clientes_inativos: count.optional(),
@@ -53,7 +54,18 @@ export const crmEmailTotalsSchema = z.object({
   falhas: count.optional(), descadastros: count.optional(),
   taxa_entrega: rate, taxa_abertura: rate, taxa_clique: rate, taxa_resposta: rate,
 });
+const crmEmailSourceSchema = crmEmailTotalsSchema.extend({ origem: z.string().max(200).regex(/^[a-z0-9][a-z0-9._-]*$/i), categoria: z.enum(CRM_EMAIL_CATEGORIES), produto: crmProductSchema.nullish() });
 export const crmEmailSchema = z.object({
+  consultado_em: z.iso.datetime().optional(), ultima_mensagem_em: z.iso.datetime().nullable().optional(),
+  aguardando_entrega: count.optional(), entregues_sem_resposta: count.optional(), agendados_na_janela: count.optional(),
+  por_origem: z.preprocess((raw) => {
+    if (!Array.isArray(raw)) return undefined;
+    const clean = raw.slice(0,15).flatMap(item => {
+      const parsed = crmEmailSourceSchema.safeParse(item);
+      return parsed.success ? [parsed.data] : [];
+    });
+    return clean.length ? clean : undefined;
+  }, z.array(crmEmailSourceSchema).max(15).optional()),
   produto: crmProductSchema.nullish(), categoria: z.enum(CRM_EMAIL_CATEGORIES).nullish(),
   desde: z.iso.datetime().optional(), dias: z.number().int().min(1).max(365).optional(),
   total: crmEmailTotalsSchema.optional(), campanhas: count.optional(), respostas_recebidas: count.optional(),

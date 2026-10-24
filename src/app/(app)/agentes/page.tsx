@@ -1,14 +1,14 @@
-import { Activity, Bot, KeyRound, Network, Plus, XCircle, CheckCircle2 } from "lucide-react";
-import { headers } from "next/headers";
+import { DirectorsPanel } from "@/components/agents/directors-panel";
+import { openclawConfiguration } from "@/server/openclaw";
+import { listDispatches, toView } from "@/server/dispatch";
+import { hermesConfiguration, hermesHistory } from "@/server/hermes";
+import { Activity, Bot, XCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AgentTokens, type TokenRow } from "@/components/agents/agent-tokens";
 import { AgentOperations, AgentRegistry } from "@/components/agents/operations-dashboard";
 import { AgentAccessLink } from "@/components/agents/access-link";
-import { CopyButton } from "@/components/ops/copy-button";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
 import { agentActivitySummary, agentTasks, listAgentTokens, recentActivity } from "@/server/agents";
-import { CORE_AGENT_TOOLS } from "@/lib/agent-handbook";
 import { agentReports } from "@/server/agent-reports";
 
 export const metadata = { title: "Agentes" };
@@ -22,64 +22,38 @@ function ago(d: Date) {
 }
 
 export default async function Page() {
-  const [tokens, activity, inbox, summary, h] = await Promise.all([listAgentTokens(), recentActivity(40), agentTasks(), agentActivitySummary(), headers()]);
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "orbita";
-  const mcpUrl = `${host.startsWith("localhost") ? "http" : "https"}://${host}/api/mcp`;
-  const rows: TokenRow[] = tokens.map((t) => ({ id: t.id, name: t.name, prefix: t.prefix, scopes: t.scopes, revoked: t.revoked, lastUsedAt: t.lastUsedAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString() }));
+  const [tokens, activity, inbox, summary, history, openclaw] = await Promise.all([listAgentTokens(), recentActivity(40), agentTasks(), agentActivitySummary(), hermesHistory(), listDispatches({ target: "openclaw" })]);
 
+  const groupedActivity = new Map<string, typeof activity>();
+  for (const call of activity) {
+    const calls = groupedActivity.get(call.agent) ?? [];
+    calls.push(call);
+    groupedActivity.set(call.agent, calls);
+  }
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-6">
       <PageHeader icon={<Bot />} title="Central dos agentes" description="Time, atividade e decisões em um só lugar. O contexto vem do Knowledge; a execução fica com cada agente." actions={<AgentAccessLink />} />
 
-      <Link href="/documentacao" className="flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-accent/5 p-5"><span><span className="block text-sm font-semibold">Manual canônico da Órbita</span><span className="mt-1 block text-xs text-muted">Fontes, permissões e roteiro de entrada. A mesma versão na página, no Markdown e no MCP.</span></span><span aria-hidden="true">↗</span></Link>
+      <DirectorsPanel tomConfig={openclawConfiguration()} oracleConfig={hermesConfiguration()} tomInitial={openclaw.map(row => toView(row))} oracleInitial={history} />
       <AgentOperations tokens={tokens} inbox={inbox} summary={summary} />
       <Suspense fallback={<Card className="p-5 text-xs text-muted">Consultando resumos…</Card>}><Reports /></Suspense>
       <Suspense fallback={<Card className="p-6 text-[13px] text-muted">Carregando time documentado no Knowledge…</Card>}><AgentRegistry /></Suspense>
 
-      <details id="conectar-agente" className="group scroll-mt-24 rounded-2xl border border-border bg-surface/70">
-        <summary className="flex cursor-pointer list-none items-center gap-3 p-5"><KeyRound className="size-4 text-accent" /><div><p className="text-[14px] font-semibold">Acessos e configuração MCP</p><p className="mt-1 text-[12px] text-muted">Criar, revogar e copiar instruções para conectar cada agente.</p></div><Plus className="ml-auto size-4 text-faint transition-transform group-open:rotate-45" /></summary>
-      <div className="grid gap-6 px-3 pb-3 sm:px-5 sm:pb-5 lg:grid-cols-[1.4fr_1fr]">
-        <AgentTokens tokens={rows} mcpUrl={mcpUrl} />
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader icon={<Network />} title="Conexão MCP" />
-            <div className="space-y-3 px-5 pb-5 text-[13px] text-muted">
-              <div className="flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded-lg bg-surface-2 px-2 py-1.5 font-mono text-[12px] text-fg">{mcpUrl}</code>
-                <CopyButton text={mcpUrl} />
-              </div>
-              <p>Transporte HTTP (Streamable), cabeçalho <code>Authorization: Bearer orb_…</code>. Funciona com Claude Code, Codex, n8n (nó MCP Client) e qualquer cliente MCP.</p>
-              <ul className="space-y-1.5">
-                {CORE_AGENT_TOOLS.map(({ name, scope, description }) => (
-                  <li key={name} className="flex gap-2">
-                    <code className="shrink-0 font-mono text-[11.5px] text-fg">{name}</code>
-                    <span className="truncate text-[12px]">{description}</span>
-                    <span className="ml-auto shrink-0 rounded bg-surface-2 px-1.5 text-[11px] text-faint">{scope}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-[12px] text-faint">Contexto e Status compartilham a leitura do ecossistema e do manual da empresa no vault. Administradores acessam todas as ações da IA, inclusive tarefas pessoais, agenda, finanças e CRM. As permissões pertencem ao token e podem ser ajustadas abaixo.</p>
-            </div>
-          </Card>
-
-        </div>
-      </div>
-      </details>
 
       <Card>
-        <CardHeader icon={<Activity />} title="Linha do tempo" meta="últimas 40 chamadas MCP" href="/operacao" hrefLabel="Operação" />
+        <CardHeader icon={<Activity />} title="Atividade por agente" meta="últimas 40 chamadas MCP" href="/operacao" hrefLabel="Operação" />
         <div className="px-5 pb-5 text-[13px]">
           {activity.length === 0 ? (
             <p className="text-muted">Nenhuma chamada ainda.</p>
           ) : (
             <ul className="divide-y divide-border">
-              {activity.map((a) => (
-                <li key={a.id} className="flex items-start gap-3 py-3">
+              {[...groupedActivity].map(([agent, calls]) => (
+                <li key={agent} className="py-3"><details><summary className="flex cursor-pointer items-center gap-3 text-sm"><Bot className="size-4 text-accent" /><span className="font-medium">{agent}</span><span className="ml-auto text-xs text-muted">{calls.length} chamadas · {calls.filter(call => !call.ok).length} falhas</span></summary><ul className="mt-3 divide-y divide-border pl-7">{calls.map(a => <li key={a.id} className="flex items-start gap-3 py-2">
                   {a.ok ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" /> : <XCircle className="mt-0.5 size-4 shrink-0 text-danger" />}
                   <div className="min-w-0 flex-1"><p className="break-words text-[12px] font-semibold">{a.agent}</p><p className="mt-0.5 break-words text-[12px] text-muted">{a.summary}</p><code className="mt-1 block break-all font-mono text-[10px] text-faint">{a.tool}</code></div>
                   <time dateTime={a.createdAt.toISOString()} className="shrink-0 text-[11px] text-faint">{ago(a.createdAt)}</time>
-                </li>
+                </li>)}</ul></details></li>
               ))}
             </ul>
           )}

@@ -1,6 +1,6 @@
-import { Activity, AlertTriangle, ArrowUpRight, Bot, CheckCircle2, Gauge, Globe, HeartPulse, Plug, Radio, XCircle } from "lucide-react";
-import { headers } from "next/headers";
+import { Activity, AlertTriangle, Bot, CheckCircle2, Gauge, Globe, HeartPulse, Plug, Radio, XCircle } from "lucide-react";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { CopyButton } from "@/components/ops/copy-button";
 import { StatusBoard, type BoardItem } from "@/components/ops/status-board";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
@@ -67,8 +67,8 @@ export default async function Page() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6">
-      <PageHeader icon={<Gauge />} title="Operação" description="Estado ao vivo da AG LABS. O inventário (servidores, agentes, apps) está no Vault; aqui fica só o que está acontecendo agora." />
+    <div className="mx-auto max-w-7xl space-y-5 px-4 sm:px-6">
+      <PageHeader icon={<Gauge />} title="Operação" description="Disponibilidade, incidentes e prioridades da AG LABS." />
       <VaultBanner />
 
       {silent.length > 0 && (
@@ -95,10 +95,10 @@ export default async function Page() {
         </div>
       )}
 
-      <Card className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">O que pede atenção</h2><p className="mt-1 text-xs text-muted">Decisões sugeridas a partir do estado recebido. Cada fonte mantém seu horário e sua evidência.</p></div><Link href="/documentacao#continuidade" className="text-xs text-accent hover:underline">Como evoluir a operação ↗</Link></div>{priorities.length ? <div className="mt-4 grid gap-3 md:grid-cols-2">{priorities.map(item => <Link key={item.title} href={item.href} className="rounded-xl border border-warning/20 bg-warning/5 p-4 hover:border-warning/50"><h3 className="text-sm font-medium">{item.title}</h3><p className="mt-2 text-xs leading-relaxed text-muted">{item.detail}</p><span className="mt-3 block text-xs text-accent">{item.label} ↗</span></Link>)}</div> : <p className="mt-4 text-sm text-muted">{live.monitors.length ? "Nenhum alerta nessas verificações. Consulte a cobertura e a última batida dos monitores abaixo." : "Aguardando dados dos monitores para formar a fila de atenção. Confira a conexão em Integrações."}</p>}</Card>
+      <Card className="overflow-hidden border-l-2 border-l-accent/50 p-5 sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">O que pede atenção</h2><p className="mt-1 text-xs text-muted">Decisões sugeridas a partir do estado recebido. Cada fonte mantém seu horário e sua evidência.</p></div><Link href="/documentacao#continuidade" className="text-xs text-accent hover:underline">Como evoluir a operação ↗</Link></div>{priorities.length ? <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{priorities.map(item => <Link key={item.title} href={item.href} className="rounded-xl border border-warning/20 bg-warning/5 p-4 hover:border-warning/50"><h3 className="text-sm font-medium">{item.title}</h3><p className="mt-2 text-xs leading-relaxed text-muted">{item.detail}</p><span className="mt-3 block text-xs text-accent">{item.label} ↗</span></Link>)}</div> : <p className="mt-4 text-sm text-muted">{live.monitors.length ? "Nenhum alerta nessas verificações. Consulte a cobertura e a última batida dos monitores abaixo." : "Aguardando dados dos monitores para formar a fila de atenção. Confira a conexão em Integrações."}</p>}</Card>
       <div id="disponibilidade" className="scroll-mt-24"><StatusBoard initial={board} groupOrder={groupOrder} /></div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
         <Card>
           <CardHeader icon={<Activity />} title="Incidentes e eventos" meta="últimos 14 dias" href="/operacao/automacoes" hrefLabel="Automações" />
           <div className="max-h-[420px] overflow-y-auto px-3 pb-4">
@@ -145,7 +145,7 @@ export default async function Page() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
         <Card id="coerencia" className="scroll-mt-24">
           <CardHeader icon={<CheckCircle2 />} title="Coerência vault × monitor" href={monitorNote ? `/vault?p=${encodeURIComponent(monitorNote)}` : undefined} hrefLabel="Nota no vault" />
           <div className="space-y-3 px-5 pb-5 text-[13px]">
@@ -172,14 +172,6 @@ export default async function Page() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader icon={<Bot />} title="Contexto para agentes" href="/documentacao" hrefLabel="Manual canônico" />
-        <div className="flex flex-wrap items-center gap-3 px-5 pb-5 text-[13px] text-muted">
-          <p className="min-w-[260px] flex-1">Para um agente novo: devolve em markdown as regras do vault, agentes, servidores, apps, automações e o estado ao vivo — sem dados pessoais nem segredos.</p>
-          <CopyButton text={`curl -H "Authorization: Bearer $CONTEXT_TOKEN" "${base}/api/context?format=md&live=1"`} label="Copiar curl" />
-          <Link href="/api/context?format=md" target="_blank" className="flex items-center gap-1 text-[12.5px] text-accent hover:underline">Prévia <ArrowUpRight className="size-3.5" /></Link>
-        </div>
-      </Card>
     </div>
   );
 }
