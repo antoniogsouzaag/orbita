@@ -1,12 +1,13 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { issueStage, type GithubStage } from "@/lib/github-triage";
 
 /**
- * O que está esperando decisão de Antonio no GitHub da AG LABS:
- * PRs abertos e issues "Proposta:" (etiqueta proposta) ainda sem aprovado/recusado.
+ * Trabalho aberto do ecossistema: revisão de PR, execução técnica e decisões.
+ * Triagem é explícita por etiquetas; não transforma todo bug em aprovação humana.
  * Lê ao vivo (com cache curto); nada é copiado para o banco.
  */
-export type InboxItem = { kind: "pr" | "proposta"; title: string; repo: string; url: string; number: number; updatedAt: string; author: string; draft?: boolean };
+export type InboxItem = { kind: "pr" | "proposta"; title: string; repo: string; url: string; number: number; updatedAt: string; author: string; draft?: boolean; stage?: GithubStage; blocked?: boolean; labels?: string[] };
 export type GithubInbox = {
   configured: boolean;
   items: InboxItem[];
@@ -36,7 +37,7 @@ export function githubInboxConfig() {
   return { configured: credential !== null, credential, org, warning };
 }
 
-type SearchItem = { title: string; html_url: string; number: number; updated_at: string; repository_url: string; user?: { login: string }; draft?: boolean; pull_request?: unknown };
+type SearchItem = { title: string; html_url: string; number: number; updated_at: string; repository_url: string; user?: { login: string }; draft?: boolean; pull_request?: unknown; labels?: { name: string }[] };
 type SearchResult = { items: SearchItem[]; total_count: number; incomplete_results?: boolean };
 
 async function search(q: string): Promise<SearchResult> {
@@ -58,9 +59,9 @@ export async function githubInbox(options: { force?: boolean } = {}): Promise<Gi
   try {
     const [prs, props] = await Promise.all([
       search(`org:${config.org} is:pr is:open archived:false`),
-      search(`org:${config.org} is:issue is:open label:proposta -label:aprovado -label:recusado archived:false`),
+      search(`org:${config.org} is:issue is:open label:proposta,execucao,decisao -label:recusado archived:false`),
     ]);
-    const map = (k: InboxItem["kind"]) => (i: SearchItem): InboxItem => ({ kind: k, title: i.title, repo: i.repository_url.split("/").pop() ?? "", url: i.html_url, number: i.number, updatedAt: i.updated_at, author: i.user?.login ?? "", draft: i.draft });
+    const map = (k: InboxItem["kind"]) => (i: SearchItem): InboxItem => ({ kind: k, title: i.title, repo: i.repository_url.split("/").pop() ?? "", url: i.html_url, number: i.number, updatedAt: i.updated_at, author: i.user?.login ?? "", draft: i.draft, ...(k === "proposta" ? { labels: (i.labels ?? []).map(label => label.name), stage: issueStage((i.labels ?? []).map(label => label.name)), blocked: (i.labels ?? []).some(label => label.name.toLowerCase() === "bloqueado") } : {}) });
     const items = [...prs.items.map(map("pr")), ...props.items.map(map("proposta"))].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     const total = prs.total_count + props.total_count;
     const data: GithubInbox = { ...config, items, error: null, checkedAt: new Date().toISOString(), total, truncated: total > items.length || Boolean(prs.incomplete_results || props.incomplete_results) };

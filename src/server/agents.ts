@@ -8,6 +8,7 @@ import { agentActivity, agentTokens, opsEvents, tasks, type AgentScope } from "@
 import { buildContext, contextToMarkdown } from "./context";
 import { liveOps } from "./ops-live";
 import { githubInbox } from "./github-inbox";
+import { stageLabel } from "@/lib/github-triage";
 import { n8nOverview } from "./ops";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
 import { assistantTools, runAssistantTool } from "./assistant";
@@ -165,12 +166,12 @@ export function buildMcpServer(agent: AgentIdentity) {
   if (can("status")) {
     server.registerTool(
       "pendencias_github",
-      { title: "PRs e propostas pendentes", description: "Lê PRs abertos e propostas sem decisão nos repositórios visíveis ao token da Órbita. Não aprova nem altera nada.", inputSchema: {} },
+      { title: "PRs e propostas pendentes", description: "Lê PRs e a fila GitHub separando execução, decisão de Antonio e itens a classificar. Não aprova, executa, mescla nem altera nada.", inputSchema: {} },
       async () => run("pendencias_github", "consultou PRs e propostas", async () => {
         const inbox = await githubInbox();
         if (!inbox.configured) return text("GitHub não configurado na Órbita.", true);
         if (inbox.error) return text(inbox.error, true);
-        return text([`Organização: ${inbox.org}. ${inbox.items.length} de ${inbox.total} resultados${inbox.truncated ? " (consulta parcial)" : ""}.`, inbox.warning, ...inbox.items.map((item) => `- ${item.kind === "pr" ? item.draft ? "PR rascunho" : "PR" : "Proposta"}: ${item.repo} #${item.number} — ${item.title}\n  ${item.url}`)].join("\n"));
+        return text([`Organização: ${inbox.org}. ${inbox.items.length} de ${inbox.total} resultados${inbox.truncated ? " (consulta parcial)" : ""}.`, inbox.warning, ...inbox.items.map((item) => `- ${stageLabel(item)}: ${item.repo} #${item.number} — ${item.title}\n  ${item.url}`)].join("\n"));
       }),
     );
     server.registerTool(
