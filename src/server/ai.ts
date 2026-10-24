@@ -5,6 +5,9 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import type { TaskScope } from "@/db/schema";
+import { ACTION_MARK, actionMarker, actionOrigins, modelText, sourceMarker, splitActions } from "@/lib/ai-stream";
+import type { ChatTurn } from "@/lib/orbe-chat";
+export type { ChatTurn } from "@/lib/orbe-chat";
 import { formatLong, localHour, localTime, shiftDate, today, zonedToUtc, localDate } from "@/lib/dates";
 import { eventsBetween } from "@/server/calendar";
 import { getCheckin } from "@/server/checkins";
@@ -16,7 +19,7 @@ import { focusStats, listWorkouts } from "@/server/life";
 import { getSettings } from "@/server/settings";
 import { listTasks, taskCounts } from "@/server/tasks";
 import { assistantTools, runAssistantTool, toolJsonSchema } from "@/server/assistant";
-import { crmConfigured, crmOverview } from "@/server/crm";
+import { crmConfigured, crmOverview, crmUrl } from "@/server/crm";
 import { liveOps } from "@/server/ops-live";
 import { getVaultIndexSafe, getVaultProvider } from "@/server/vault";
 
@@ -133,7 +136,7 @@ export async function vaultContext(question: string, scope: TaskScope = "pessoal
   return selected.length ? formatOrbeNotes(selected) : "Nenhum trecho relevante recuperado automaticamente. Use buscar_no_vault com conceitos curtos ou ler_nota_do_vault antes de concluir que não há informação.";
 }
 
-export type ChatTurn = { role: "user" | "assistant"; content: string };
+
 
 function errorText(e: unknown) {
   if (e instanceof OpenAI.APIError) return e.status === 404 ? `Modelo “${aiModel()}” não encontrado na OpenAI — confira OPENAI_MODEL` : e.status === 401 ? "Chave da OpenAI inválida" : e.status === 429 ? "Limite ou saldo da OpenAI atingido" : `Erro da OpenAI (${e.status ?? "rede"})`;
@@ -142,12 +145,10 @@ function errorText(e: unknown) {
 }
 
 /** Marcador de ação no fluxo de texto: \u001e{json}\u001e — o chat mostra um chip e atualiza a tela. */
-export const ACTION_MARK = "\u001e";
+export { ACTION_MARK };
 const MAX_ROUNDS = 6;
 
-function actionMarker(a: { label: string; href: string }) {
-  return `${ACTION_MARK}${JSON.stringify(a)}${ACTION_MARK}`;
-}
+
 
 const TOOL_RULES = `Você pode agir com as ferramentas disponíveis neste espaço. Respeite a origem e o escopo de cada ferramenta.
 - Quando o pedido for uma ação ("cria", "marca", "lembra", "anota", "gastei", "conclui", "reorganiza"), execute com a ferramenta em vez de só descrever. Depois confirme em uma linha o que foi feito.
@@ -166,33 +167,43 @@ const CRM_RULES = `CRM da AG LABS (ferramentas crm_*): clientes, leads, funil, r
 const NO_CRM = "- Tarefas e dados de clientes da empresa ficam no CRM, que ainda não está conectado à Órbita.";
 
 /** Resposta em streaming (texto) para a pergunta, com contexto do dia + vault e ferramentas para agir. */
-export async function askStream(history: ChatTurn[], opts: { tools?: boolean; scope?: TaskScope } = {}): Promise<ReadableStream<Uint8Array>> {
+export async function askStream(history: ChatTurn[], opts: { tools?: boolean; scope?: TaskScope; readOnly?: boolean; signal?: AbortSignal } = {}): Promise<ReadableStream<Uint8Array>> {
   const provider = aiProvider();
   if (!provider) throw new Error("IA não configurada");
+  opts.signal?.throwIfAborted();
   const useTools = opts.tools ?? true;
+  const readOnly = opts.readOnly ?? false;
   const scope = opts.scope ?? "pessoal";
   const [personal, vault] = await Promise.all([scope === "empresa" ? empresaContext() : personalContext(), vaultContext(history.filter(turn => turn.role === "user").slice(-3).map(turn => turn.content).join("\n"), scope)]);
+  opts.signal?.throwIfAborted();
   const context = `<contexto_do_dia>\n${personal}\n</contexto_do_dia>${vault ? `\n<vault>\n${vault}\n</vault>` : ""}`;
   const turns = history.map((m, i) => (i === history.length - 1 ? { role: "user" as const, content: `${context}\n\n<pergunta>\n${m.content}\n</pergunta>` } : m));
   const spaceRules = `Espaço atual: ${scope}. Crie e consulte tarefas apenas neste espaço. Tags não mudam o espaço. Tarefas de outro espaço devem ser tratadas na respectiva tela. ${scope === "empresa" ? "Dados comerciais e tarefas ligadas a contatos ficam exclusivamente nas ferramentas crm_*. Notas, finanças e agenda pessoais não estão disponíveis neste espaço." : "O CRM e as tarefas internas da empresa ficam no espaço Empresa."}`;
-  const instructions = `${SYSTEM}\n\n${scope === "empresa" ? ORBE_STRATEGY_RULES : ""}\n\n${spaceRules}${useTools ? `\n\n${TOOL_RULES}\n${scope === "empresa" ? crmConfigured() ? CRM_RULES : NO_CRM : ""}` : ""}`;
+  const instructions = `${readOnly ? "Modo somente leitura: investigue e recomende; nenhuma escrita está disponível ou autorizada nesta consulta.\n" : ""}${SYSTEM}\n\n${scope === "empresa" ? ORBE_STRATEGY_RULES : ""}\n\n${spaceRules}${useTools ? `\n\n${TOOL_RULES}\n${scope === "empresa" ? crmConfigured() ? CRM_RULES : NO_CRM : ""}` : ""}`;
   const enc = new TextEncoder();
   const controller = new AbortController();
-
+  const abort = () => controller.abort();
+  opts.signal?.addEventListener("abort", abort, { once: true });
+  if (opts.signal?.aborted) abort();
+  let canceled = false;
   const run = provider === "openai" ? runOpenAI : runAnthropic;
   return new ReadableStream({
     async start(out) {
-      const emit = (t: string) => out.enqueue(enc.encode(t));
+      const emit = (t: string) => { if (!canceled && !controller.signal.aborted) out.enqueue(enc.encode(t)); };
       try {
-        await run({ instructions, turns, useTools, scope, emit, signal: controller.signal });
+        controller.signal.throwIfAborted();
+        await run({ instructions, turns, useTools, scope, readOnly, emit, signal: controller.signal });
       } catch (e) {
-        if (!controller.signal.aborted) emit(`\n\n⚠️ ${errorText(e)}.`);
+        if (!controller.signal.aborted) emit(`\n\n⚠️ ${errorText(e)}. Se uma ação já começou, confira o estado antes de repetir.`);
       } finally {
-        out.close();
+        opts.signal?.removeEventListener("abort", abort);
+        if (!canceled) out.close();
       }
     },
     cancel() {
+      canceled = true;
       controller.abort();
+      opts.signal?.removeEventListener("abort", abort);
     },
   });
 }
@@ -201,25 +212,20 @@ export async function askStream(history: ChatTurn[], opts: { tools?: boolean; sc
 export async function askOnce(text: string): Promise<{ answer: string; actions: { label: string; href: string }[] }> {
   const stream = await askStream([{ role: "user", content: text }]);
   const raw = await new Response(stream).text();
-  const actions: { label: string; href: string }[] = [];
-  const answer = raw.replace(new RegExp(`${ACTION_MARK}([^${ACTION_MARK}]*)${ACTION_MARK}`, "g"), (_, j: string) => {
-    try {
-      actions.push(JSON.parse(j));
-    } catch {}
-    return "";
-  });
-  return { answer: answer.trim(), actions };
+  const parsed = splitActions(raw, actionOrigins(crmUrl()));
+  return { answer: parsed.text.trim(), actions: parsed.actions };
 }
 
-type RunArgs = { instructions: string; turns: ChatTurn[]; useTools: boolean; scope: TaskScope; emit: (t: string) => void; signal: AbortSignal };
+type RunArgs = { instructions: string; turns: ChatTurn[]; useTools: boolean; scope: TaskScope; readOnly: boolean; emit: (t: string) => void; signal: AbortSignal };
 
-async function runOpenAI({ instructions, turns, useTools, scope, emit, signal }: RunArgs) {
+async function runOpenAI({ instructions, turns, useTools, scope, readOnly, emit, signal }: RunArgs) {
   const client = openaiClient();
-  const tools: OpenAI.Responses.Tool[] = useTools ? assistantTools(scope).map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
+  const tools: OpenAI.Responses.Tool[] = useTools ? assistantTools(scope, { readOnly }).map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
   let input: OpenAI.Responses.ResponseInput = turns.map((t) => ({ role: t.role, content: t.content }));
   let reasoning = true; // alguns modelos não aceitam o parâmetro: cai para a chamada simples
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
+    signal.throwIfAborted();
     const body = {
       model: aiModel(),
       instructions,
@@ -243,19 +249,21 @@ async function runOpenAI({ instructions, turns, useTools, scope, emit, signal }:
     }
     let final: OpenAI.Responses.Response | null = null;
     for await (const ev of stream) {
-      if (ev.type === "response.output_text.delta") emit(ev.delta);
-      else if (ev.type === "response.refusal.delta") emit(ev.delta);
+      signal.throwIfAborted();
+      if (ev.type === "response.output_text.delta") emit(modelText(ev.delta));
+      else if (ev.type === "response.refusal.delta") emit(modelText(ev.delta));
       else if (ev.type === "response.completed") final = ev.response;
-      else if (ev.type === "response.incomplete") {
-        emit("\n\n_(resposta cortada)_");
-        final = ev.response;
-      } else if (ev.type === "response.failed" || ev.type === "error") emit("\n\n⚠️ A IA não conseguiu terminar a resposta.");
+      else if (ev.type === "response.incomplete" || ev.type === "response.failed" || ev.type === "error") throw new Error("Resposta não concluída");
     }
-    const calls = (final?.output ?? []).filter((o): o is OpenAI.Responses.ResponseFunctionToolCall => o.type === "function_call");
+    signal.throwIfAborted();
+    if (!final || final.status !== "completed") throw new Error("Resposta sem conclusão confirmada");
+    const calls = final.output.filter((o): o is OpenAI.Responses.ResponseFunctionToolCall => o.type === "function_call");
     if (!calls.length || !final) return;
     input = [...input, ...(final.output as OpenAI.Responses.ResponseInputItem[])];
     for (const c of calls) {
-      const r = await runAssistantTool(c.name, c.arguments, { scope });
+      signal.throwIfAborted();
+      const r = await runAssistantTool(c.name, c.arguments, { scope, readOnly, signal });
+      if (assistantTools(scope).find(t => t.name === c.name)?.readOnly) emit(sourceMarker({ name: c.name, ok: r.ok }));
       if (r.action) emit(actionMarker(r.action));
       input.push({ type: "function_call_output", call_id: c.call_id, output: r.text });
     }
@@ -263,18 +271,21 @@ async function runOpenAI({ instructions, turns, useTools, scope, emit, signal }:
   emit("\n\n_(parei após muitas etapas; confira o que foi feito)_");
 }
 
-async function runAnthropic({ instructions, turns, useTools, scope, emit, signal }: RunArgs) {
-  const tools = useTools ? assistantTools(scope).map((t) => ({ name: t.name, description: t.description, input_schema: toolJsonSchema(t) as Anthropic.Beta.BetaTool.InputSchema })) : undefined;
+async function runAnthropic({ instructions, turns, useTools, scope, readOnly, emit, signal }: RunArgs) {
+  const tools = useTools ? assistantTools(scope, { readOnly }).map((t) => ({ name: t.name, description: t.description, input_schema: toolJsonSchema(t) as Anthropic.Beta.BetaTool.InputSchema })) : undefined;
   const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role, content: t.content }));
   for (let round = 0; round < MAX_ROUNDS; round++) {
+    signal.throwIfAborted();
     const stream = anthropicClient().beta.messages.stream(
       { model: aiModel(), max_tokens: 16000, system: [{ type: "text", text: instructions, cache_control: { type: "ephemeral" } }], output_config: { effort: scope === "empresa" ? "medium" : "low" }, messages, ...(tools ? { tools } : {}), ...FALLBACK },
       { signal },
     );
     for await (const ev of stream) {
-      if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") emit(ev.delta.text);
+      signal.throwIfAborted();
+      if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") emit(modelText(ev.delta.text));
     }
     const final = await stream.finalMessage();
+    signal.throwIfAborted();
     if (final.stop_reason === "refusal") emit("\n\n_Não posso ajudar com esse pedido._");
     if (final.stop_reason === "max_tokens") emit("\n\n_(resposta cortada por tamanho)_");
     if (final.stop_reason !== "tool_use") return;
@@ -282,7 +293,9 @@ async function runAnthropic({ instructions, turns, useTools, scope, emit, signal
     const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
     for (const b of final.content) {
       if (b.type !== "tool_use") continue;
-      const r = await runAssistantTool(b.name, b.input as Record<string, unknown>, { scope });
+      signal.throwIfAborted();
+      const r = await runAssistantTool(b.name, b.input as Record<string, unknown>, { scope, readOnly, signal });
+      if (assistantTools(scope).find(t => t.name === b.name)?.readOnly) emit(sourceMarker({ name: b.name, ok: r.ok }));
       if (r.action) emit(actionMarker(r.action));
       results.push({ type: "tool_result", tool_use_id: b.id, content: r.text, ...(r.ok ? {} : { is_error: true }) });
     }
