@@ -1,6 +1,5 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { askStream, aiProvider, planDay } from "@/server/ai";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // Servidor falso que imita a API de Responses da OpenAI (sem chamar a internet).
@@ -43,6 +42,7 @@ afterAll(() => server?.close());
 
 describe("IA via OpenAI", () => {
   it("transmite a resposta em texto e envia o contexto do dia", async () => {
+    const { askStream, aiProvider } = await import("@/server/ai");
     expect(aiProvider()).toBe("openai");
     const stream = await askStream([{ role: "user", content: "O que faço hoje?" }]);
     const text = await new Response(stream).text();
@@ -56,6 +56,7 @@ describe("IA via OpenAI", () => {
   });
 
   it("monta o plano do dia com saída estruturada e ordena os blocos", async () => {
+    const { planDay } = await import("@/server/ai");
     const plan = await planDay({ prompt: "", from: 8, to: 22 });
     expect(plan.summary).toBe("Dia focado");
     expect(plan.blocks.map((b) => b.start)).toEqual(["09:00", "10:00"]);
