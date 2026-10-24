@@ -5,7 +5,7 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import type { TaskScope } from "@/db/schema";
-import { ACTION_MARK, actionMarker, modelText, sourceMarker, splitActions } from "@/lib/ai-stream";
+import { ACTION_MARK, actionMarker, actionOrigins, modelText, sourceMarker, splitActions } from "@/lib/ai-stream";
 import type { ChatTurn } from "@/lib/orbe-chat";
 export type { ChatTurn } from "@/lib/orbe-chat";
 import { formatLong, localHour, localTime, shiftDate, today, zonedToUtc, localDate } from "@/lib/dates";
@@ -19,7 +19,7 @@ import { focusStats, listWorkouts } from "@/server/life";
 import { getSettings } from "@/server/settings";
 import { listTasks, taskCounts } from "@/server/tasks";
 import { assistantTools, runAssistantTool, toolJsonSchema } from "@/server/assistant";
-import { crmConfigured, crmOverview } from "@/server/crm";
+import { crmConfigured, crmOverview, crmUrl } from "@/server/crm";
 import { liveOps } from "@/server/ops-live";
 import { getVaultIndexSafe, getVaultProvider } from "@/server/vault";
 
@@ -212,7 +212,7 @@ export async function askStream(history: ChatTurn[], opts: { tools?: boolean; sc
 export async function askOnce(text: string): Promise<{ answer: string; actions: { label: string; href: string }[] }> {
   const stream = await askStream([{ role: "user", content: text }]);
   const raw = await new Response(stream).text();
-  const parsed = splitActions(raw);
+  const parsed = splitActions(raw, actionOrigins(crmUrl()));
   return { answer: parsed.text.trim(), actions: parsed.actions };
 }
 

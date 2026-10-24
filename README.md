@@ -26,6 +26,10 @@ Botão **+** abre os atalhos rápidos, inclusive tarefa por voz. No iPhone, “E
 - **Sem acumular lixo.** Uma vez por dia a Órbita apaga o que envelheceu: atividade de agentes (30 dias), falhas de workflow e avisos (30 dias), incidentes resolvidos (90 dias) e endereços, monitores e domínios que pararam de ser enviados.
 - **Falha de uma fonte não derruba a tela.** Se o GitHub recusar o token do vault, as páginas seguem funcionando e mostram o motivo e como corrigir.
 
+## Qualidade da ORBE
+
+O chat tem modo **Somente leitura**, consultas explícitas visíveis e interrupção com preservação dos recibos já recebidos. Interromper não desfaz escritas iniciadas; confira a origem antes de repetir. O histórico continua local à aba, não memória permanente. Contrato, limites e matriz de avaliação em [docs/orbe-qualidade.md](docs/orbe-qualidade.md).
+
 ## Endpoints
 
 | Rota | Autenticação | Uso |

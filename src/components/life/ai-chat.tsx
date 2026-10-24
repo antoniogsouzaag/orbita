@@ -19,7 +19,7 @@ const EMPTY_HISTORY = "[]";
 function subscribeHistory(listener: () => void) { window.addEventListener("storage", listener); return () => window.removeEventListener("storage", listener); }
 function parseHistory(raw: string): Msg[] { try { const rows = JSON.parse(raw); return Array.isArray(rows) ? boundedChatHistory(rows.filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")) : []; } catch { return []; } }
 
-export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope?: "pessoal" | "empresa" }) {
+export function AiChat({ enabled, scope = "pessoal", trustedActionOrigins = [] }: { enabled: boolean; scope?: "pessoal" | "empresa"; trustedActionOrigins?: string[] }) {
   const storageKey = `orbita:chat:${scope}`;
   const getHistory = React.useCallback(() => { try { return sessionStorage.getItem(storageKey) ?? EMPTY_HISTORY; } catch { return EMPTY_HISTORY; } }, [storageKey]);
   const savedHistory = React.useSyncExternalStore(subscribeHistory, getHistory, () => EMPTY_HISTORY);
@@ -54,7 +54,7 @@ export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope
         update([...history, { role: "assistant", content: `⚠️ ${err.error}` }]);
         return;
       }
-      const parsed = await readChatStream(res.body, value => update([...history, { role: "assistant", content: value.text, actions: value.actions, sources: value.sources }]));
+      const parsed = await readChatStream(res.body, value => update([...history, { role: "assistant", content: value.text, actions: value.actions, sources: value.sources }]), trustedActionOrigins);
       if (parsed.actions.length && active.current === controller) router.refresh();
     } catch {
       update([...history, { role: "assistant", content: controller.signal.aborted ? "⚠️ Resposta interrompida. Ações já iniciadas podem concluir; confira o estado antes de repetir." : "⚠️ Não foi possível falar com ORBE agora." }]);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { boundedChatHistory, chatRequestSchema } from "@/lib/orbe-chat";
-import { actionMarker, modelText, sourceMarker, splitActions } from "@/lib/ai-stream";
+import { actionMarker, actionOrigins, modelText, sourceMarker, splitActions } from "@/lib/ai-stream";
 import { readChatStream } from "@/lib/ai-chat-stream";
 
 describe("contrato de conversa ORBE", () => {
@@ -33,18 +33,23 @@ describe("recibos e consultas visíveis", () => {
     const parsed = splitActions('Olá\u001e{"label":"Tarefa","href":"/tarefas"}\u001e' + sourceMarker({name:"metricas_produto",ok:true}));
     expect(parsed).toEqual({text:"Olá",actions:[{label:"Tarefa",href:"/tarefas"}],sources:[{name:"metricas_produto",ok:true}]});
   });
-  it.each(["http://evil.test", "//evil.test", "/\\evil.test", "javascript:alert(1)"])("não aceita recibo com destino externo: %s", href => expect(splitActions(actionMarker({label:"Tarefa",href})).actions).toEqual([]));
-  it("preserva link HTTPS legítimo de ação no CRM", () => expect(splitActions(actionMarker({label:"Tarefa CRM",href:"https://crm.example.test/tasks"})).actions).toHaveLength(1));
+  it.each(["http://evil.test", "//evil.test", "/\\evil.test", "javascript:alert(1)"])("bloqueia destino inseguro sem perder recibo: %s", href => expect(splitActions(actionMarker({label:"Tarefa",href})).actions).toEqual([{label:"Tarefa",href:"/integracoes"}]));
+  it("preserva só a origem CRM configurada, não HTTPS arbitrário", () => {
+    const allowed = actionOrigins("https://crm.example.test/api/mcp");
+    expect(splitActions(actionMarker({label:"CRM",href:"https://crm.example.test/tasks"}), allowed).actions[0].href).toBe("https://crm.example.test/tasks");
+    expect(splitActions(actionMarker({label:"CRM",href:"https://evil.test/tasks"}), allowed).actions[0].href).toBe("/integracoes");
+    expect(actionOrigins("https://user:pass@crm.example.test")).toEqual([]);
+  });
   it("texto do modelo não consegue emitir separador de recibo", () => {
     expect(splitActions(modelText(actionMarker({label:"falso",href:"/tarefas"}))).actions).toEqual([]);
     expect(splitActions('texto\u001e{"label":"incompleto"').text).toBe("texto");
   });
   it("preserva ação e fonte quando transporte falha depois do primeiro chunk", async () => {
     let reads = 0;
-    const raw = actionMarker({label:"Criada",href:"/tarefas"}) + sourceMarker({name:"listar_tarefas",ok:true}) + "Parcial";
+    const raw = actionMarker({label:"Criada no CRM",href:"https://crm.example.test/tasks"}) + sourceMarker({name:"listar_tarefas",ok:true}) + "Parcial";
     const body = new ReadableStream<Uint8Array>({pull(out) { if (reads++ === 0) out.enqueue(new TextEncoder().encode(raw)); else out.error(new Error("sentinela-sensivel")); }});
-    const result = await readChatStream(body, () => {});
-    expect(result.actions).toHaveLength(1);
+    const result = await readChatStream(body, () => {}, actionOrigins("https://crm.example.test/api/mcp"));
+    expect(result.actions).toEqual([{label:"Criada no CRM",href:"https://crm.example.test/tasks"}]);
     expect(result.sources).toHaveLength(1);
     expect(result.text).toContain("Parcial");
     expect(result.text).toContain("interrompida");
