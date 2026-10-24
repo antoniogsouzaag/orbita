@@ -8,5 +8,6 @@ export default defineConfig({
     environment: "node",
     env: { APP_TIMEZONE: "America/Sao_Paulo", PGLITE_DIR: "memory", DATABASE_URL: "" },
     testTimeout: 30_000,
+    hookTimeout: 30_000, // PGlite + migrations can exceed 10s on Windows cold filesystem.
   },
 });
