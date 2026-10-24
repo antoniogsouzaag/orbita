@@ -59,7 +59,7 @@ export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope
       }
       if (parsed.actions.length) router.refresh();
     } catch {
-      setMsgs([...history, { role: "assistant", content: "⚠️ Não foi possível falar com a IA agora." }]);
+      setMsgs([...history, { role: "assistant", content: "⚠️ Não foi possível falar com ORBE agora." }]);
     } finally {
       setBusy(false);
     }
@@ -71,10 +71,10 @@ export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope
         {msgs.length === 0 && (
           <div className="mx-auto flex max-w-xl flex-col items-center pt-10 text-center">
             <span className="mb-3 grid size-12 place-items-center rounded-2xl bg-accent/15 text-accent"><Sparkles className="size-6" /></span>
-            <h2 className="text-lg font-semibold">{scope === "empresa" ? "Próximas decisões da AG LABS" : "Organize seu dia"}</h2>
-            <p className="mt-1 text-[13px] text-muted">{scope === "empresa" ? "Contexto empresarial, tarefas internas e operação. Atividades comerciais permanecem no CRM." : "Tarefas pessoais, hábitos, agenda e metas. A IA consulta seu contexto e pode executar as ações que você pedir."}{!enabled && " Configure a chave da IA em Integrações para ativar."}</p>
+            <h2 className="text-lg font-semibold">{scope === "empresa" ? "ORBE · decisões da AG LABS" : "Seu dia com ORBE"}</h2>
+            <p className="mt-1 text-[13px] text-muted">{scope === "empresa" ? "Estratégia, produtos, metas e operação conectados ao Vault e ao CRM. Vamos transformar contexto em próximos passos." : "Tarefas pessoais, hábitos, agenda e metas. A IA consulta seu contexto e pode executar as ações que você pedir."}{!enabled && " Configure a chave da IA em Integrações para ativar."}</p>
             <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {(scope === "empresa" ? ["O que a empresa deve priorizar hoje?", "Revisar tarefas empresariais atrasadas", "O que está fora do ar agora?", "Resuma as regras do vault"] : SUGGESTIONS).map((s) => <button key={s} disabled={!enabled} onClick={() => send(s)} className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] hover:border-accent/50 disabled:opacity-50">{s}</button>)}
+              {(scope === "empresa" ? ["O que a empresa deve priorizar para crescer?", "Explore o Vault e proponha metas para os próximos 30 dias", "Quais oportunidades existem entre nossos produtos e serviços?", "Vamos pensar no próximo passo do Barberias"] : SUGGESTIONS).map((s) => <button key={s} disabled={!enabled} onClick={() => send(s)} className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] hover:border-accent/50 disabled:opacity-50">{s}</button>)}
             </div>
           </div>
         )}
@@ -108,7 +108,7 @@ export function AiChat({ enabled, scope = "pessoal" }: { enabled: boolean; scope
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
           rows={1}
           disabled={!enabled}
-          placeholder={enabled ? "Escreva sua pergunta…" : "IA desativada — configure OPENAI_API_KEY"}
+          placeholder={enabled ? "Converse com ORBE: ideias, dúvidas, objetivos ou ações…" : "IA desativada — configure OPENAI_API_KEY"}
           className="max-h-40 min-h-11 flex-1 resize-none rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-[14px] outline-none focus:border-accent/60"
         />
         <button disabled={busy || !input.trim() || !enabled} className="grid size-11 place-items-center rounded-xl bg-fg text-bg disabled:bg-surface-3 disabled:text-faint" aria-label="Enviar"><ArrowUp className="size-4" /></button>

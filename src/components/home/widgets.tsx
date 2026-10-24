@@ -255,7 +255,7 @@ export function PlanWidget({ plan, aiEnabled }: { plan: HomeData["plan"]; aiEnab
   const toMin = (s: string) => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
   return (
     <Card className="h-full">
-      <CardHeader icon={<Sparkles />} title="Plano do dia" href="/ia" hrefLabel="IA" />
+      <CardHeader icon={<Sparkles />} title="Plano do dia" href="/ia" hrefLabel="ORBE" />
       <div className="px-5 pb-5">
         {plan && plan.blocks.length > 0 ? (
           <div className="space-y-1.5">

@@ -9,7 +9,7 @@ const channelsSchema = z.array(channelSchema);
 export const metricsSchema = z.array(z.object({ label: z.string(), data: z.array(z.object({ total: z.union([z.string(), z.number().finite()]).transform(String), date: z.string() })), percentageChange: z.number().nullable().optional() }));
 export type SocialMetric = z.infer<typeof metricsSchema>[number];
 export type SocialChannel = z.infer<typeof channelSchema>;
-export type SocialOverview = { configured: boolean; checkedAt: string; error: string | null; channels: (SocialChannel & { metrics: SocialMetric[]; error: string | null })[]; total?: number; available?: SocialChannel[]; days: 7 | 30; entityId?: string };
+export type SocialOverview = { configured: boolean; checkedAt: string; error: string | null; channels: (SocialChannel & { metrics: SocialMetric[]; error: string | null })[]; total?: number; available?: SocialChannel[]; days: 7 | 30; entityId?: string; productChannels?: SocialOverview["channels"] };
 export function socialConfigured() { return Boolean(process.env.POSTIZ_API_URL && process.env.POSTIZ_API_KEY); }
 export function socialPanelUrl() {
   try { const base = new URL(process.env.POSTIZ_API_URL!); return base.protocol === "https:" && !base.username && !base.password ? `${base.origin}/analytics` : null; } catch { return null; }
@@ -43,15 +43,16 @@ export async function socialOverview(channelId?: string, days: 7 | 30 = 7, force
     const selected = channelId ? candidates.find((channel) => channel.id === channelId) : candidates.find((channel) => !channel.disabled) ?? candidates[0];
     if (entityId && !candidates.length) return { configured: true, checkedAt, error: "Nenhum canal retornado para esta entidade. Confira os grupos no Postiz ou escolha outra entidade.", channels: [], available: channels, total: channels.length, days, entityId };
     if (channelId && !selected) return { configured: true, checkedAt, error: "Este canal não está mais disponível nesta entidade. Selecione outro canal.", channels: [], available: channels, total: channels.length, days, entityId: entityId ?? candidates[0]?.customer?.id ?? "ungrouped" };
-    const results: SocialOverview["channels"] = [];
-    if (selected) {
+    const product = selected ? channels.filter(channel => (channel.customer?.id ?? "ungrouped") === (selected.customer?.id ?? "ungrouped")) : [];
+    const productChannels = await Promise.all(product.map(async channel => {
       let metrics: SocialMetric[] = [], error: string | null = null;
-      if (!selected.disabled) {
-        try { metrics = await (force ? readMetrics(selected.id, days) : cachedMetrics(selected.id, days, cacheIdentity())); }
+      if (!channel.disabled) {
+        try { metrics = await (force ? readMetrics(channel.id, days) : cachedMetrics(channel.id, days, cacheIdentity())); }
         catch (e) { error = safeError(e); }
       }
-      results.push({ ...selected, metrics, error });
-    }
-    return { configured: true, checkedAt, error: null, channels: results, total: channels.length, available: channels, days, entityId: selected?.customer?.id ?? (selected ? "ungrouped" : entityId) };
+      return { ...channel, metrics, error };
+    }));
+    const results = productChannels.filter(channel => channel.id === selected?.id);
+    return { configured: true, checkedAt, error: null, channels: results, productChannels, total: channels.length, available: channels, days, entityId: selected?.customer?.id ?? (selected ? "ungrouped" : entityId) };
   } catch (e) { return { configured: true, checkedAt, error: safeError(e), channels: [], days }; }
 }

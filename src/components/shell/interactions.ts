@@ -33,3 +33,8 @@ export function isSidebarShortcut(event: ShortcutEvent, editing: boolean) {
 export function isEditingTarget(target: EventTarget | null) {
   return target instanceof Element && !!target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], .cm-editor, .ProseMirror');
 }
+
+/** Shift+Tab alterna espaços somente fora de edição e camadas interativas. */
+export function isSpaceShortcut(event: ShortcutEvent, editing: boolean, layerOpen: boolean) {
+  return event.key === "Tab" && event.shiftKey && !editing && !layerOpen && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing && !event.repeat && !event.defaultPrevented;
+}

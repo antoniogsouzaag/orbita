@@ -10,7 +10,7 @@ import { dispatches, type Dispatch, type DispatchStatus, type DispatchTarget } f
  * e o próprio agente informa execução e resultado por registrar_resultado (MCP).
  */
 
-export const TARGET_LABEL: Record<DispatchTarget, string> = { openclaw: "Tom · OpenClaw (VPS-02)" };
+export const TARGET_LABEL: Record<DispatchTarget, string> = { openclaw: "Tom · OpenClaw (VPS-02)", hermes: "Oracle · Hermes (VPS-03)" };
 
 /** Estados em que o pedido ainda espera o agente. */
 export const OPEN_STATUSES: DispatchStatus[] = ["sending", "accepted", "running"];
@@ -71,6 +71,7 @@ export async function reportDispatchResult(agent: string, raw: z.input<typeof re
   const db = await getDb();
   const [row] = await db.select().from(dispatches).where(eq(dispatches.id, input.pedido_id));
   if (!row) return { ok: false, message: "Pedido não encontrado." };
+  if (row.target !== "openclaw") return { ok: false, message: "O resultado deste receptor é consultado pelo contrato Hermes dedicado." };
   const status = STATE[input.estado];
   if (row.status === status && row.summary === input.resumo && row.evidence === (input.evidencia ?? null)) return { ok: true, message: "Resultado já registrado." };
   if (FINAL_STATUSES.includes(row.status)) return { ok: false, message: `O pedido já está encerrado (${row.status}).` };

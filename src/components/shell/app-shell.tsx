@@ -18,7 +18,7 @@ import { SETTINGS_ITEM, SHARED, SPACES, navigationHref, isActive, spaceOf, type 
 import { QuickAdd } from "./quick-add";
 import { SpeedDial } from "./speed-dial";
 import { storePreference, useScrolled, useStoredPreference } from "./browser-state";
-import { isEditingTarget, isSidebarShortcut } from "./interactions";
+import { isEditingTarget, isSidebarShortcut, isSpaceShortcut } from "./interactions";
 
 export type { ShellNotification } from "@/lib/notifications";
 
@@ -40,7 +40,7 @@ function useSpace(): { space: Space; escopo: string | null } {
 
 function SpaceSwitch({ space, className }: { space: Space; className?: string }) {
   return (
-    <div className={cn("grid grid-cols-2 gap-0.5 rounded-xl border border-border bg-surface-2/70 p-0.5", className)}>
+    <div title="Alternar espaço · Shift + Tab" className={cn("grid grid-cols-2 gap-0.5 rounded-xl border border-border bg-surface-2/70 p-0.5", className)}>
       {(Object.keys(SPACES) as Space[]).map((k) => {
         const S = SPACES[k];
         const on = k === space;
@@ -100,6 +100,7 @@ export function AppShell({
   projects: { id: string; name: string; color: string; area?: string }[];
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { space } = useSpace();
   const sidebar = useStoredPreference("orbita:sidebar", "0") === "1";
   const setSidebar = (value: boolean) => storePreference("orbita:sidebar", value ? "1" : "0");
@@ -156,6 +157,12 @@ export function AppShell({
         setPalette((v) => !v);
       }
       const typing = isEditingTarget(e.target);
+      if (isSpaceShortcut(e, typing, !!document.querySelector('[role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]'))) {
+        e.preventDefault();
+        const next = space === "empresa" ? "pessoal" : "empresa";
+        storePreference("orbita:space", next);
+        router.push(["/tarefas", "/projetos", "/kanban", "/metas", "/foco", "/ia"].includes(pathname) ? `${pathname}${next === "empresa" ? "?escopo=empresa" : ""}` : SPACES[next].home);
+      }
       if (isSidebarShortcut(e, typing)) {
         e.preventDefault();
         try { storePreference("orbita:sidebar", localStorage.getItem("orbita:sidebar") === "1" ? "0" : "1"); } catch { storePreference("orbita:sidebar", "1"); }
@@ -168,7 +175,7 @@ export function AppShell({
     window.addEventListener("keydown", captureLayer, true);
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("keydown", captureLayer, true); window.removeEventListener("keydown", onKey); };
-  }, []);
+  }, [space, pathname, router]);
 
   const toggleSidebar = () => {
     setSidebar(!sidebar);

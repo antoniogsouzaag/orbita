@@ -10,7 +10,7 @@ Corpo exato: `{version:2,source:"orbita",request_id:<uuid-v4>,action:<ação>,pa
 
 Headers: `Content-Type: application/json`, `X-Request-Id`, `X-Webhook-Timestamp` e `X-Webhook-Signature-V2`. A assinatura é hexadecimal minúsculo HMAC-SHA256 sobre `timestamp.corpo-exato`, sem prefixo. Timestamp renovado por chamada; tolerância do receptor ±300 s. Redirects não são seguidos.
 
-A Órbita persiste antes do envio, aceita apenas 202 correlacionado para admissão e consulta o resultado com POST 200. Não repete automaticamente envios incertos. Resultado bruto não é exposto; histórico guarda estado, ação, identificador e horários. Persistência usa settings existentes, sem migration.
+A Órbita persiste antes do envio, aceita apenas 202 correlacionado para admissão e consulta o resultado com POST 200. Não repete automaticamente envios incertos. Resultado bruto não é exposto; histórico guarda estado, ação, identificador e horários. Persistência de novos pedidos usa dispatches existentes (target hermes), sem nova migration. Histórico legado em settings permanece legível; consulta do resultado migra o registro sem apagar o original. Estados finais não regridem após respostas concorrentes.
 
 Validação ainda necessária no ambiente real: iniciar serviço dedicado, publicar somente o caminho exato, transferir chave segura, demonstrar 401 sem assinatura, 202 assinado, 200 com resultado, retry idêntico sem duplicação e 409 para UUID reutilizado com conteúdo divergente. Não habilitar despacho enquanto estes passos não forem concluídos pelo responsável. O teste local usa mocks, sem contato com o receptor.
 

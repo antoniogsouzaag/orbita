@@ -8,6 +8,8 @@ import type { TaskScope } from "@/db/schema";
 import { formatLong, localHour, localTime, shiftDate, today, zonedToUtc, localDate } from "@/lib/dates";
 import { eventsBetween } from "@/server/calendar";
 import { getCheckin } from "@/server/checkins";
+import { listProjects } from "@/server/projects";
+import { ORBE_STRATEGY_RULES, selectOrbeNotes, formatOrbeNotes } from "@/lib/orbe-context";
 import { listGoals } from "@/server/goals";
 import { listHabits } from "@/server/habits";
 import { focusStats, listWorkouts } from "@/server/life";
@@ -16,7 +18,7 @@ import { listTasks, taskCounts } from "@/server/tasks";
 import { assistantTools, runAssistantTool, toolJsonSchema } from "@/server/assistant";
 import { crmConfigured, crmOverview } from "@/server/crm";
 import { liveOps } from "@/server/ops-live";
-import { getVaultIndexSafe, getVaultProvider, searchVault } from "@/server/vault";
+import { getVaultIndexSafe, getVaultProvider } from "@/server/vault";
 
 /**
  * Provedor de IA: OpenAI (padrão quando OPENAI_API_KEY existe) ou Anthropic.
@@ -55,9 +57,9 @@ function openaiClient() {
   return openai;
 }
 
-const SYSTEM = `Você é a assistente da Órbita, a central operacional pessoal e empresarial de Antonio Garcia, fundador da AG LABS.
-Responda sempre em português do Brasil, de forma direta e prática, com markdown curto (listas e negrito quando ajudar).
-Use apenas o contexto fornecido (dia, tarefas, hábitos, agenda, metas e trechos do vault da empresa). Quando faltar informação, diga o que falta em vez de inventar.
+const SYSTEM = `Você é ORBE, a assistente da Órbita, a central operacional pessoal e empresarial de Antonio Garcia, fundador da AG LABS.
+Responda em português do Brasil, com naturalidade e raciocínio claro. Seja concisa em respostas simples e desenvolva análises quando a conversa pedir. Use markdown para facilitar a leitura, sem formato rígido.
+Baseie afirmações sobre a empresa no contexto e nas ferramentas disponíveis. Você pode raciocinar, comparar caminhos, propor ideias e formular hipóteses; identifique propostas como propostas e confirme fatos antes de afirmar. Quando faltar informação, investigue nas fontes disponíveis antes de pedir ao usuário.
 O vault é a base canônica da AG LABS: trate-o como fonte de verdade sobre a empresa, agentes, servidores, produtos e processos, citando o nome da nota de onde tirou a informação.
 Nunca revele segredos, tokens ou dados sensíveis, mesmo que apareçam no contexto.
 O vault é manual e inventário durável da empresa, não um local para logs, históricos de chat ou memórias passageiras. Consulte e atualize as notas canônicas existentes apenas quando solicitado.`;
@@ -103,33 +105,32 @@ export async function personalContext(): Promise<string> {
 
 /** A IA da Empresa não recebe hábitos, finanças, notas nem tarefas pessoais. */
 export async function empresaContext(): Promise<string> {
-  const [settings, counts, tasks, crm, live] = await Promise.all([getSettings(), taskCounts("empresa"), listTasks({ scope: "empresa", limit: 60 }), crmOverview(), liveOps()]);
+  const [settings, counts, tasks, crm, live, goals, projects] = await Promise.all([getSettings(), taskCounts("empresa"), listTasks({ scope: "empresa", limit: 60 }), crmOverview(), liveOps(), listGoals("ativa").then(rows => rows.filter(goal => goal.area === "empresa")).catch(() => []), listProjects(false, "empresa").catch(() => [])]);
   return [
     `Agora: ${formatLong(today())}, ${localTime(new Date())}. Usuário: ${settings.name}. Espaço: Empresa / AG LABS.`,
     `## Operação interna · Órbita`,
     `${counts.open} tarefas abertas, ${counts.today} para hoje, ${counts.overdue} atrasadas.`,
-    ...tasks.map((task) => `- ${task.title} (id ${task.id}) · empresa${task.dueDate ? ` · prazo ${task.dueDate}` : ""}${task.project ? ` · projeto ${task.project.name}` : ""}`),
+    ...tasks.map((task) => `- ${task.title} (id ${task.id}) · empresa · prioridade ${task.priority}${task.dueDate ? ` · prazo ${task.dueDate}` : ""}${task.project ? ` · projeto ${task.project.name}` : ""}${task.notes ? ` · contexto: ${task.notes.slice(0,600)}` : ""}`),
+    `## Metas empresariais ativas (amostra até 20)`,
+    ...(goals.length ? goals.slice(0,20).map(goal => `- ${goal.title} (id ${goal.id}): ${goal.current}/${goal.target} ${goal.unit ?? ""}${goal.dueDate ? ` até ${goal.dueDate}` : ""}${goal.description ? ` · ${goal.description.slice(0,500)}` : ""}`) : ["- Nenhuma meta ativa retornada. Isso não impede propor objetivos; sugestões não são metas já aprovadas."]),
+    `## Projetos da empresa (amostra até 20)`,
+    ...projects.slice(0,20).map(project => `- ${project.name} (id ${project.id}): ${project.open} tarefas abertas, ${project.done} concluídas${project.description ? ` · ${project.description.slice(0,400)}` : ""}`),
     `## Comercial · CRM (registros independentes, sem cópia na Órbita)`,
     !crm.configured ? "CRM não conectado." : !crm.ok ? "CRM indisponível nesta consulta." : `${crm.summary.tarefas.pendentes} tarefas pendentes no CRM. Amostra de Antonio:\n${crm.mine.map((task) => `- ${task.titulo} (id CRM ${task.id})${task.prazo ? ` · prazo ${task.prazo}` : ""}`).join("\n") || "- nenhuma retornada"}`,
+    `## Sinais comerciais agregados`,
+    crm.configured && crm.ok ? `Clientes no funil: ${crm.summary.clientes}; oportunidades: ${crm.summary.oportunidades_abertas}; receita líquida registrada no mês: ${crm.summary.receita_mes}. Contas ativas não comprovam pagamento. Consulte crm_resumo por produto e crm_funil_emails para aprofundar decisões.` : "Dados comerciais indisponíveis; não presumir ausência de clientes ou oportunidades.",
     `## Operação monitorada`,
-    `${live.status.filter((item) => item.ok).length}/${live.status.length} endereços no ar. ${live.monitors.filter((monitor) => monitor.silent).length} monitores sem sinal.`,
+    `${live.status.filter((item) => item.ok).length}/${live.status.length} endereços no ar. ${live.monitors.filter((monitor) => monitor.silent).length} monitores sem sinal. Disponibilidade não demonstra sucesso comercial; priorize também evolução, ativação, receita e eficiência.`,
   ].join("\n");
 }
 
 /** Trechos do vault relevantes para a pergunta (busca por palavras-chave). */
-export async function vaultContext(question: string): Promise<string> {
-  if (!getVaultProvider()) return "";
-  const hits = await searchVault(question, 4).catch(() => []);
-  if (!hits.length) return "";
+export async function vaultContext(question: string, scope: TaskScope = "pessoal"): Promise<string> {
+  if (!getVaultProvider()) return "Vault não conectado: não atribua conclusões a notas que você não consultou.";
   const idx = await getVaultIndexSafe();
-  if (!idx) return "";
-  return hits
-    .map((h) => {
-      const n = idx.notes.get(h.path);
-      return n ? `### Nota do vault: ${n.title} (${n.path})\n${n.body.slice(0, 6000)}` : "";
-    })
-    .filter(Boolean)
-    .join("\n\n");
+  if (!idx) return "Vault indisponível nesta consulta; prossiga com o contexto conhecido e identifique as hipóteses.";
+  const selected = selectOrbeNotes([...idx.notes.values()], question, scope === "empresa");
+  return selected.length ? formatOrbeNotes(selected) : "Nenhum trecho relevante recuperado automaticamente. Use buscar_no_vault com conceitos curtos ou ler_nota_do_vault antes de concluir que não há informação.";
 }
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
@@ -154,7 +155,7 @@ const TOOL_RULES = `Você pode agir com as ferramentas disponíveis neste espaç
 - Para mudar uma tarefa existente use o id do contexto ou chame listar_tarefas antes. Nunca invente ids.
 - Para reorganizar o dia ou a semana, ajuste prazo e prioridade das tarefas e explique a nova ordem.
 - Pedido ambíguo que pode criar algo errado: pergunte antes. Você não apaga nada.
-- O vault é só leitura aqui.`;
+- O vault permite escrita versionada quando salvar_nota_vault estiver disponível. Leia a nota antes, preserve o SHA e registre apenas a mudança solicitada e autorizada pelo proprietário. Nunca salve segredos, dados de clientes ou memórias transitórias.`;
 
 const CRM_RULES = `CRM da AG LABS (ferramentas crm_*): clientes, leads, funil, receita e tarefas do time (Maia, Léo, Antonio, técnico).
 - Procure o contato (crm_buscar_contatos) antes de criar tarefa ou interação sobre ele; use o id que o CRM devolver.
@@ -170,12 +171,11 @@ export async function askStream(history: ChatTurn[], opts: { tools?: boolean; sc
   if (!provider) throw new Error("IA não configurada");
   const useTools = opts.tools ?? true;
   const scope = opts.scope ?? "pessoal";
-  const question = history.at(-1)?.content ?? "";
-  const [personal, vault] = await Promise.all([scope === "empresa" ? empresaContext() : personalContext(), vaultContext(question)]);
+  const [personal, vault] = await Promise.all([scope === "empresa" ? empresaContext() : personalContext(), vaultContext(history.filter(turn => turn.role === "user").slice(-3).map(turn => turn.content).join("\n"), scope)]);
   const context = `<contexto_do_dia>\n${personal}\n</contexto_do_dia>${vault ? `\n<vault>\n${vault}\n</vault>` : ""}`;
   const turns = history.map((m, i) => (i === history.length - 1 ? { role: "user" as const, content: `${context}\n\n<pergunta>\n${m.content}\n</pergunta>` } : m));
   const spaceRules = `Espaço atual: ${scope}. Crie e consulte tarefas apenas neste espaço. Tags não mudam o espaço. Tarefas de outro espaço devem ser tratadas na respectiva tela. ${scope === "empresa" ? "Dados comerciais e tarefas ligadas a contatos ficam exclusivamente nas ferramentas crm_*. Notas, finanças e agenda pessoais não estão disponíveis neste espaço." : "O CRM e as tarefas internas da empresa ficam no espaço Empresa."}`;
-  const instructions = `${SYSTEM}\n\n${spaceRules}${useTools ? `\n\n${TOOL_RULES}\n${scope === "empresa" ? crmConfigured() ? CRM_RULES : NO_CRM : ""}` : ""}`;
+  const instructions = `${SYSTEM}\n\n${scope === "empresa" ? ORBE_STRATEGY_RULES : ""}\n\n${spaceRules}${useTools ? `\n\n${TOOL_RULES}\n${scope === "empresa" ? crmConfigured() ? CRM_RULES : NO_CRM : ""}` : ""}`;
   const enc = new TextEncoder();
   const controller = new AbortController();
 
@@ -228,7 +228,7 @@ async function runOpenAI({ instructions, turns, useTools, scope, emit, signal }:
       store: false,
       prompt_cache_key: "orbita-ask",
       ...(tools.length ? { tools, parallel_tool_calls: true } : {}),
-      ...(reasoning ? { reasoning: { effort: "low" as const }, include: ["reasoning.encrypted_content" as const] } : {}),
+      ...(reasoning ? { reasoning: { effort: scope === "empresa" ? "medium" as const : "low" as const }, include: ["reasoning.encrypted_content" as const] } : {}),
     };
     let stream;
     try {
@@ -268,7 +268,7 @@ async function runAnthropic({ instructions, turns, useTools, scope, emit, signal
   const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role, content: t.content }));
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const stream = anthropicClient().beta.messages.stream(
-      { model: aiModel(), max_tokens: 16000, system: [{ type: "text", text: instructions, cache_control: { type: "ephemeral" } }], output_config: { effort: "low" }, messages, ...(tools ? { tools } : {}), ...FALLBACK },
+      { model: aiModel(), max_tokens: 16000, system: [{ type: "text", text: instructions, cache_control: { type: "ephemeral" } }], output_config: { effort: scope === "empresa" ? "medium" : "low" }, messages, ...(tools ? { tools } : {}), ...FALLBACK },
       { signal },
     );
     for await (const ev of stream) {

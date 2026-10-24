@@ -3,7 +3,7 @@ vi.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }));
 import { socialOverview, socialPanelUrl } from "@/server/social";
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("Postiz somente consulta", () => {
-  it("seleciona todos os canais da entidade e consulta somente seu perfil ativo", async () => {
+  it("consulta os canais do produto sem consultar outro negócio", async () => {
     vi.stubEnv("POSTIZ_API_URL", "https://postiz.example/api/public/v1");
     vi.stubEnv("POSTIZ_API_KEY", "private-key");
     const group = "66f42ad3-dd35-40fa-a261-d632f680e18e";
@@ -17,7 +17,10 @@ describe("Postiz somente consulta", () => {
     expect(result.entityId).toBe(group);
     expect(result.channels[0].id).toBe("barber");
     expect(result.available).toHaveLength(3);
-    expect(request.mock.calls.at(-1)?.[0]).toContain("/analytics/barber?");
+    expect(result.productChannels).toHaveLength(2);
+    expect(request.mock.calls.some(([url]) => url.includes("/analytics/barber?"))).toBe(true);
+    expect(request.mock.calls.some(([url]) => url.includes("/analytics/facebook?"))).toBe(true);
+    expect(request.mock.calls.some(([url]) => url.includes("/analytics/unrelated?"))).toBe(false);
   });
   it("não consulta outro negócio quando uma entidade não tem canais", async () => {
     vi.stubEnv("POSTIZ_API_URL", "https://postiz.example/api/public/v1");
@@ -58,7 +61,7 @@ describe("Postiz somente consulta", () => {
     limited = false;
     expect((await socialOverview("a", 7, true)).channels[0].error).toBeNull();
   });
-  it("consulta só o canal escolhido e preserva todos os canais para seleção", async () => {
+  it("mantém o canal escolhido e consulta a audiência dos demais canais do grupo", async () => {
     vi.stubEnv("POSTIZ_API_URL", "https://postiz.example/api/public/v1");
     vi.stubEnv("POSTIZ_API_KEY", "private-key");
     const request = vi.fn(async (url: string) => Response.json(url.endsWith("/integrations") ? [
@@ -70,7 +73,7 @@ describe("Postiz somente consulta", () => {
     expect(result.available).toHaveLength(2);
     expect(result.channels).toHaveLength(1);
     expect(result.channels[0].id).toBe("b");
-    expect(request.mock.calls.map(([url]) => url)).toEqual(["https://postiz.example/api/public/v1/integrations", "https://postiz.example/api/public/v1/analytics/b?date=7"]);
+    expect(request.mock.calls.map(([url]) => url)).toEqual(["https://postiz.example/api/public/v1/integrations", "https://postiz.example/api/public/v1/analytics/a?date=7", "https://postiz.example/api/public/v1/analytics/b?date=7"]);
   });
   it("consulta séries sem somar seguidores nem expor a chave", async () => {
     vi.stubEnv("POSTIZ_API_URL", "https://postiz.example/api/public/v1");

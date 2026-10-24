@@ -71,7 +71,7 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
 export const SHARED: NavItem[] = [
   { href: "/github", label: "GitHub", icon: GitFork, keywords: "git commits contribuições prs propostas repositórios" },
   { href: "/vault", label: "Vault", icon: LibraryBig, dock: true, keywords: "obsidian manual inventário conhecimento empresa grafo" },
-  { href: "/ia", label: "IA", icon: Sparkles, dock: true, keywords: "assistente chat" },
+  { href: "/ia", label: "ORBE", icon: Sparkles, dock: true, keywords: "ia assistente chat orbe" },
   { href: "/documentacao", label: "Manual da Órbita", icon: BookOpen, keywords: "documentação canônica mcp agentes fontes responsabilidades" },
   { href: "/integracoes", label: "Integrações", icon: Plug, keywords: "conexões configurar" },
 ];

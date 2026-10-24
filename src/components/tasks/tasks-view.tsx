@@ -87,15 +87,6 @@ export function TasksView({
     <div className={cn("grid min-w-0 grid-cols-1 gap-6", !hideViews && "lg:grid-cols-[200px_minmax(0,1fr)]")}>
       {!hideViews && (
         <aside className="min-w-0 space-y-5">
-          {scope && (
-            <div className="grid grid-cols-2 gap-0.5 rounded-xl border border-border bg-surface-2 p-0.5 text-[12.5px]">
-              {(["pessoal", "empresa"] as const).map((s) => (
-                <Link key={s} href={href({ escopo: s === "pessoal" ? null : s, task: null, project: null, tag: null })} className={cn("rounded-[10px] px-2 py-1.5 text-center capitalize transition", scope === s ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>
-                  {s}
-                </Link>
-              ))}
-            </div>
-          )}
           <nav className="no-scrollbar flex gap-1 overflow-x-auto lg:flex-col">
             {VIEWS.map((v) => (
               <Link

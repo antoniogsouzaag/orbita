@@ -55,6 +55,18 @@ describe("IA via OpenAI", () => {
     expect(req.input.at(-1)!.content).toContain("O que faço hoje?");
   });
 
+  it("investiga prioridades empresariais com metas, projetos e orientação estratégica", async () => {
+    const stream = await askStream([{role:"user",content:"O que a empresa deve priorizar hoje?"}],{scope:"empresa"});
+    await new Response(stream).text();
+    const req = requests.at(-1) as {instructions:string; input:{content:string}[]; reasoning:{effort:string};tools:{name:string}[]};
+    expect(req.instructions).toContain("prioridade estratégica");
+    expect(req.instructions).toContain("não significam ausência de prioridades");
+    expect(req.input.at(-1)!.content).toContain("Metas empresariais ativas");
+    expect(req.input.at(-1)!.content).toContain("Projetos da empresa");
+    expect(req.reasoning.effort).toBe("medium");
+    expect(req.tools.map(tool => tool.name)).toEqual(expect.arrayContaining(["listar_metas","criar_meta","buscar_no_vault","ler_nota_do_vault"]));
+  });
+
   it("monta o plano do dia com saída estruturada e ordena os blocos", async () => {
     const plan = await planDay({ prompt: "", from: 8, to: 22 });
     expect(plan.summary).toBe("Dia focado");

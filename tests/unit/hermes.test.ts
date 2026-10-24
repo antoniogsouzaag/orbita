@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { createHmac } from "node:crypto";
 const store = new Map<string, unknown>();
-vi.mock("@/server/security-store",()=>({getRawSetting:vi.fn(async(key:string)=>store.get(key)),setRawSetting:vi.fn(async(key:string,value:unknown)=>{store.set(key,value);})}));
+vi.mock("@/server/hermes-store",()=>({storedHermesOperation:vi.fn(async(id:string)=>store.get(`hermes-operation:${id}`)),storedHermesHistory:vi.fn(async()=>[...store.values()]),saveHermesOperation:vi.fn(async(value:{id:string})=>{store.set(`hermes-operation:${value.id}`,value);return value;})}));
 import { dispatchHermes, readHermesResult, hermesHeaders } from "@/server/hermes";
 beforeEach(()=>{store.clear();vi.stubEnv("HERMES_DISPATCH_ENABLED","true");vi.stubEnv("HERMES_WEBHOOK_URL","https://hermes.example/webhooks/orbita-hermes");vi.stubEnv("HERMES_WEBHOOK_SECRET","dedicated-test-secret");});
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});

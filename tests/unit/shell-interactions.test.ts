@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSidebarShortcut, orbitPositions, orbitTarget } from "@/components/shell/interactions";
+import { isSidebarShortcut, isSpaceShortcut, orbitPositions, orbitTarget } from "@/components/shell/interactions";
 import { isActive, navigationHref, spaceOf } from "@/components/shell/nav";
 
 describe("menu orbital", () => {
@@ -53,4 +53,15 @@ describe("navegação entre os espaços", () => {
     expect(spaceOf("/metas", "empresa")).toBe("empresa");
   });
 
+});
+
+describe("alternância de espaço pelo teclado", () => {
+  const event = { key: "Tab", shiftKey: true, ctrlKey: false, metaKey: false, altKey: false, isComposing: false, repeat: false, defaultPrevented: false };
+  it("preserva edição, foco em modal, composição e atalhos do navegador", () => {
+    expect(isSpaceShortcut(event, false, false)).toBe(true);
+    expect(isSpaceShortcut(event, true, false)).toBe(false);
+    expect(isSpaceShortcut(event, false, true)).toBe(false);
+    expect(isSpaceShortcut({ ...event, shiftKey: false }, false, false)).toBe(false);
+    for (const flag of ["ctrlKey", "metaKey", "altKey", "isComposing", "repeat", "defaultPrevented"] as const) expect(isSpaceShortcut({ ...event, [flag]: true }, false, false)).toBe(false);
+  });
 });

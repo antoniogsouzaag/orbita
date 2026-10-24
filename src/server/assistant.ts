@@ -2,7 +2,7 @@ import "server-only";
 import { desc, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { events, notes, projects, tasks, transactions, type TaskScope } from "@/db/schema";
+import { events, goals, notes, projects, tasks, transactions, type TaskScope } from "@/db/schema";
 import { localDate, localTime, shiftDate, today, zonedToUtc } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
 import { projectScope, taskHref } from "@/lib/task-scope";
@@ -345,11 +345,33 @@ export const crmRegistrarAtividade = {
   },
 };
 
+const listarMetasSchema = z.object({ escopo: z.enum(["pessoal", "empresa"]).nullish() });
+export const listarMetas = {
+  schema: listarMetasSchema,
+  async run(v: z.infer<typeof listarMetasSchema>): Promise<ActionResult> {
+    const db = await getDb();
+    const rows = await db.select().from(goals).where(eq(goals.area, v.escopo ?? "pessoal")).orderBy(desc(goals.createdAt)).limit(30);
+    return { text: rows.length ? rows.map(goal => `- ${goal.title} (id ${goal.id}): ${goal.current}/${goal.target} ${goal.unit ?? ""} · ${goal.status}${goal.dueDate ? ` · prazo ${goal.dueDate}` : ""}${goal.description ? ` · ${goal.description}` : ""}`).join("\n") : "Nenhuma meta retornada neste espaço." };
+  },
+};
+const criarMetaSchema = z.object({ titulo: z.string().trim().min(1).max(200), descricao: z.string().max(2000).nullish(), alvo: z.number().positive().max(1e12), unidade: z.string().max(20).nullish(), prazo: data.refine(value => { const date = new Date(`${value}T12:00:00Z`); return !Number.isNaN(date.getTime()) && date.toISOString().slice(0,10) === value; }, "Data inválida").nullish(), escopo: z.enum(["pessoal", "empresa"]).nullish() });
+export const criarMeta = {
+  schema: criarMetaSchema,
+  async run(v: z.infer<typeof criarMetaSchema>): Promise<ActionResult> {
+    const db = await getDb();
+    const scope = v.escopo ?? "pessoal";
+    const [row] = await db.insert(goals).values({title:v.titulo, description:v.descricao ?? null, target:v.alvo, current:0, metric:"number", unit:v.unidade ?? null, dueDate:v.prazo ?? null, area:scope, status:"ativa"}).returning({id:goals.id});
+    return { text: `Meta criada em ${scope}: ${v.titulo} (id ${row.id}), alvo ${v.alvo} ${v.unidade ?? ""}. Progresso inicial 0, sem medições presumidas.`, action: {label:`Meta: ${v.titulo}`,href:scope === "empresa" ? "/metas?escopo=empresa" : "/metas"} };
+  },
+};
+
 /* ───────────── Catálogo para a IA ───────────── */
 
 type Tool = { name: string; description: string; schema: z.ZodObject; run: (v: never) => Promise<ActionResult>; requires?: () => boolean };
 
 export const ASSISTANT_TOOLS: Tool[] = [
+  { name: "listar_metas", description: "Consulta metas e objetivos do espaço atual com progresso, prazo e contexto. Use para discutir prioridades e evolução.", ...listarMetas },
+  { name: "criar_meta", description: "Registra uma meta somente quando Antonio pedir para criar ou salvar, com título, indicador, alvo e prazo acordados. Sugestão de meta não autoriza gravação. Não invente linha de base ou progresso.", ...criarMeta },
   { name: "salvar_nota_vault", description: "Cria ou atualiza nota canônica do vault com controle de versão. Leia antes e forneça o SHA. Só registre mudanças de política, produto ou responsabilidade explicitamente aprovadas por Antonio; nunca salve segredos ou dados de clientes.", schema: editVaultSchema, run: editVault, requires: () => Boolean(getVaultProvider()) },
   { name: "criar_tarefa", description: "Cria uma tarefa para Antonio. Use datas absolutas (AAAA-MM-DD) calculadas a partir de hoje.", ...criarTarefa },
   { name: "listar_tarefas", description: "Lista tarefas com id, prazo, prioridade e projeto. Use antes de atualizar ou concluir.", ...listarTarefas },
@@ -406,6 +428,11 @@ export async function runAssistantTool(name: string, rawArgs: string | Record<st
         if (!task || task.scope !== context.scope) return { ok: false, text: "Tarefa não encontrada neste espaço." };
       }
     } else args = { ...input, escopo: context.scope };
+  }
+  if (context && ["listar_metas", "criar_meta"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
+    const input = args as Record<string,unknown>;
+    if (input.escopo && input.escopo !== context.scope) return { ok:false, text:"Consulte ou registre metas no espaço atual." };
+    args = { ...input, escopo: context.scope };
   }
   const parsed = tool.schema.safeParse(args ?? {});
   if (!parsed.success) return { ok: false, text: `Argumentos inválidos: ${parsed.error.issues.map((i) => `${i.path.join(".") || "entrada"}: ${i.message}`).join("; ")}` };

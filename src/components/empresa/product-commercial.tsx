@@ -11,8 +11,8 @@ const ACCOUNT_LABELS = { trial: "Trial", trial_encerrado: "Trial encerrado", ati
 const EMAIL_LABELS = { enviados: "Enviados", entregues: "Entregues", abertos: "Abertos", cliques: "Com clique", respostas: "Com resposta", falhas: "Falhas", descadastros: "Descadastros" } as const;
 const formatDate = (value: string) => new Date(value).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
-export async function ProductCommercial({ produto }: { produto: string }) {
-  const [summary, emails] = await Promise.all([crmCommercialSummary({ produto }), crmEmailFunnel({ produto, dias: 30 })]);
+export async function ProductCommercial({ produto, dias = 30, categoria }: { produto: string; dias?: number; categoria?: typeof CRM_EMAIL_CATEGORIES[number] }) {
+  const [summary, emails] = await Promise.all([crmCommercialSummary({ produto }), crmEmailFunnel({ produto, dias, categoria })]);
   return <CommercialPanels summary={summary} emails={emails} url={crmUrl()} />;
 }
 
@@ -37,7 +37,7 @@ export function CommercialPanels({ summary, emails, url }: {
     </Card>
     <Card className="p-5">
       <h2 className="font-semibold">Funil de e-mails</h2>
-      <p className="mt-1 text-xs text-muted">Últimos 30 dias · todas as categorias · somente registros agregados do CRM.</p>
+      <p className="mt-1 text-xs text-muted">Janela selecionada · somente registros agregados do CRM.</p>
       {emails.status !== "ok" || !emails.data ? <p role="status" className="mt-4 text-sm text-warning">{emails.message}</p> : <EmailBody data={emails.data} />}
       <p className="mt-4 text-[11px] leading-relaxed text-muted">{CRM_PIXEL_NOTE} Cliques e respostas contam mensagens, não pessoas únicas. Não há envio ou automação nesta visão.</p>
       <Source result={emails} />
@@ -53,8 +53,12 @@ function SummaryBody({ data }: { data: CrmAggregateSummary }) {
       { label: "Clientes · etapa Cliente", value: data.clientes },
       { label: "Receita líquida do mês", value: data.receita_mes == null ? null : brl(data.receita_mes) },
       { label: "Base de prospecção", value: data.base_prospeccao },
+      { label: "Pagantes identificados · mês", value: data.pagantes_mes },
+      { label: "Pagamentos positivos · mês", value: data.pagamentos_mes },
+      { label: "Pagamentos sem contato · mês", value: data.pagamentos_sem_contato_mes },
+      { label: "Tarefas CRM vencidas", value: data.tarefas?.vencidas },
     ]} />
-    <p className="text-[11px] text-muted">Etapa Cliente é a classificação comercial do CRM; não comprova pagamento ou cobrança atual. Não é inferida de trial ou conta ativa.{data.hoje && <> Data de referência do resumo: {data.hoje}.</>}</p>
+    <p className="text-[11px] text-muted">Pagantes identificados são contatos distintos com pagamento BRL de saldo positivo no mês; não equivalem a assinaturas vigentes nem a todos os usuários do app. Etapa Cliente é a classificação comercial do CRM; não comprova pagamento ou cobrança atual. Não é inferida de trial ou conta ativa.{data.hoje && <> Data de referência do resumo: {data.hoje}.</>}</p>
     <ol className="space-y-2" aria-label="Etapas comerciais">{CRM_FUNNEL.map((stage) => {
       const value = data.funil?.[stage];
       return <li key={stage} className="flex items-center gap-3 text-xs"><span className="w-24 shrink-0 text-muted">{stage}</span><span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">{value !== undefined && <span className="block h-full rounded-full bg-accent/70" style={{ width: `${(value / max) * 100}%` }} />}</span><span className="w-8 text-right tabular-nums">{value ?? "—"}</span></li>;
@@ -75,6 +79,9 @@ function EmailBody({ data }: { data: CrmEmailFunnel }) {
     { label: "Resposta / entregues", value: totals?.taxa_resposta, base: totals?.entregues },
   ];
   return <div className="mt-4 space-y-4">
+    <Metrics items={[{label: "Aceitos sem entrega confirmada", value: data.aguardando_entrega}, {label: "Entregues sem resposta registrada", value: data.entregues_sem_resposta}, {label: "Entradas recebidas na janela", value: data.respostas_recebidas}, {label: "Agendados na janela", value: data.agendados_na_janela}]} />
+    <p className="text-[11px] text-muted">Sem resposta registrada não significa desinteresse: depende da captura e correlação da caixa de entrada. Nenhum acompanhamento é disparado por esta tela.</p>
+    {data.ultima_mensagem_em && <p className="text-[11px] text-faint">Última mensagem no período: {formatDate(data.ultima_mensagem_em)}</p>}
     {data.desde && <p className="text-[11px] text-faint">Desde {formatDate(data.desde)} · janela móvel de {data.dias} dias.</p>}
     {totals?.enviados === 0 && <p className="text-xs text-muted">Nenhum envio registrado para o produto nesta janela; isso não comprova ausência de envios fora do CRM.</p>}
     <Metrics items={Object.entries(EMAIL_LABELS).map(([key, label]) => ({ label, value: totals?.[key as keyof typeof EMAIL_LABELS] }))} />
@@ -82,5 +89,6 @@ function EmailBody({ data }: { data: CrmEmailFunnel }) {
     <p className="text-[11px] text-muted">Taxas sem denominador disponível aparecem como —, nunca como 0%. Entrega usa enviados; as demais usam entregues.</p>
     <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted"><div><dt className="inline">Campanhas: </dt><dd className="inline tabular-nums">{data.campanhas ?? "—"}</dd></div><div><dt className="inline">Respostas recebidas (inbound): </dt><dd className="inline tabular-nums">{data.respostas_recebidas ?? "—"}</dd></div></dl>
     {!!data.por_categoria && <div className="overflow-x-auto"><table className="w-full text-left text-xs"><caption className="mb-2 text-left text-muted">Categorias retornadas pelo CRM</caption><thead className="text-faint"><tr><th className="py-2 font-normal">Categoria</th><th className="font-normal">Enviados</th><th className="font-normal">Entregues</th><th className="font-normal">Respostas</th></tr></thead><tbody>{CRM_EMAIL_CATEGORIES.filter((category) => data.por_categoria?.[category]).map((category) => <tr key={category} className="border-t border-border"><th className="py-2 font-normal">{category}</th><td>{data.por_categoria?.[category]?.enviados ?? "—"}</td><td>{data.por_categoria?.[category]?.entregues ?? "—"}</td><td>{data.por_categoria?.[category]?.respostas ?? "—"}</td></tr>)}</tbody></table></div>}
+    {!!data.por_origem?.length && <div className="overflow-x-auto"><table className="w-full text-left text-xs"><caption className="mb-3 text-left font-medium">Origens de envio · até 15 com maior volume</caption><thead className="text-faint"><tr>{["Origem", "Enviados", "Entregues", "Respostas", "Falhas", "Descadastros"].map(label => <th className="py-2 pr-3 font-normal" key={label}>{label}</th>)}</tr></thead><tbody>{data.por_origem.map((source, i) => <tr key={`${source.origem}:${i}`} className="border-t border-border"><th className="max-w-52 break-words py-3 pr-3 font-normal">{source.origem}</th><td>{source.enviados ?? "—"}</td><td>{source.entregues ?? "—"}</td><td>{source.respostas ?? "—"}</td><td>{source.falhas ?? "—"}</td><td>{source.descadastros ?? "—"}</td></tr>)}</tbody></table></div>}
   </div>;
 }

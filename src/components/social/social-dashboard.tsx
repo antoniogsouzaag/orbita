@@ -19,6 +19,13 @@ export function SocialDashboard({ initial, panelUrl }: { initial: SocialOverview
   const groups = groupSocialChannels(data.available ?? []);
   const entity = groups.find((group) => group.id === data.entityId);
   const channels = entity?.channels ?? [];
+  const audience = (data.productChannels ?? []).filter(item => !item.disabled).map(item => {
+    const metric = item.metrics.find(metric => /^(followers|follower count|page followers|subscribers)$/i.test(metric.label));
+    const last = metric ? [...metric.data].sort((a,b) => a.date.localeCompare(b.date)).at(-1) : undefined;
+    return { item, value: !item.error && last?.total.trim() && Number.isFinite(Number(last.total)) ? Number(last.total) : null, date: last?.date };
+  });
+  const measured = audience.filter(item => item.value !== null);
+  const followers = measured.reduce((total, item) => total + (item.value ?? 0), 0);
   const network = channel ? NETWORKS[channel.identifier] ?? channel.identifier : "";
   const load = (id = channel?.id, days = data.days, group = data.entityId) => start(async () => {
     try {
@@ -43,6 +50,7 @@ export function SocialDashboard({ initial, panelUrl }: { initial: SocialOverview
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-surface-2">{group.logo ? <Image src={group.logo} alt="" width={36} height={36} className="size-9 object-contain" /> : <Building2 className="size-5 text-muted" />}</span>
         <span className="min-w-0"><span className="block truncate text-sm font-semibold">{group.name}</span><span className="mt-1 block text-[11px] text-muted">{group.channels.length} {group.channels.length === 1 ? "canal" : "canais"}</span></span>
       </button>)}</nav>
+      {entity && <Card className="overflow-hidden p-5 sm:p-6"><div className="flex flex-wrap justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-accent">Visão do produto · {entity.name}</p><p className="mt-3 text-4xl font-semibold tracking-tight tabular-nums">{measured.length ? followers.toLocaleString("pt-BR") : "—"}<span className="ml-3 text-sm font-normal text-muted">seguidores e inscritos</span></p></div><div className="text-right text-xs text-muted"><p>{channels.length} canais vinculados</p><p className="mt-2">{measured.length}/{audience.length} canais ativos com audiência disponível</p></div></div><div className="mt-5 grid gap-2 sm:grid-cols-3">{audience.map(({item,value,date}) => <div key={item.id} className="rounded-xl bg-surface-2 p-3"><p className="text-xs text-muted">{NETWORKS[item.identifier] ?? item.identifier} · {item.profile ?? item.name}</p><p className="mt-2 text-lg font-semibold tabular-nums">{value === null ? "Indisponível" : value.toLocaleString("pt-BR")}</p><p className="mt-1 text-[10px] text-faint">{date ? `Último ponto: ${date}` : "Sem ponto de audiência"}</p></div>)}</div><p className="mt-4 text-[11px] text-faint">Fonte: Postiz · soma dos últimos pontos disponíveis por perfil; uma pessoa pode seguir mais de um canal. Valores parciais quando houver redes sem dados. Consultado em {new Date(data.checkedAt).toLocaleString("pt-BR", {timeZone:"America/Sao_Paulo"})}.</p></Card>}
       {entity && <div className="grid items-start gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
         <aside className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold">{entity.name}</h2>{entity.businessHref && <Link href={entity.businessHref} className="text-[11px] text-accent hover:underline">Ver negócio ↗</Link>}</div>
           <nav aria-label={`Canais de ${entity.name}`} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">{channels.map((item) => <button type="button" key={item.id} disabled={pending} aria-pressed={channel?.id === item.id} onClick={() => load(item.id)} className={`rounded-xl border p-3 text-left transition hover:bg-surface-2 disabled:opacity-60 ${channel?.id === item.id ? "border-accent/40 bg-accent/10" : "border-border bg-surface"}`}>
