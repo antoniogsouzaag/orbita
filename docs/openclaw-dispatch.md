@@ -67,4 +67,4 @@ Prova em produção: `5da3404c-29c7-467f-90f8-33f5a44e36c6`, `diagnostics.read`,
 ## Limites
 
 - A rota direta `/hooks/agent` do gateway aceita o mesmo token; por isso ele é tratado como credencial de confiança total da entrada de webhooks e fica só na Vercel e no VPS-02.
-- O Hermes Oracle continua com o receptor HMAC próprio e o histórico em `settings` (`hermes-dispatch.md`). Migrá-lo para `dispatches` é a próxima etapa da unificação.
+- O Hermes Oracle conserva o receptor HMAC próprio. Novos registros usam `dispatches` com destino `hermes`; os antigos em `settings` continuam legíveis e migram ao consultar resultado, sem apagar o original. O callback OpenClaw não altera pedidos Hermes.

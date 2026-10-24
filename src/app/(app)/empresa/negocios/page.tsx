@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { ProductPortfolio } from "@/components/empresa/product-portfolio";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Building2, BookOpen } from "lucide-react";
@@ -27,6 +29,7 @@ export default async function Page() {
       <div className="grid grid-cols-2 border-t border-border/60 sm:grid-cols-4">{stats.map((item) => <Link key={item.label} href={item.href} prefetch={false} className="border-r border-border/40 px-5 py-4 transition last:border-r-0 hover:bg-surface-2"><p className="text-xl font-semibold tabular-nums">{item.value ?? "—"}</p><p className="mt-1 text-[11px] text-muted">{item.label}</p></Link>)}</div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-5 py-3"><p className="text-[10px] text-faint">Fontes: Postiz, tarefas empresariais, GitHub e monitores. — indica fonte indisponível.</p><Link href="/empresa/negocios/barberias" className="text-xs font-medium text-amber-300 hover:underline">Abrir negócio ↗</Link></div>
     </Card>
+    <Suspense fallback={<Card className="p-4 text-xs text-muted">Consultando produtos no CRM…</Card>}><ProductPortfolio /></Suspense>
     {registry.length > 0 && <section className="max-w-4xl"><h2 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="size-4 text-muted" />Aplicações documentadas</h2><p className="mt-2 text-xs leading-relaxed text-muted">Registro do vault para preparar os próximos painéis. A ficha de cada aplicação reúne seu contexto e as regras de evolução.</p><div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{registry.filter((item) => item.pagePath).map((item) => <Link key={item.repo} href={`/vault?p=${encodeURIComponent(item.pagePath!)}`} className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-xs hover:bg-surface-2"><span className="min-w-0 flex-1"><span className="block truncate font-medium">{item.page?.replace(/^Página\s*-\s*/, "") ?? item.repo}</span><span className="mt-1 block text-[10px] text-faint">Ficha no vault · {item.repo}</span></span><ArrowUpRight className="size-3.5 shrink-0 text-faint" /></Link>)}</div></section>}
   </div>;
 }

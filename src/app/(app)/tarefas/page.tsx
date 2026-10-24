@@ -31,7 +31,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const projectId = projects.some((p) => p.id === sp.project) ? sp.project : undefined;
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
-      <PageHeader icon={icon} title={title} description={`${counts.open} abertas · ${counts.today} para hoje · ${counts.overdue} atrasadas`} actions={<NewTaskButton scope={scope} projectId={projectId} />} />
+      <PageHeader icon={icon} title={title} description={`${counts.open} ${scope === "empresa" ? "internas abertas" : "abertas"} · ${counts.today} para hoje · ${counts.overdue} atrasadas`} actions={<NewTaskButton scope={scope} projectId={projectId} />} />
       <TasksView
         scope={scope}
         tasks={tasks}
@@ -43,7 +43,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         projectId={projectId}
         detail={detail}
       />
-      {scope === "empresa" && <Suspense fallback={<p className="mt-4 text-xs text-muted">Consultando tarefas comerciais…</p>}><CommercialTaskList view={view} product={sp.tag} /></Suspense>}
+      {scope === "empresa" && !sp.project && <Suspense fallback={<p className="mt-4 text-xs text-muted">Consultando tarefas comerciais…</p>}><CommercialTaskList view={view} product={sp.tag} /></Suspense>}
     </div>
   );
 }

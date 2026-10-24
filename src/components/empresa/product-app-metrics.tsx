@@ -3,7 +3,8 @@ import { productMetrics } from "@/server/product-metrics";
 
 export async function ProductAppMetrics({ product }: { product: string }) {
   const result = await productMetrics(product);
-  const metrics = result.data?.metrics;
+  if (!result.data) return <Card className="flex flex-wrap items-center gap-4 p-5"><div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-widest text-accent">Dados administrativos do app · conexão pendente</p><h2 className="mt-1 text-sm font-semibold">Uso, contas e assinaturas</h2><p className="mt-2 text-xs leading-relaxed text-muted">{result.message}</p></div><span className="rounded-full border border-border px-3 py-1 text-[11px] text-muted">Sem snapshot disponível</span></Card>;
+  const metrics = result.data.metrics;
   const items = [
     ["Usuários cadastrados", metrics?.users], ["Contas / estabelecimentos", metrics?.accounts],
     ["Contas ativas", metrics?.activeAccounts], ["Em teste", metrics?.trialAccounts],
