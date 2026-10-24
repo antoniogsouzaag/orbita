@@ -39,6 +39,10 @@ A central grava o pedido (`dispatches`) **antes** do envio e nunca repete sozinh
 
 Pedido `accepted` ou `running` sem atualização por mais de 2 horas aparece como **sem retorno** (cálculo na leitura; o registro não muda).
 
+## Consistência do retorno
+
+O callback do agente pode chegar antes da resposta HTTP de admissão. A atualização do transporte só muda pedidos ainda em `sending`; preserva resultado, evidência e horário já registrados pelo agente, mesmo diante de timeout posterior. Resultados concorrentes usam comparação do estado anterior e não sobrescrevem um estado final vencedor. Retry idêntico exige resumo **e evidência** iguais.
+
 ## Retorno pelo MCP
 
 - `registrar_resultado` (escopo `eventos`): `pedido_id`, `estado` (`em_execucao` · `concluido` · `falhou`), `resumo` e `evidencia`. Repetição idêntica é aceita; pedido encerrado não reabre.
