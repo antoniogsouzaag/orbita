@@ -108,7 +108,8 @@ describe("CRM pela Órbita", () => {
 
   it("erro de validação do CRM volta como falha legível", async () => {
     const r = await runAssistantTool("crm_contato", { contato_id: "22222222-2222-4222-8222-222222222222" });
-    expect(r).toMatchObject({ ok: false, text: "Falhou: contato não encontrado" });
+    expect(r).toMatchObject({ ok: false, text: "Não foi possível executar a ferramenta nesta consulta. Confira o estado antes de repetir uma escrita." });
+    expect(r.text).not.toContain("contato não encontrado");
     expect((await runAssistantTool("crm_contato", { contato_id: "abc" })).text).toMatch(/Argumentos inválidos/);
   });
 });

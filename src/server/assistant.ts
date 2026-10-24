@@ -423,34 +423,34 @@ export async function runAssistantTool(name: string, rawArgs: string | Record<st
   const tool = assistantTools(context?.scope, { readOnly: context?.readOnly }).find((t) => t.name === name);
   if (!tool) return { ok: false, text: `Ferramenta desconhecida: ${name}` };
   try {
-  context?.signal?.throwIfAborted();
-  let args: unknown = rawArgs;
-  if (typeof rawArgs === "string") {
-    try {
-      args = rawArgs ? JSON.parse(rawArgs) : {};
-    } catch {
-      return { ok: false, text: "Argumentos inválidos (JSON malformado)." };
-    }
-  }
-  if (context && ["criar_tarefa", "listar_tarefas", "atualizar_tarefa"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
-    const input = args as Record<string, unknown>;
-    if (input.escopo && input.escopo !== context.scope) return { ok: false, text: "Essa tarefa pertence a outro espaço. Abra Pessoal ou Empresa para agir no espaço correspondente." };
-    if (name === "atualizar_tarefa") {
-      const id = z.string().uuid().safeParse(input.id);
-      if (id.success) {
-        const db = await getDb();
-        const [task] = await db.select({ scope: tasks.scope }).from(tasks).where(eq(tasks.id, id.data));
-        if (!task || task.scope !== context.scope) return { ok: false, text: "Tarefa não encontrada neste espaço." };
+    context?.signal?.throwIfAborted();
+    let args: unknown = rawArgs;
+    if (typeof rawArgs === "string") {
+      try {
+        args = rawArgs ? JSON.parse(rawArgs) : {};
+      } catch {
+        return { ok: false, text: "Argumentos inválidos (JSON malformado)." };
       }
-    } else args = { ...input, escopo: context.scope };
-  }
-  if (context && ["listar_metas", "criar_meta"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
-    const input = args as Record<string,unknown>;
-    if (input.escopo && input.escopo !== context.scope) return { ok:false, text:"Consulte ou registre metas no espaço atual." };
-    args = { ...input, escopo: context.scope };
-  }
-  const parsed = tool.schema.safeParse(args ?? {});
-  if (!parsed.success) return { ok: false, text: `Argumentos inválidos: ${parsed.error.issues.map((i) => `${i.path.join(".") || "entrada"}: ${i.message}`).join("; ")}` };
+    }
+    if (context && ["criar_tarefa", "listar_tarefas", "atualizar_tarefa"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
+      const input = args as Record<string, unknown>;
+      if (input.escopo && input.escopo !== context.scope) return { ok: false, text: "Essa tarefa pertence a outro espaço. Abra Pessoal ou Empresa para agir no espaço correspondente." };
+      if (name === "atualizar_tarefa") {
+        const id = z.string().uuid().safeParse(input.id);
+        if (id.success) {
+          const db = await getDb();
+          const [task] = await db.select({ scope: tasks.scope }).from(tasks).where(eq(tasks.id, id.data));
+          if (!task || task.scope !== context.scope) return { ok: false, text: "Tarefa não encontrada neste espaço." };
+        }
+      } else args = { ...input, escopo: context.scope };
+    }
+    if (context && ["listar_metas", "criar_meta"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
+      const input = args as Record<string,unknown>;
+      if (input.escopo && input.escopo !== context.scope) return { ok:false, text:"Consulte ou registre metas no espaço atual." };
+      args = { ...input, escopo: context.scope };
+    }
+    const parsed = tool.schema.safeParse(args ?? {});
+    if (!parsed.success) return { ok: false, text: `Argumentos inválidos: ${parsed.error.issues.map((i) => `${i.path.join(".") || "entrada"}: ${i.message}`).join("; ")}` };
     context?.signal?.throwIfAborted();
     return { ok: true, ...(await tool.run(parsed.data as never)) };
   } catch {

@@ -33,7 +33,8 @@ describe("recibos e consultas visíveis", () => {
     const parsed = splitActions('Olá\u001e{"label":"Tarefa","href":"/tarefas"}\u001e' + sourceMarker({name:"metricas_produto",ok:true}));
     expect(parsed).toEqual({text:"Olá",actions:[{label:"Tarefa",href:"/tarefas"}],sources:[{name:"metricas_produto",ok:true}]});
   });
-  it.each(["https://evil.test", "//evil.test", "/\\evil.test", "javascript:alert(1)"])("não aceita recibo com destino externo: %s", href => expect(splitActions(actionMarker({label:"Tarefa",href})).actions).toEqual([]));
+  it.each(["http://evil.test", "//evil.test", "/\\evil.test", "javascript:alert(1)"])("não aceita recibo com destino externo: %s", href => expect(splitActions(actionMarker({label:"Tarefa",href})).actions).toEqual([]));
+  it("preserva link HTTPS legítimo de ação no CRM", () => expect(splitActions(actionMarker({label:"Tarefa CRM",href:"https://crm.example.test/tasks"})).actions).toHaveLength(1));
   it("texto do modelo não consegue emitir separador de recibo", () => {
     expect(splitActions(modelText(actionMarker({label:"falso",href:"/tarefas"}))).actions).toEqual([]);
     expect(splitActions('texto\u001e{"label":"incompleto"').text).toBe("texto");
