@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/mcp/route";
 import { getDb } from "@/db";
 import { agentActivity, agentTokens, opsEvents, tasks } from "@/db/schema";
@@ -126,6 +126,30 @@ describe("central dos agentes (MCP)", () => {
     expect(names).not.toContain("orbita_registrar_lancamento");
     expect(names).not.toContain("criar_tarefa_para_antonio");
     expect(names).toContain("contexto_operacional");
+  });
+
+  it("MCP herda schemas de agregados do CRM só para admin", async () => {
+    const admin = await createAgentToken("Comercial", ["admin"]);
+    const reader = await createAgentToken("Leitor comercial", ["status"]);
+    vi.stubEnv("CRM_MCP_URL", "https://crm.invalid/api/mcp");
+    vi.stubEnv("CRM_MCP_TOKEN", "fixture-local-only");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ result: { structuredContent: { produto: "barberias", categoria: null, dias: 30, desde: "2026-09-24T03:00:00.000Z", total: { enviados: 4, entregues: 2, taxa_abertura: 50, respostas: 0 } } } }));
+    try {
+      const list = await rpc(admin, "tools/list");
+      const tools = list.body.result!.tools as { name: string; inputSchema: { properties: Record<string, unknown> } }[];
+      expect(tools.find((tool) => tool.name === "orbita_crm_resumo")!.inputSchema.properties).toHaveProperty("produto");
+      expect(tools.find((tool) => tool.name === "orbita_crm_funil_emails")!.inputSchema.properties).toHaveProperty("dias");
+      const result = await rpc(admin, "tools/call", { name: "orbita_crm_funil_emails", arguments: { produto: "barberias", dias: 30 } });
+      const responseText = (result.body.result!.content as { text: string }[])[0].text;
+      expect(responseText).toContain('"status":"ok"');
+      expect(responseText).toContain("pixel");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string).params).toEqual({ name: "crm_funil_emails", arguments: { produto: "barberias", dias: 30 } });
+      expect((await toolNames(reader)).some((name) => name.startsWith("orbita_crm_"))).toBe(false);
+    } finally {
+      fetchMock.mockRestore();
+      vi.unstubAllEnvs();
+    }
   });
 
   it("conta a janela inteira de atividade e ignora chamadas antigas", async () => {
