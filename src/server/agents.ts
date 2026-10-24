@@ -283,6 +283,7 @@ export function buildMcpServer(agent: AgentIdentity) {
         title: tool.name,
         description: `Administrador: ${tool.description}`,
         inputSchema: tool.schema,
+        ...(tool.readOnly ? { annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } } : {}),
       }, async (args) => run(`orbita_${tool.name}`, `executou ${tool.name}`, async () => {
         const result = await runAssistantTool(tool.name, args);
         return text(result.text, !result.ok);

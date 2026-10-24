@@ -1,0 +1,48 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { productMetrics } from "@/server/product-metrics";
+import { assistantTools, runAssistantTool } from "@/server/assistant";
+import { ORBE_STRATEGY_RULES } from "@/lib/orbe-context";
+const url = "https://barberias.com.br/api/integrations/orbita/metrics";
+const raw = () => ({ version: 1, product: "barberias", generatedAt: new Date().toISOString(), window: { from: "2026-10-01T00:00:00Z", to: new Date().toISOString() }, metrics: { users: 8, accounts: 4, activeAccounts: 3, trialAccounts: 1, payingAccounts: 1, complimentaryAccounts: 1, canceledAccounts: 0, activatedAccounts: 2 }, secret: "never-return" });
+const configure = (target = url) => vi.stubEnv("APP_METRICS_SOURCES", JSON.stringify([{ product: "barberias", url: target, token: "fixture-only-".repeat(4) }]));
+beforeEach(() => { configure(); vi.stubGlobal("fetch", vi.fn(async () => Response.json(raw()))); });
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+describe("origem administrativa e ORBE", () => {
+  it("usa fonte fixa HTTPS e não permite redirect nem cache", async () => {
+    expect(await productMetrics("barberias")).toMatchObject({ status: "ok", data: { metrics: { users: 8 } } });
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ redirect: "error", cache: "no-store", signal: expect.any(AbortSignal) }));
+  });
+  it.each(["http://barberias.com.br/api/integrations/orbita/metrics", "https://evil.test/api/integrations/orbita/metrics", "https://barberias.com.br:444/api/integrations/orbita/metrics", url + "?token=private", url + "#a", "https://barberias.com.br/admin"])("recusa destino inválido antes da rede: %s", async target => {
+    configure(target); expect(await productMetrics("barberias")).toMatchObject({ status: "unavailable", data: null }); expect(fetch).not.toHaveBeenCalled();
+  });
+  it("não conectado não vira zero nem faz rede", async () => {
+    vi.stubEnv("APP_METRICS_SOURCES", "[]");
+    const result = await runAssistantTool("metricas_produto", { produto: "barberias" }, { scope: "empresa" });
+    expect(JSON.parse(result.text)).toMatchObject({ status: "not_configured", data: null }); expect(fetch).not.toHaveBeenCalled();
+  });
+  it("recusa produto divergente e não repassa dados fora do contrato", async () => {
+    const result = await runAssistantTool("metricas_produto", { produto: "barberpro" }, { scope: "empresa" });
+    expect(JSON.parse(result.text)).toMatchObject({ product: "barberias", status: "ok" }); expect(result.text).not.toContain("never-return");
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ...raw(), product: "members" })));
+    expect(await productMetrics("barberias")).toMatchObject({ status: "unavailable", data: null });
+  });
+  it("snapshot antigo é explicitamente stale", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ...raw(), generatedAt: new Date(Date.now() - 25 * 3600000).toISOString() })));
+    expect((await productMetrics("barberias")).status).toBe("stale");
+  });
+  it.each([true, false])("limita resposta com ou sem content-length (%s)", async declared => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("x".repeat(32769), { headers: declared ? { "content-length": "32769" } : {} })));
+    expect(await productMetrics("barberias")).toMatchObject({ status: "unavailable", data: null });
+  });
+  it("erros não expõem token ou detalhe do provedor", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("fixture-only-secret"); }));
+    const result = await productMetrics("barberias"); expect(result.status).toBe("unavailable"); expect(JSON.stringify(result)).not.toContain("fixture-only-secret");
+  });
+  it("catálogo e execução mantêm Empresa/Pessoal separados", async () => {
+    expect(assistantTools("empresa").find(t => t.name === "metricas_produto")?.readOnly).toBe(true);
+    expect(assistantTools("pessoal").some(t => t.name === "metricas_produto")).toBe(false);
+    expect((await runAssistantTool("metricas_produto", { produto: "barberias" }, { scope: "pessoal" })).ok).toBe(false);
+    expect(ORBE_STRATEGY_RULES).toContain("consulte metricas_produto");
+    expect(ORBE_STRATEGY_RULES).toContain("Não prometa uma operação inexistente");
+  });
+});

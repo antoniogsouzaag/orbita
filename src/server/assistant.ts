@@ -11,7 +11,8 @@ import { eventsBetween } from "./calendar";
 import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./crm";
 import { liveOps } from "./ops-live";
 import { crmCommercialSummary, crmEmailFunnel, crmCommercialNotes } from "./crm-commercial";
-import { crmSummaryInput, crmEmailInput } from "@/lib/crm-aggregates";
+import { crmSummaryInput, crmEmailInput, crmProductSchema, crmProductKey } from "@/lib/crm-aggregates";
+import { productMetrics } from "./product-metrics";
 import { listTasks, type TaskView } from "./tasks";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
 import { editVault, editVaultSchema } from "./vault-edit";
@@ -367,9 +368,21 @@ export const criarMeta = {
 
 /* ───────────── Catálogo para a IA ───────────── */
 
-type Tool = { name: string; description: string; schema: z.ZodObject; run: (v: never) => Promise<ActionResult>; requires?: () => boolean };
+export const metricasProduto = {
+  schema: z.object({ produto: crmProductSchema.describe("Slug explícito do produto, ex.: barberias") }),
+  async run({ produto }: { produto: string }): Promise<ActionResult> {
+    const product = crmProductKey(produto)!;
+    const result = await productMetrics(product);
+    return { text: JSON.stringify({ product, source: "App de origem · métricas administrativas v1", ...result,
+      coverage: "Contagens agregadas do app, sem cadastros. Ativas incluem testes e cortesias; payingAccounts é acesso de assinatura Stripe, não comprovante de recebimento ou receita conciliada. users é equipe com login, não clientes finais. Ativação é o critério do app, não uso recorrente. Não somar contas do app com contatos do CRM.",
+    }) };
+  },
+};
+
+type Tool = { name: string; description: string; schema: z.ZodObject; run: (v: never) => Promise<ActionResult>; requires?: () => boolean; readOnly?: boolean };
 
 export const ASSISTANT_TOOLS: Tool[] = [
+  { name: "metricas_produto", description: "Consulta na mesma fonte do painel usuários de equipe, contas, acesso, teste, assinatura, cortesia e ativação do app. Use antes de responder números do produto. Não substitui o CRM nem receita conciliada. Informa não conectado/indisponível/desatualizado sem presumir zero; não executa operações no app.", readOnly: true, ...metricasProduto },
   { name: "listar_metas", description: "Consulta metas e objetivos do espaço atual com progresso, prazo e contexto. Use para discutir prioridades e evolução.", ...listarMetas },
   { name: "criar_meta", description: "Registra uma meta somente quando Antonio pedir para criar ou salvar, com título, indicador, alvo e prazo acordados. Sugestão de meta não autoriza gravação. Não invente linha de base ou progresso.", ...criarMeta },
   { name: "salvar_nota_vault", description: "Cria ou atualiza nota canônica do vault com controle de versão. Leia antes e forneça o SHA. Só registre mudanças de política, produto ou responsabilidade explicitamente aprovadas por Antonio; nunca salve segredos ou dados de clientes.", schema: editVaultSchema, run: editVault, requires: () => Boolean(getVaultProvider()) },
@@ -384,8 +397,8 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "buscar_no_vault", description: "Busca no vault da AG LABS (manual canônico da empresa).", ...buscarNoVault },
   { name: "ler_nota_do_vault", description: "Lê uma nota inteira do vault pelo caminho ou nome.", ...lerNotaDoVault },
   { name: "status_operacao", description: "Estado ao vivo: sites fora do ar, incidentes, falhas de workflow, monitores e domínios.", ...statusOperacao },
-  { name: "crm_resumo", description: "Agregados do CRM: funil comercial, contas (não equivalem a pagantes), receita e tarefas. produto opcional (ex.: barberias); sem produto, CRM inteiro. Preserva fonte e indisponibilidade.", requires: crmConfigured, ...crmResumo },
-  { name: "crm_funil_emails", description: "Leitura agregada de e-mails registrados no CRM; produto, dias (1–365, padrão 30) e categoria opcionais. Sem contatos ou envios. Aberturas por pixel não comprovam leitura humana; taxas sem base são null.", requires: crmConfigured, ...crmFunilEmails },
+  { name: "crm_resumo", readOnly: true, description: "Agregados do CRM: funil comercial, contas (não equivalem a pagantes), receita e tarefas. produto opcional (ex.: barberias); sem produto, CRM inteiro. Preserva fonte e indisponibilidade.", requires: crmConfigured, ...crmResumo },
+  { name: "crm_funil_emails", readOnly: true, description: "Leitura agregada de e-mails registrados no CRM; produto, dias (1–365, padrão 30) e categoria opcionais. Sem contatos ou envios. Aberturas por pixel não comprovam leitura humana; taxas sem base são null.", requires: crmConfigured, ...crmFunilEmails },
   { name: "crm_tarefas", description: "Tarefas pendentes do CRM (Maia, Léo, Antonio, técnico), das mais urgentes; filtra por responsável e situação.", requires: crmConfigured, ...crmTarefas },
   { name: "crm_buscar_contatos", description: "Procura clientes e leads no CRM por nome, empresa, e-mail ou Instagram. Use antes de agir sobre um contato.", requires: crmConfigured, ...crmBuscarContatos },
   { name: "crm_contato", description: "Ficha de um contato do CRM: etapa, produto, últimas interações, tarefas e receita.", requires: crmConfigured, ...crmContato },
@@ -396,7 +409,7 @@ export const ASSISTANT_TOOLS: Tool[] = [
 
 /** Ferramentas disponíveis agora (as do CRM só aparecem com o CRM conectado). */
 export function assistantTools(scope?: TaskScope) {
-  return ASSISTANT_TOOLS.filter((t) => (!t.requires || t.requires()) && !(scope === "pessoal" && t.name.startsWith("crm_")) && !(scope === "empresa" && ["registrar_lancamento", "criar_nota", "buscar_notas", "ver_agenda", "criar_evento"].includes(t.name)));
+  return ASSISTANT_TOOLS.filter((t) => (!t.requires || t.requires()) && !(scope === "pessoal" && (t.name.startsWith("crm_") || t.name === "metricas_produto")) && !(scope === "empresa" && ["registrar_lancamento", "criar_nota", "buscar_notas", "ver_agenda", "criar_evento"].includes(t.name)));
 }
 
 export function toolJsonSchema(t: Tool): Record<string, unknown> {
