@@ -22,6 +22,12 @@
   --success: #16a34a;
   --warning: #d97706;
   --danger: #dc2626;
+  /* Séries de gráfico: ordem fixa, validada para daltonismo (azul, laranja, água, amarelo, magenta). */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
 }
 
 .dark {
@@ -42,6 +48,11 @@
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #f43f5e;
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
 }
 
 [data-accent="cyan"] { --accent: #22d3ee; --accent-fg: #062026; }
@@ -275,6 +286,14 @@ html { scrollbar-gutter: stable; }
 .speed-dial-orbit { transform-origin: bottom right; animation: orbit-reveal 180ms cubic-bezier(.2,.8,.2,1) both; }
 .speed-dial-backdrop { animation: dial-shade 180ms ease-out both; }
 @keyframes dial-shade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Login: o fundo respira bem devagar, quase imperceptível. */
+.login-drift { animation: login-drift 48s ease-in-out infinite alternate; transform-origin: 60% 70%; will-change: transform; }
+@keyframes login-drift {
+  0% { transform: scale(1) translate3d(0, 0, 0); }
+  50% { transform: scale(1.018) translate3d(-0.4%, 0.3%, 0); }
+  100% { transform: scale(1.028) translate3d(0.3%, -0.4%, 0); }
+}
 
 /* Focus belongs to the rounded composer, not the square textarea. */
 .capture-input:focus-visible { outline: none; }

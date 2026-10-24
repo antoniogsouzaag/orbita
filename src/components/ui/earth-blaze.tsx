@@ -499,6 +499,8 @@ function createRenderer(canvas: HTMLCanvasElement, fallback: HTMLDivElement, ini
     if (!options.interactive && !still()) {
       state.target = geometry.rest + Math.sin(state.clock * .12) * .035;
       state.targetReveal = .35 + Math.sin(state.clock * .09) * .12;
+      // Paralaxe ambiente: céu e estrelas derivam numa elipse lenta (~1,5 min por volta).
+      state.targetDrift = [Math.sin(state.clock * .07) * .45, Math.cos(state.clock * .053) * .35];
     }
     const movement = still() ? 1 : 1 - Math.exp(-dt / .24);
     const exposure = still() ? 1 : 1 - Math.exp(-dt / (state.targetReveal > state.reveal ? .8 : .48));

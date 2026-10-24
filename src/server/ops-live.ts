@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { agentActivity, opsDomains, opsEvents, opsHeartbeats, opsStatus } from "@/db/schema";
@@ -169,6 +169,21 @@ export async function liveOps() {
     return { source: b.source, label: b.label ?? b.source, lastSeen: b.lastSeen, everyMinutes: b.everyMinutes, minutesAgo, silent: minutesAgo > b.everyMinutes * 2.5 + 2 };
   });
   return { generatedAt: now, status, events, monitors, domains: domains.sort((a, b) => (a.expiresAt?.getTime() ?? Infinity) - (b.expiresAt?.getTime() ?? Infinity)) };
+}
+
+/** Eventos por dia (fuso de São Paulo) e tipo, sem o limite de linhas da lista. */
+export async function opsEventsByDay(days = 14) {
+  const db = await getDb();
+  const since = new Date(Date.now() - days * DAY);
+  const day = sql<string>`to_char(${opsEvents.createdAt} at time zone 'America/Sao_Paulo', 'YYYY-MM-DD')`;
+  return db.select({ day, kind: opsEvents.kind, count: sql<number>`count(*)`.mapWith(Number) })
+    .from(opsEvents).where(gte(opsEvents.createdAt, since)).groupBy(day, opsEvents.kind);
+}
+
+/** Alertas, incidentes e resumos que um agente registrou pelo MCP (fonte agente:<id>). */
+export async function agentEvents(id: string, limit = 20) {
+  const db = await getDb();
+  return db.select().from(opsEvents).where(and(eq(opsEvents.source, `agente:${id}`), gte(opsEvents.createdAt, new Date(Date.now() - 30 * DAY)))).orderBy(desc(opsEvents.createdAt)).limit(limit);
 }
 
 const norm = (u: string) => u.replace(/\/+$/, "").toLowerCase();

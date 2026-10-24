@@ -65,12 +65,16 @@ export function VaultPage({
   const [treeOpen, setTreeOpen] = React.useState(false);
   const dirty = file ? draft !== file.content : false;
 
-  React.useEffect(() => {
+  // Outra nota (ou nova versão): volta ao modo leitura com o conteúdo dela.
+  const fileKey = `${file?.path ?? ""}@${file?.sha ?? ""}`;
+  const [prevFileKey, setPrevFileKey] = React.useState(fileKey);
+  if (prevFileKey !== fileKey) {
+    setPrevFileKey(fileKey);
     setDraft(file?.content ?? "");
     setSha(file?.sha ?? null);
     setMode("view");
     setTreeOpen(false);
-  }, [file?.path, file?.sha]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   React.useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
@@ -263,12 +267,15 @@ function NewNoteDialog({ open, onOpenChange, folders, defaultFolder }: { open: b
   const [name, setName] = React.useState("");
   const [folder, setFolder] = React.useState(defaultFolder);
   const [pending, start] = React.useTransition();
-  React.useEffect(() => {
+  // Cada abertura começa limpa, na pasta padrão.
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setFolder(defaultFolder);
       setName("");
     }
-  }, [open, defaultFolder]);
+  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="Nova nota no vault" description="Cria o arquivo com frontmatter padrão e faz commit.">

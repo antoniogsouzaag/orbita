@@ -8,6 +8,18 @@ export const metadata = { title: "Vault" };
 
 let defaultFolderCache: string | null = null;
 
+/** Pasta padrão para notas novas (configuração do Obsidian), lida uma vez por processo. */
+async function defaultNewFileFolder(provider: NonNullable<ReturnType<typeof getVaultProvider>>): Promise<string> {
+  if (defaultFolderCache !== null) return defaultFolderCache;
+  let folder = "";
+  try {
+    const app = JSON.parse(await provider.read(".obsidian/app.json"));
+    if (typeof app.newFileFolderPath === "string") folder = app.newFileFolderPath;
+  } catch {}
+  defaultFolderCache = folder;
+  return folder;
+}
+
 export default async function Page({ searchParams }: { searchParams: Promise<{ p?: string }> }) {
   const { p } = await searchParams;
   const provider = getVaultProvider();
@@ -39,14 +51,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
     );
   }
 
-  if (defaultFolderCache === null) {
-    try {
-      const app = JSON.parse(await provider.read(".obsidian/app.json"));
-      defaultFolderCache = typeof app.newFileFolderPath === "string" ? app.newFileFolderPath : "";
-    } catch {
-      defaultFolderCache = "";
-    }
-  }
+  const defaultFolder = await defaultNewFileFolder(provider);
 
   let file: VaultFileView | null = null;
   const entry = p ? idx.files.find((f) => f.path === p) : undefined;
@@ -108,7 +113,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
         folders={folders}
         source={`${provider.kind === "github" ? "GitHub" : "Local"} · ${provider.label}`}
         stats={{ notes: idx.notes.size, files: idx.files.length, links }}
-        defaultFolder={defaultFolderCache ?? ""}
+        defaultFolder={defaultFolder}
       />
     </div>
   );

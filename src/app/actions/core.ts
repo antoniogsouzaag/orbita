@@ -9,6 +9,7 @@ import { requireAuth } from "@/lib/auth";
 import { today } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
 import { projectScope } from "@/lib/task-scope";
+import { parseImageDataUrl } from "@/lib/image-data";
 import { setAvatar, setSetting, type AppSettings } from "@/server/settings";
 import { insertTask, patchTask, taskSchema } from "@/server/task-write";
 
@@ -252,14 +253,9 @@ export async function saveAvatar(dataUrl: string | null) {
     refresh();
     return { ok: true as const };
   }
-  const m = /^data:(image\/(?:webp|png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(z.string().max(700_000).parse(dataUrl));
-  if (!m) return { ok: false as const, error: "Formato de imagem não suportado" };
-  const bytes = Buffer.from(m[2], "base64");
-  if (bytes.length > 400_000) return { ok: false as const, error: "Imagem grande demais" };
-  const magic = bytes.subarray(0, 12).toString("latin1");
-  const valid = (m[1] === "image/png" && magic.startsWith("\x89PNG")) || (m[1] === "image/jpeg" && bytes[0] === 0xff && bytes[1] === 0xd8) || (m[1] === "image/webp" && magic.startsWith("RIFF") && magic.slice(8, 12) === "WEBP");
-  if (!valid) return { ok: false as const, error: "Arquivo de imagem inválido" };
-  await setAvatar({ type: m[1], data: m[2], updatedAt: Date.now() });
+  const image = parseImageDataUrl(dataUrl);
+  if (!image.ok) return { ok: false as const, error: image.error };
+  await setAvatar({ type: image.type, data: image.data, updatedAt: Date.now() });
   refresh();
   return { ok: true as const };
 }

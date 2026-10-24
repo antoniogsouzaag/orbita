@@ -1,3 +1,4 @@
+import { agentSlug } from "@/lib/team";
 import { AlertTriangle, ArrowUpRight, Bot, Briefcase, CheckCircle2, CheckSquare, FolderKanban, GitPullRequest, Globe, HeartPulse, Inbox, Lightbulb, Server, Users, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Card, CardHeader, EmptyState } from "@/components/ui/card";
@@ -199,7 +200,7 @@ export function AgentsWidget({ activity }: { activity: EmpresaData["activity"] }
             {activity.map((a) => (
               <li key={a.id} className="flex items-center gap-2">
                 {a.ok ? <CheckCircle2 className="size-3.5 shrink-0 text-success" /> : <XCircle className="size-3.5 shrink-0 text-danger" />}
-                <span className="shrink-0 font-medium">{a.agent}</span>
+                <Link href={`/agentes/${agentSlug(a.agent)}`} className="shrink-0 font-medium hover:text-accent">{a.agent}</Link>
                 <span className="min-w-0 flex-1 truncate text-muted">{a.summary}</span>
                 <span className="shrink-0 text-[11.5px] text-faint">{ago(a.createdAt)}</span>
               </li>
