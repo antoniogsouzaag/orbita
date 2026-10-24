@@ -6,10 +6,10 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import type { TreeNode } from "@/server/vault";
 
-function icon(name: string) {
-  if (/\.md$/i.test(name)) return FileText;
-  if (/\.(png|jpe?g|gif|webp|svg|avif)$/i.test(name)) return FileImage;
-  return FileCode2;
+function FileIcon({ name, className }: { name: string; className?: string }) {
+  if (/\.md$/i.test(name)) return <FileText className={className} />;
+  if (/\.(png|jpe?g|gif|webp|svg|avif)$/i.test(name)) return <FileImage className={className} />;
+  return <FileCode2 className={className} />;
 }
 
 export function VaultTree({ nodes, current, filter }: { nodes: TreeNode[]; current: string | null; filter: string }) {
@@ -31,9 +31,12 @@ function matches(n: TreeNode, f: string): boolean {
 function TreeItem({ node, current, filter, depth }: { node: TreeNode; current: string | null; filter: string; depth: number }) {
   const containsCurrent = current?.startsWith(`${node.path}/`) ?? false;
   const [open, setOpen] = React.useState(containsCurrent);
-  React.useEffect(() => {
+  // Abre a pasta quando a nota atual passa a estar dentro dela (ajuste durante o render, sem efeito).
+  const [wasContaining, setWasContaining] = React.useState(containsCurrent);
+  if (containsCurrent !== wasContaining) {
+    setWasContaining(containsCurrent);
     if (containsCurrent) setOpen(true);
-  }, [containsCurrent]);
+  }
   if (!matches(node, filter)) return null;
   const pad = { paddingLeft: 8 + depth * 14 };
   if (node.type === "dir") {
@@ -49,11 +52,10 @@ function TreeItem({ node, current, filter, depth }: { node: TreeNode; current: s
       </div>
     );
   }
-  const Icon = icon(node.name);
   const active = current === node.path;
   return (
     <Link href={`/vault?p=${encodeURIComponent(node.path)}`} className={cn("flex items-center gap-1.5 rounded-md py-1 pr-2 text-[13px]", active ? "bg-accent/15 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")} style={{ paddingLeft: 8 + depth * 14 + 18 }}>
-      <Icon className={cn("size-3.5 shrink-0", active && "text-accent")} />
+      <FileIcon name={node.name} className={cn("size-3.5 shrink-0", active && "text-accent")} />
       <span className="truncate">{node.name.replace(/\.md$/i, "")}</span>
     </Link>
   );

@@ -1,4 +1,7 @@
 import { Card } from "@/components/ui/card";
+import { BarCompare } from "@/components/ui/revenue-charts-kpi";
+import { ShareStrip, TONE_BG, type Tone } from "@/components/ui/mini-charts";
+import { cn } from "@/lib/utils";
 import {
   CRM_FUNNEL, CRM_ACCOUNTS, CRM_EMAIL_CATEGORIES, CRM_PIXEL_NOTE, CRM_PRODUCT_COVERAGE,
   type CrmAggregateResult, type CrmAggregateSummary, type CrmEmailFunnel,
@@ -8,6 +11,7 @@ import { crmUrl } from "@/server/crm";
 
 const brl = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const ACCOUNT_LABELS = { trial: "Trial", trial_encerrado: "Trial encerrado", ativo: "Ativo", cancelado: "Cancelado" };
+const ACCOUNT_TONES = { trial: "accent", trial_encerrado: "warn", ativo: "ok", cancelado: "err" } as const;
 const EMAIL_LABELS = { enviados: "Enviados", entregues: "Entregues", abertos: "Abertos", cliques: "Com clique", respostas: "Com resposta", falhas: "Falhas", descadastros: "Descadastros" } as const;
 const formatDate = (value: string) => new Date(value).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
@@ -21,8 +25,8 @@ function Source({ result }: { result: CrmAggregateResult<unknown> }) {
   return <p className="mt-4 text-[10px] leading-relaxed text-faint">Fonte: {result.source} · {checkedLabel} {formatDate(result.checkedAt)} · Atualização na origem não informada. — indica dado indisponível, não zero.</p>;
 }
 
-function Metrics({ items }: { items: { label: string; value?: number | string | null }[] }) {
-  return <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">{items.map((item) => <div key={item.label} className="rounded-xl bg-surface-2 p-3"><dt className="text-[11px] text-muted">{item.label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{item.value ?? "—"}</dd></div>)}</dl>;
+function Metrics({ items, compact = false }: { items: { label: string; value?: number | string | null; tone?: Tone }[]; compact?: boolean }) {
+  return <dl className={cn("grid grid-cols-2 gap-2", compact ? "" : "sm:grid-cols-4 sm:gap-3")}>{items.map((item) => <div key={item.label} className="rounded-xl bg-surface-2 p-3"><dt className="flex items-center gap-1.5 text-[11px] text-muted">{item.tone && <span aria-hidden className={cn("size-2 rounded-[3px]", TONE_BG[item.tone])} />}{item.label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{item.value ?? "—"}</dd></div>)}</dl>;
 }
 
 export function CommercialPanels({ summary, emails, url }: {
@@ -46,7 +50,6 @@ export function CommercialPanels({ summary, emails, url }: {
 }
 
 function SummaryBody({ data }: { data: CrmAggregateSummary }) {
-  const max = Math.max(1, ...Object.values(data.funil ?? {}).filter((value): value is number => value !== undefined));
   return <div className="mt-4 space-y-4">
     <Metrics items={[
       { label: "Oportunidades abertas", value: data.oportunidades_abertas },
@@ -59,13 +62,18 @@ function SummaryBody({ data }: { data: CrmAggregateSummary }) {
       { label: "Tarefas CRM vencidas", value: data.tarefas?.vencidas },
     ]} />
     <p className="text-[11px] text-muted">Pagantes identificados são contatos distintos com pagamento BRL de saldo positivo no mês; não equivalem a assinaturas vigentes nem a todos os usuários do app. Etapa Cliente é a classificação comercial do CRM; não comprova pagamento ou cobrança atual. Não é inferida de trial ou conta ativa.{data.hoje && <> Data de referência do resumo: {data.hoje}.</>}</p>
-    <ol className="space-y-2" aria-label="Etapas comerciais">{CRM_FUNNEL.map((stage) => {
-      const value = data.funil?.[stage];
-      return <li key={stage} className="flex items-center gap-3 text-xs"><span className="w-24 shrink-0 text-muted">{stage}</span><span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">{value !== undefined && <span className="block h-full rounded-full bg-accent/70" style={{ width: `${(value / max) * 100}%` }} />}</span><span className="w-8 text-right tabular-nums">{value ?? "—"}</span></li>;
-    })}</ol>
-    <div className="border-t border-border pt-4"><h3 className="mb-3 text-sm font-medium">Contas no produto · separadas do funil comercial</h3>
-      <Metrics items={CRM_ACCOUNTS.map((state) => ({ label: ACCOUNT_LABELS[state], value: data.contas_no_produto?.[state] }))} />
-      {!data.contas_no_produto && <p className="mt-2 text-xs text-muted">Contas não informadas nesta versão do CRM.</p>}
+    <div className="grid gap-5 border-t border-border pt-4 lg:grid-cols-2">
+      <div className="min-w-0">
+        <h3 className="mb-3 text-[13px] font-medium">Etapas comerciais</h3>
+        {data.funil ? <BarCompare horizontal height={200} xKey="etapa" description="Contatos do produto em cada etapa comercial" series={[{ key: "contatos", label: "Contatos" }]}
+          data={CRM_FUNNEL.map((stage) => ({ etapa: stage, contatos: data.funil?.[stage] ?? null }))} /> : <p className="text-xs text-muted">Funil não informado.</p>}
+      </div>
+      <div className="min-w-0 space-y-3">
+        <h3 className="text-[13px] font-medium">Contas no produto <span className="font-normal text-faint">· separadas do funil comercial</span></h3>
+        {data.contas_no_produto && <ShareStrip className="h-2.5" label="Proporção das contas informadas por estado" parts={CRM_ACCOUNTS.filter((state) => data.contas_no_produto?.[state] != null).map((state) => ({ name: ACCOUNT_LABELS[state], value: data.contas_no_produto![state]!, tone: ACCOUNT_TONES[state] }))} />}
+        <Metrics compact items={CRM_ACCOUNTS.map((state) => ({ label: ACCOUNT_LABELS[state], value: data.contas_no_produto?.[state], tone: ACCOUNT_TONES[state] }))} />
+        {!data.contas_no_produto && <p className="text-xs text-muted">Contas não informadas nesta versão do CRM.</p>}
+      </div>
     </div>
   </div>;
 }
@@ -84,8 +92,18 @@ function EmailBody({ data }: { data: CrmEmailFunnel }) {
     {data.ultima_mensagem_em && <p className="text-[11px] text-faint">Última mensagem no período: {formatDate(data.ultima_mensagem_em)}</p>}
     {data.desde && <p className="text-[11px] text-faint">Desde {formatDate(data.desde)} · janela móvel de {data.dias} dias.</p>}
     {totals?.enviados === 0 && <p className="text-xs text-muted">Nenhum envio registrado para o produto nesta janela; isso não comprova ausência de envios fora do CRM.</p>}
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="min-w-0">
+        <h3 className="mb-3 text-[13px] font-medium">Do envio à resposta</h3>
+        <BarCompare height={210} xKey="etapa" description="Mensagens do produto em cada etapa do funil de e-mails" series={[{ key: "mensagens", label: "Mensagens" }]}
+          data={(["enviados", "entregues", "abertos", "cliques", "respostas"] as const).map((key) => ({ etapa: EMAIL_LABELS[key], mensagens: totals?.[key] ?? null }))} />
+      </div>
+      <div className="min-w-0 space-y-3">
+        <h3 className="text-[13px] font-medium">Taxas</h3>
+        <dl className="space-y-2.5">{rates.map((rate) => { const ok = rate.base && rate.value != null; return <div key={rate.label} className="text-xs"><div className="flex justify-between gap-3"><dt className="text-muted">{rate.label}</dt><dd className="font-medium tabular-nums">{ok ? `${rate.value!.toLocaleString("pt-BR")}%` : "—"}</dd></div><span aria-hidden className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-surface-2"><span className="block h-full rounded-full bg-[var(--chart-1)]" style={{ width: ok ? `${Math.min(100, rate.value!)}%` : 0 }} /></span></div>; })}</dl>
+      </div>
+    </div>
     <Metrics items={Object.entries(EMAIL_LABELS).map(([key, label]) => ({ label, value: totals?.[key as keyof typeof EMAIL_LABELS] }))} />
-    <Metrics items={rates.map((rate) => ({ label: rate.label, value: rate.base && rate.value != null ? `${rate.value.toLocaleString("pt-BR")}%` : null }))} />
     <p className="text-[11px] text-muted">Taxas sem denominador disponível aparecem como —, nunca como 0%. Entrega usa enviados; as demais usam entregues.</p>
     <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted"><div><dt className="inline">Campanhas: </dt><dd className="inline tabular-nums">{data.campanhas ?? "—"}</dd></div><div><dt className="inline">Respostas recebidas (inbound): </dt><dd className="inline tabular-nums">{data.respostas_recebidas ?? "—"}</dd></div></dl>
     {!!data.por_categoria && <div className="overflow-x-auto"><table className="w-full text-left text-xs"><caption className="mb-2 text-left text-muted">Categorias retornadas pelo CRM</caption><thead className="text-faint"><tr><th className="py-2 font-normal">Categoria</th><th className="font-normal">Enviados</th><th className="font-normal">Entregues</th><th className="font-normal">Respostas</th></tr></thead><tbody>{CRM_EMAIL_CATEGORIES.filter((category) => data.por_categoria?.[category]).map((category) => <tr key={category} className="border-t border-border"><th className="py-2 font-normal">{category}</th><td>{data.por_categoria?.[category]?.enviados ?? "—"}</td><td>{data.por_categoria?.[category]?.entregues ?? "—"}</td><td>{data.por_categoria?.[category]?.respostas ?? "—"}</td></tr>)}</tbody></table></div>}

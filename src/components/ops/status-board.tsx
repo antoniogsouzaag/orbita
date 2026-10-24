@@ -21,7 +21,12 @@ function ago(iso: string) {
 export function StatusBoard({ initial, groupOrder }: { initial: BoardItem[]; groupOrder: string[] }) {
   const [items, setItems] = React.useState(initial);
   const [loading, setLoading] = React.useState(false);
-  React.useEffect(() => setItems(initial), [initial]);
+  // Novos dados do servidor substituem a verificação local.
+  const [prevInitial, setPrevInitial] = React.useState(initial);
+  if (prevInitial !== initial) {
+    setPrevInitial(initial);
+    setItems(initial);
+  }
 
   const checkNow = async () => {
     setLoading(true);

@@ -25,7 +25,7 @@ const STATUS: Partial<Record<DispatchStatus, { label: string; color: string }>> 
 const when = (d: Date | string) => new Date(d).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
 const isUrl = (s: string) => /^https:\/\/\S+$/.test(s);
 
-export function OpenclawIntegration({ config, initial, history: controlledHistory, onHistoryChange, hideHistory = false }: { config: ReturnType<typeof openclawConfiguration>; initial: DispatchView[]; history?: DispatchView[]; onHistoryChange?: React.Dispatch<React.SetStateAction<DispatchView[]>>; hideHistory?: boolean }) {
+export function OpenclawIntegration({ config, initial, history: controlledHistory, onHistoryChange, hideHistory = false, variant = "card" }: { config: ReturnType<typeof openclawConfiguration>; initial: DispatchView[]; history?: DispatchView[]; onHistoryChange?: React.Dispatch<React.SetStateAction<DispatchView[]>>; hideHistory?: boolean; /** "action": só os botões e o diálogo, para usar dentro de outro card. */ variant?: "card" | "action" }) {
   const [open, setOpen] = React.useState(false);
   const [localHistory, setLocalHistory] = React.useState(initial);
  const history = controlledHistory ?? localHistory;
@@ -50,16 +50,7 @@ export function OpenclawIntegration({ config, initial, history: controlledHistor
     start(async () => { try { setHistory(await refreshOpenclaw()); } catch { toast.error("Não foi possível atualizar o histórico."); } });
   }
 
-  return (
-    <Card className="space-y-5 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-semibold">Tom · OpenClaw (VPS-02)</h2>
-          <p className="mt-1 text-sm text-muted">{ready ? "Pedidos entram pela rota /hooks/orbita. O adaptador interno do Tom devolve diagnóstico e proposta aqui pelo MCP." : "Saída para o OpenClaw pendente de configuração no servidor."}</p>
-        </div>
-        <Button size="sm" variant="ghost" disabled={pending} onClick={refresh} aria-label="Atualizar pedidos"><RefreshCw className="size-4" />Atualizar</Button>
-      </div>
-      <Button size="sm" onClick={() => setOpen(true)}><MessageSquare />Mensagem</Button>
+  const dialog = (
       <Dialog open={open} onOpenChange={value => { if (!pending) setOpen(value); }}><DialogContent title="Mensagem para Tom" description="Pedido manual ao diretor do OpenClaw. O retorno fica no histórico do agente." wide>
       <div className="flex flex-wrap gap-2">
         <Chip color={config.enabled ? "var(--success)" : "var(--muted)"}>Despacho {config.enabled ? "habilitado" : "desabilitado"}</Chip>
@@ -86,6 +77,24 @@ export function OpenclawIntegration({ config, initial, history: controlledHistor
       <p className="text-xs text-muted">Diagnósticos são somente leitura; pedidos livres retornam análise e proposta, sem mudanças automáticas. Recebido significa só que o gateway aceitou o pedido. Execução e resultado aparecem quando o Tom registra. Envio incerto não é repetido sozinho: confira antes de reenviar.</p>
 
       </DialogContent></Dialog>
+  );
+  if (variant === "action") return <>
+    <Button size="sm" onClick={() => setOpen(true)}><MessageSquare />Mensagem</Button>
+    <Button size="sm" variant="ghost" disabled={pending} onClick={refresh} aria-label="Atualizar pedidos do Tom" title="Atualizar pedidos"><RefreshCw className={pending ? "animate-spin" : undefined} /></Button>
+    {dialog}
+  </>;
+
+  return (
+    <Card className="space-y-5 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="font-semibold">Tom · OpenClaw (VPS-02)</h2>
+          <p className="mt-1 text-sm text-muted">{ready ? "Pedidos entram pela rota /hooks/orbita. O adaptador interno do Tom devolve diagnóstico e proposta aqui pelo MCP." : "Saída para o OpenClaw pendente de configuração no servidor."}</p>
+        </div>
+        <Button size="sm" variant="ghost" disabled={pending} onClick={refresh} aria-label="Atualizar pedidos"><RefreshCw className="size-4" />Atualizar</Button>
+      </div>
+      <Button size="sm" onClick={() => setOpen(true)}><MessageSquare />Mensagem</Button>
+      {dialog}
       {!hideHistory && <details className="rounded-xl border border-border px-4"><summary className="cursor-pointer py-3 text-sm font-medium">Histórico de pedidos <span className="ml-2 text-xs text-muted">{history.length} registros</span></summary><div className="divide-y divide-border">
         {history.length === 0 && <p className="py-3 text-sm text-muted">Nenhum pedido enviado ainda.</p>}
         {history.map((item) => {

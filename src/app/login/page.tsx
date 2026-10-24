@@ -10,7 +10,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const s = await securityState(true).catch(() => ({ totpEnabled: false }));
   return (
     <div className="relative grid min-h-dvh place-items-center overflow-hidden px-4">
-      <EarthBlaze interactive={false} starCount={900} style={{ position: "absolute", inset: 0, height: "100%", aspectRatio: "auto" }} /><div className="pointer-events-none absolute inset-0 bg-black/15" />
+      <div aria-hidden className="login-drift absolute inset-0"><EarthBlaze interactive={false} starCount={900} style={{ position: "absolute", inset: 0, height: "100%", aspectRatio: "auto" }} /></div><div className="pointer-events-none absolute inset-0 bg-black/15" />
       <LoginForm next={next ?? "/"} totp={s.totpEnabled} />
     </div>
   );

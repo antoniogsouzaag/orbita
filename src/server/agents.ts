@@ -75,6 +75,19 @@ export async function agentActivitySummary() {
   return { since: since.toISOString(), rows };
 }
 
+/** Chamadas por agente e dia (fuso de São Paulo) na janela informada. Filtre pelo agente no chamador. */
+export async function agentActivityByDay(days = 14) {
+  const db = await getDb();
+  const since = new Date(Date.now() - days * 86_400_000);
+  const day = sql<string>`to_char(${agentActivity.createdAt} at time zone 'America/Sao_Paulo', 'YYYY-MM-DD')`;
+  return db.select({
+    agent: agentActivity.agent,
+    day,
+    calls: sql<number>`count(*)`.mapWith(Number),
+    failures: sql<number>`count(*) filter (where not ${agentActivity.ok})`.mapWith(Number),
+  }).from(agentActivity).where(gte(agentActivity.createdAt, since)).groupBy(agentActivity.agent, day);
+}
+
 /** Tarefas que os agentes abriram para Antonio (tag "agente:<nome>"). */
 export async function agentTasks(agent?: string) {
   const db = await getDb();

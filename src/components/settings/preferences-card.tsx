@@ -1,5 +1,6 @@
 "use client";
 
+import { toSquareDataUrl } from "@/lib/image-resize";
 import { Camera, Settings2, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
@@ -27,21 +28,6 @@ export function PreferencesCard({ name, focusMinutes, avatar }: { name: string; 
       </div>
     </Card>
   );
-}
-
-/** Recorta no centro (quadrado), reduz para 320 px e converte para WebP no próprio navegador. */
-async function toAvatarDataUrl(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const side = Math.min(bitmap.width, bitmap.height);
-  const size = Math.min(320, side);
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext("2d")!;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
-  bitmap.close();
-  const webp = canvas.toDataURL("image/webp", 0.88);
-  return webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/jpeg", 0.88);
 }
 
 function AvatarField({ name, avatar }: { name: string; avatar: string | null }) {
@@ -75,7 +61,7 @@ function AvatarField({ name, avatar }: { name: string; avatar: string | null }) 
           if (!file) return;
           start(async () => {
             try {
-              const url = await toAvatarDataUrl(file);
+              const url = await toSquareDataUrl(file);
               const r = await saveAvatar(url);
               if (!r.ok) return void toast.error(r.error);
               setPreview(url);

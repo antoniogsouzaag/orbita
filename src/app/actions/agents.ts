@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AGENT_SCOPES } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
+import { parseImageDataUrl } from "@/lib/image-data";
+import { AGENT_ID, setAgentAvatar } from "@/server/agent-avatars";
 import { createAgentToken, revokeAgentToken, updateAgentScopes } from "@/server/agents";
 
 const CreateSchema = z.object({ name: z.string().trim().min(2).max(60), scopes: z.array(z.enum(AGENT_SCOPES)).min(1) });
@@ -30,4 +32,20 @@ export async function updateAgentProfileAction(id: string, profile: "admin" | "l
   const role = z.enum(["admin", "leitura"]).parse(profile);
   await updateAgentScopes(tokenId, role === "admin" ? ["admin", "contexto", "status", "tarefas", "eventos"] : ["contexto", "status"]);
   revalidatePath("/agentes");
+}
+
+/** Foto de um agente: recebe a imagem já recortada e reduzida no navegador. null remove. */
+export async function saveAgentAvatarAction(id: string, dataUrl: string | null): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireAuth();
+  const agentId = z.string().regex(AGENT_ID).safeParse(id);
+  if (!agentId.success) return { ok: false, error: "Agente inválido" };
+  if (dataUrl === null) await setAgentAvatar(agentId.data, null);
+  else {
+    const image = parseImageDataUrl(dataUrl);
+    if (!image.ok) return { ok: false, error: image.error };
+    await setAgentAvatar(agentId.data, { type: image.type, data: image.data, updatedAt: Date.now() });
+  }
+  revalidatePath("/agentes");
+  revalidatePath(`/agentes/${agentId.data}`);
+  return { ok: true };
 }

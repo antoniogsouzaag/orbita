@@ -51,9 +51,11 @@ export function MarkdownEditor({
   minHeight?: string;
 }) {
   const targets = React.useRef(linkTargets);
-  targets.current = linkTargets;
   const save = React.useRef(onSave);
-  save.current = onSave;
+  React.useEffect(() => {
+    targets.current = linkTargets;
+    save.current = onSave;
+  }, [linkTargets, onSave]);
 
   const extensions = React.useMemo(() => {
     const wikiComplete = (ctx: CompletionContext) => {
@@ -71,7 +73,10 @@ export function MarkdownEditor({
       syntaxHighlighting(highlight),
       EditorView.lineWrapping,
       theme,
+      // As refs só são lidas quando o usuário digita ou salva, nunca durante o render.
+      // eslint-disable-next-line react-hooks/refs
       autocompletion({ override: [wikiComplete], icons: false }),
+      // eslint-disable-next-line react-hooks/refs
       keymap.of([{ key: "Mod-s", preventDefault: true, run: () => (save.current?.(), true) }]),
     ];
   }, []);
