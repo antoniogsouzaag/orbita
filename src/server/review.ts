@@ -29,7 +29,7 @@ export async function reviewData(days = 30) {
   const ck = new Map(checkins.map((c) => [c.date, c]));
 
   const series = lastNDays(days, t).map((d) => {
-    const sched = habits.filter((h) => isScheduled(h, d) && h.frequency !== "weekly" && new Date(h.createdAt).toISOString().slice(0, 10) <= d);
+    const sched = habits.filter((h) => isScheduled(h, d) && h.frequency !== "weekly" && localDate(new Date(h.createdAt)) <= d);
     const done = sched.filter((h) => h.logs.includes(d)).length;
     return {
       date: d,
@@ -39,7 +39,7 @@ export async function reviewData(days = 30) {
       focus: focusByDay.get(d) ?? 0,
       mood: ck.get(d)?.mood ?? null,
       energy: ck.get(d)?.energy ?? null,
-      spend: Math.round(spendByDay.get(d) ?? 0),
+      spend: Math.round((spendByDay.get(d) ?? 0) * 100) / 100,
     };
   });
   const last7 = series.slice(-7);
@@ -62,6 +62,6 @@ export async function reviewData(days = 30) {
       energy: avg(last7.map((x) => x.energy)),
       spend: sum(last7, "spend"),
     },
-    notes: checkins.filter((c) => c.note).slice(-10).reverse(),
+    notes: checkins.filter((c) => c.note && c.date <= t).reverse(),
   };
 }

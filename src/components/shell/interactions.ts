@@ -8,7 +8,7 @@ export function orbitPositions(count: number): OrbitPoint[] {
       return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
     });
   if (count <= 0) return [];
-  const positions = count <= 5 ? arc(count, 154, -176, -90) : [...arc(count - 5, 106, -174, -90), ...arc(5, 190, -178, -90)];
+  const positions = count <= 5 ? arc(count, 164, -176, -90) : [...arc(count - 5, 120, -174, -90), ...arc(5, 202, -178, -90)];
   // A fileira inferior fica acima do dock, incluindo o alvo mais à esquerda.
   return positions.map(point => ({ ...point, y: point.y - 64 }));
 }

@@ -218,6 +218,7 @@ export async function saveCheckin(data: { date?: string; mood?: number | null; e
     .object({ date: dateStr.optional(), mood: z.number().int().min(1).max(5).nullable().optional(), energy: z.number().int().min(1).max(5).nullable().optional(), note: z.string().max(2000).nullable().optional() })
     .parse(data);
   const date = v.date ?? today();
+  if (Number.isNaN(Date.parse(`${date}T12:00:00Z`)) || new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) !== date || date > today()) throw new Error("Escolha uma data válida até hoje.");
   const db = await getDb();
   const set = { ...("mood" in v ? { mood: v.mood } : {}), ...("energy" in v ? { energy: v.energy } : {}), ...("note" in v ? { note: v.note } : {}), updatedAt: new Date() };
   await db.insert(checkins).values({ date, ...set }).onConflictDoUpdate({ target: checkins.date, set });

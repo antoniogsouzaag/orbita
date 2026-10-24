@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CheckCheck, LayoutGrid, LogOut, Monitor, Moon, PanelLeft, Plus, RefreshCw, Search, Settings, Sun } from "lucide-react";
+import { Bell, BookOpen, CheckCheck, LayoutGrid, LogOut, Moon, PanelLeft, Plus, RefreshCw, Search, Settings, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -145,8 +145,12 @@ export function AppShell({
   React.useEffect(() => () => refreshingNotices.current?.controller.abort(), []);
 
   React.useEffect(() => {
+    const protectedEscapes = new WeakSet<KeyboardEvent>();
+    const captureLayer = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"], [data-radix-popper-content-wrapper], [data-shell-layer="open"]')) protectedEscapes.add(event);
+    };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") storePreference("orbita:sidebar", "0");
+      if (e.key === "Escape" && !protectedEscapes.has(e) && !e.defaultPrevented && !document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"], [data-radix-popper-content-wrapper], [data-shell-layer="open"]')) storePreference("orbita:sidebar", "0");
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPalette((v) => !v);
@@ -161,8 +165,9 @@ export function AppShell({
         setQuick({ open: true, tab: "tarefa" });
       }
     };
+    window.addEventListener("keydown", captureLayer, true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => { window.removeEventListener("keydown", captureLayer, true); window.removeEventListener("keydown", onKey); };
   }, []);
 
   const toggleSidebar = () => {
@@ -192,7 +197,7 @@ export function AppShell({
                 <Logo className="size-7" />
                 <span className="hidden text-[13px] font-semibold uppercase tracking-[0.22em] sm:inline">Órbita</span>
               </Link>
-            <button onClick={toggleSidebar} className={cn("rounded-lg p-1.5 transition hover:bg-white/10", sidebar && "hidden", isHome && !scrolled ? "text-white/70 hover:text-white" : "text-muted hover:text-fg")} aria-label="Alternar barra lateral" title="Alternar barra lateral (')" aria-keyshortcuts="'" aria-expanded={sidebar} aria-controls="workspace-sidebar">
+            <button onClick={toggleSidebar} className={cn("rounded-lg p-1.5 transition hover:bg-white/10", sidebar && "hidden", isHome && !scrolled ? "text-white/70 hover:text-white" : "text-muted hover:text-fg")} aria-label="Alternar barra lateral" aria-keyshortcuts="'" aria-expanded={sidebar} aria-controls="workspace-sidebar">
               <PanelLeft className="size-[18px]" />
             </button>
             <div className="ml-auto flex items-center gap-1.5">
@@ -234,7 +239,7 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
       <div className="flex items-center gap-2 px-4 pb-2 pt-4">
         <Logo className="size-7" />
         <span className="text-[13px] font-semibold uppercase tracking-[0.22em]">Órbita</span>
-        <button onClick={onCollapse} className="ml-auto rounded-md p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Recolher barra lateral" title="Recolher barra lateral (')" aria-keyshortcuts="'">
+        <button onClick={onCollapse} className="ml-auto rounded-md p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Recolher barra lateral" aria-keyshortcuts="'">
           <PanelLeft className="size-4" />
         </button>
       </div>
@@ -258,7 +263,7 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
         ))}
         <div>
           <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-faint">Geral</div>
-          {SHARED.map((i) => <NavLink key={i.href} item={{ ...i, href: navigationHref(i.href, space) }} active={isActive(pathname, i.href, escopo)} />)}
+          {SHARED.filter((i) => i.href !== "/documentacao").map((i) => <NavLink key={i.href} item={{ ...i, href: navigationHref(i.href, space) }} active={isActive(pathname, i.href, escopo)} />)}
         </div>
       </nav>
       <div className="border-t border-border p-3">
@@ -267,9 +272,8 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
         </Link>
         <div className="mt-2 flex items-center gap-2.5 px-2">
           <Avatar name={name} src={avatar} />
-          <div className="min-w-0 text-[12.5px] font-medium">{name}</div>
+          <div className="min-w-0 flex-1 truncate text-[12.5px] font-medium">{name}</div><ThemeToggle />
         </div>
-        <p className="mt-3 flex items-center justify-between px-3 text-[10.5px] text-faint"><span>Alternar barra lateral</span><Kbd>&apos;</Kbd></p>
       </div>
     </aside>
   );
@@ -395,7 +399,6 @@ function Notifications({ items, read, unread, open, onOpenChange, onRead, onRefr
 }
 
 function UserMenu({ name, avatar, light }: { name: string; avatar?: string | null; light: boolean }) {
-  const { setTheme, theme } = useTheme();
   const router = useRouter();
   return (
     <Menu>
@@ -406,9 +409,7 @@ function UserMenu({ name, avatar, light }: { name: string; avatar?: string | nul
         <MenuLabel>{name}</MenuLabel>
         <MenuItem onSelect={() => router.push("/config")}><Settings /> Configurações</MenuItem>
         <MenuSeparator />
-        <MenuItem onSelect={() => setTheme("dark")}><Moon /> Escuro {theme === "dark" && "✓"}</MenuItem>
-        <MenuItem onSelect={() => setTheme("light")}><Sun /> Claro {theme === "light" && "✓"}</MenuItem>
-        <MenuItem onSelect={() => setTheme("system")}><Monitor /> Sistema {theme === "system" && "✓"}</MenuItem>
+        <MenuItem onSelect={() => router.push("/documentacao")}><BookOpen /> Manual da Órbita</MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={() => logout()} danger><LogOut /> Sair</MenuItem>
       </MenuContent>
@@ -425,4 +426,9 @@ export function Avatar({ name, src, className }: { name: string; src?: string | 
       {initials}
     </span>
   );
+}
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  return <button type="button" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} aria-label="Alternar tema claro e escuro" className="grid size-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg"><Sun className="hidden size-4 dark:block" /><Moon className="size-4 dark:hidden" /></button>;
 }

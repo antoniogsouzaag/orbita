@@ -109,6 +109,7 @@ export async function loadHome() {
   else if (hour >= 17 && pendingHabits > 0) subtitle = { text: `Faltam ${pendingHabits} ${pendingHabits === 1 ? "hábito" : "hábitos"} hoje` };
 
   return {
+    date: t,
     settings,
     title: greeting(settings.name, hour, t),
     subtitle,
