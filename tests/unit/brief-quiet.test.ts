@@ -12,6 +12,11 @@ beforeEach(() => { fixture.events = []; fixture.personal = []; fixture.company =
 it('healthy operation and no due work produce no message', async () => {
   expect(await buildBrief()).toBe('');
 });
+it('a reply handed back to an agent no longer repeats as work waiting for Antonio', async () => {
+  const answered = { title: 'Executar decisão respondida', status: 'todo', tags: ['agente:tom', 'resposta:antonio'], dueDate: '2020-01-01' };
+  fixture.company = [answered]; fixture.asks = [answered];
+  expect(await buildBrief()).toBe('');
+});
 it('includes real due work, escapes HTML and omits empty scopes and healthy sections', async () => {
   fixture.company = [{ title: 'Revisar <produto>', dueDate: '2020-01-01' }];
   const brief = await buildBrief();

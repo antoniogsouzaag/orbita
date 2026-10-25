@@ -93,7 +93,7 @@ export async function agentActivityByDay(days = 14) {
 export async function agentTasks(agent?: string) {
   const db = await getDb();
   const cond = agent ? sql`${`agente:${slug(agent)}`} = any(${tasks.tags})` : sql`exists (select 1 from unnest(${tasks.tags}) t where t like 'agente:%')`;
-  return db.select().from(tasks).where(and(eq(tasks.scope, "empresa"), cond)).orderBy(desc(tasks.createdAt)).limit(100);
+  return db.select().from(tasks).where(and(eq(tasks.scope, "empresa"), cond)).orderBy(sql`case when ${tasks.status} = 'done' then 1 else 0 end`, sql`case when 'resposta:antonio' = any(${tasks.tags}) then 0 else 1 end`, desc(tasks.createdAt)).limit(100);
 }
 
 function slug(s: string) {
@@ -233,12 +233,27 @@ export function buildMcpServer(agent: AgentIdentity) {
     );
     server.registerTool(
       "minhas_tarefas",
-      { title: "Minhas tarefas abertas para Antonio", description: "Lista as tarefas que este agente abriu e se já foram concluídas.", inputSchema: {} },
+      { title: "Minhas tarefas e respostas", description: "Lista pedidos deste agente e tarefas atribuídas a ele, incluindo as respostas de Antonio nas notas. Retornos continuam pendentes até o agente executar e registrar o resultado.", inputSchema: {} },
       async () =>
         run("minhas_tarefas", "consultou suas tarefas", async () => {
           const list = await agentTasks(agent.name);
-          return text(list.length ? list.map((t) => `- [${t.status === "done" ? "x" : " "}] ${t.title} (${t.id})${t.dueDate ? ` · prazo ${t.dueDate}` : ""}`).join("\n") : "Nenhuma tarefa aberta por você.");
+          return text(list.length ? list.map((t) => `- [${t.status === "done" ? "x" : " "}] ${t.title} (${t.id}) · ${t.status}${t.dueDate ? ` · prazo ${t.dueDate}` : ""}${t.notes ? `\n${t.notes.slice(-6000)}` : ""}`).join("\n\n") : "Nenhuma tarefa vinculada a você.");
         }),
+    );
+    server.registerTool(
+      "atualizar_minha_tarefa",
+      { title: "Registrar andamento da minha tarefa", description: "Inicia ou conclui tarefa empresarial atribuída a este agente, com resumo/evidência. Reutilize registro_id (UUID) ao repetir o mesmo envio. Não altera tarefas pessoais ou de outro agente.", inputSchema: { id: z.uuid(), registro_id: z.uuid(), estado: z.enum(["doing", "done"]), resumo: z.string().trim().min(3).max(2000).refine(v => !v.includes("<!-- orbita-")) } },
+      async ({ id, registro_id, estado, resumo }) => run("atualizar_minha_tarefa", `registrou andamento ${estado}`, async () => {
+        const db = await getDb();
+        const marker = `<!-- orbita-progress:${registro_id} -->`;
+        const block = `\n\n---\n${agent.name} · ${new Date().toISOString()} · ${estado}\n${resumo}\n${marker}`;
+        const own = and(eq(tasks.id, id), eq(tasks.scope, "empresa"), sql`${`agente:${slug(agent.name)}`} = any(${tasks.tags})`);
+        const [updated] = await db.update(tasks).set({ status: estado, completedAt: estado === "done" ? new Date() : null, notes: sql`coalesce(${tasks.notes}, '') || ${block}` })
+          .where(and(own, sql`position(${marker} in coalesce(${tasks.notes}, '')) = 0`, sql`length(coalesce(${tasks.notes}, '')) + length(${block}) <= 64000`)).returning({ id: tasks.id });
+        if (updated) return text(`Tarefa ${updated.id} atualizada para ${estado}. Resultado registrado na Órbita.`);
+        const [existing] = await db.select({ notes: tasks.notes }).from(tasks).where(own);
+        return text(existing?.notes?.includes(marker) ? "Este registro de andamento já foi salvo." : "Tarefa indisponível para este agente ou histórico no limite.");
+      }),
     );
   }
 

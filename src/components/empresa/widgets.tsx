@@ -1,4 +1,5 @@
 import { stageLabel } from "@/lib/github-triage";
+import { awaitsOwner, type ReplyTask } from "@/lib/proposals";
 import { agentSlug } from "@/lib/team";
 import { AlertTriangle, ArrowUpRight, Bot, Briefcase, CheckCircle2, CheckSquare, FolderKanban, GitPullRequest, Globe, HeartPulse, Inbox, Lightbulb, Server, Users, XCircle } from "lucide-react";
 import Link from "next/link";
@@ -17,26 +18,26 @@ function ago(iso: string | Date) {
 }
 
 /* ───────── Aguardando você ───────── */
-export function WaitingWidget({ asks, due, crmMine, crmTasksUrl, today, github }: Pick<EmpresaData, "asks" | "due" | "crmMine" | "crmTasksUrl" | "today"> & { github?: EmpresaData["gh"] }) {
-  const decisions = github?.items.filter(item => item.kind === "proposta" && item.stage === "decision") ?? [];
+export function WaitingWidget({ asks, due, crmMine, crmTasksUrl, today, github, proposalReplies = [] }: Pick<EmpresaData, "asks" | "due" | "crmMine" | "crmTasksUrl" | "today"> & { github?: EmpresaData["gh"]; proposalReplies?: ReplyTask[] }) {
+  const decisions = github?.items.filter(item => awaitsOwner(item, proposalReplies)) ?? [];
   const total = asks.length + due.length + crmMine.length + decisions.length;
   return (
     <Card className="h-full">
-      <CardHeader icon={<Inbox />} title="Aguardando você" meta={total ? `${total} ${total === 1 ? "item" : "itens"}` : !github ? "consultando GitHub" : github.error ? "consulta parcial" : "nada pendente"} />
+      <CardHeader icon={<Inbox />} title="Aguardando você" href="/propostas" hrefLabel="Responder" meta={total ? `${total} ${total === 1 ? "item" : "itens"}` : !github ? "consultando GitHub" : github.error ? "consulta parcial" : "nada pendente"} />
       {github?.error && <p role="status" className="px-5 pb-3 text-xs text-warning">GitHub: {github.error}{github.stale ? " Exibindo a última consulta disponível." : " Decisões temporariamente indisponíveis."}</p>}
       {total === 0 ? (
         <EmptyState icon={<CheckCircle2 />} title={!github ? "Conferindo decisões do GitHub…" : github.error ? "Nenhuma pendência nas fontes disponíveis" : "Nada esperando por você"} description="Pedidos dos agentes, decisões do GitHub, tarefas e pendências do CRM aparecem aqui." />
       ) : (
         <div className="space-y-4 px-5 pb-5">
           {decisions.length > 0 && <Group icon={<GitPullRequest />} label="Decisões no GitHub" count={decisions.length}>
-            {decisions.slice(0, 3).map(item => <Row key={item.url} href={item.url} external title={item.title} meta={`${item.repo} #${item.number}${item.blocked ? " · bloqueada" : ""}`} />)}
-            <Link href="/github?etapa=decision" className="block pt-2 text-xs text-accent">Revisar {decisions.length} decisões ↗</Link>
+            {decisions.slice(0, 3).map(item => <Row key={item.url} href={`/propostas?repo=${encodeURIComponent(item.repo)}&issue=${item.number}`} title={item.title} meta={`${item.repo} #${item.number}${item.blocked ? " · bloqueada" : ""}`} />)}
+            <Link href="/propostas" className="block pt-2 text-xs text-accent">Responder {decisions.length} decisões ↗</Link>
             {(github?.truncated || github?.stale) && <p className="mt-1 text-[11px] text-warning">{github.stale ? "Última consulta disponível. " : ""}{github.truncated ? "Consulta parcial; pode haver mais decisões." : ""}</p>}
           </Group>}
           {asks.length > 0 && (
             <Group icon={<Bot />} label="Pedidos dos agentes" count={asks.length}>
               {asks.slice(0, 3).map((a) => (
-                <Row key={a.id} href={`/tarefas?escopo=empresa&task=${a.id}`} title={a.title} meta={`${a.tags.find((x) => x.startsWith("agente:"))?.slice(7) ?? "agente"} · ${ago(a.createdAt)}`} tone={a.priority >= 3 ? "danger" : undefined} />
+                <Row key={a.id} href={`/propostas?task=${a.id}`} title={a.title} meta={`${a.tags.find((x) => x.startsWith("agente:"))?.slice(7) ?? "agente"} · ${ago(a.createdAt)}`} tone={a.priority >= 3 ? "danger" : undefined} />
               ))}
             </Group>
           )}

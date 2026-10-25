@@ -1,6 +1,6 @@
 import {
   BarChart3, BookOpen, Bot, Briefcase, Building2, CalendarDays, CheckSquare, Dumbbell, FolderKanban, Gauge, Goal, Home, GitFork,
-  KanbanSquare, LibraryBig, NotebookPen, Plug, Repeat, Settings, Sparkles, Timer, User, Wallet, Workflow, type LucideIcon,
+  KanbanSquare, LibraryBig, MessageSquareText, NotebookPen, Plug, Repeat, Settings, Sparkles, Timer, User, Wallet, Workflow, type LucideIcon,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; dock?: boolean; keywords?: string };
@@ -49,6 +49,7 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
         items: [
           { href: "/empresa", label: "Visão geral", icon: Building2, dock: true, keywords: "empresa aguardando aprovação" },
           { href: "/tarefas?escopo=empresa", label: "Tarefas", icon: CheckSquare, dock: true, keywords: "tarefas da empresa" },
+          { href: "/propostas", label: "Propostas", icon: MessageSquareText, keywords: "decisões respostas aguardando agentes continuidade" },
           { href: "/empresa/negocios", label: "Negócios", icon: Building2, keywords: "produtos barberias members mecard viajeki" },
           { href: "/projetos?escopo=empresa", label: "Projetos", icon: FolderKanban },
           { href: "/kanban?escopo=empresa", label: "Kanban", icon: KanbanSquare },
@@ -88,7 +89,7 @@ export const NAV: NavSection[] = [
 
 export const ALL_NAV: NavItem[] = [...NAV.flatMap((s) => s.items), SETTINGS_ITEM];
 
-const EMPRESA_PATHS = ["/empresa", "/redes", "/operacao", "/agentes"];
+const EMPRESA_PATHS = ["/empresa", "/redes", "/operacao", "/agentes", "/propostas"];
 const SCOPED_PATHS = ["/tarefas", "/projetos", "/kanban", "/foco", "/metas", "/ia"];
 const PESSOAL_PATHS = ["/agenda", "/notas", "/habitos", "/metas", "/financas", "/academia", "/leitura", "/revisao"];
 

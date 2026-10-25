@@ -76,3 +76,15 @@ export async function githubInbox(options: { force?: boolean } = {}): Promise<Gi
     return data;
   }
 }
+
+/** Corpo de uma proposta já retornada pela busca autorizada. Nenhuma URL livre. */
+export async function githubProposalBody(item: InboxItem, org: string): Promise<string | null> {
+  if (item.kind !== "proposta" || !/^[a-zA-Z0-9_-]+$/.test(org) || !/^[a-zA-Z0-9_.-]+$/.test(item.repo)
+    || item.url !== `https://github.com/${org}/${item.repo}/issues/${item.number}`) return null;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${org}/${item.repo}/issues/${item.number}`, { headers: { authorization: `Bearer ${token()}`, accept: "application/vnd.github+json", "user-agent": "orbita" }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return body.number === item.number && typeof body.body === "string" ? body.body.slice(0, 20_000) + (body.body.length > 20_000 ? "\n\nConteúdo truncado. Consulte a origem para ler o restante." : "") : null;
+  } catch { return null; }
+}

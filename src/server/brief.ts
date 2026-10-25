@@ -1,4 +1,5 @@
 import "server-only";
+import { ANSWERED_TAG } from "@/lib/proposals";
 import { formatLong, localTime, shiftDate, today, zonedToUtc } from "@/lib/dates";
 import { agentTasks } from "./agents";
 import { eventsBetween } from "./calendar";
@@ -38,9 +39,9 @@ export async function buildBrief(): Promise<string> {
     if (list.length > 3) lines.push(`… e mais ${list.length - 3} na Órbita`);
   };
   block("✅ <b>Pessoal</b>", pessoal);
-  block("🏢 <b>Empresa</b>", empresa);
+  block("🏢 <b>Empresa</b>", empresa.filter(task => !task.tags?.includes(ANSWERED_TAG)));
 
-  const open = asks.filter((a) => a.status !== "done");
+  const open = asks.filter((a) => a.status !== "done" && !a.tags?.includes(ANSWERED_TAG));
   if (open.length) {
     lines.push("", `🤖 <b>Pedidos dos agentes</b> — ${open.length}`);
     for (const a of open.slice(0, 2)) lines.push(`• ${short(a.title)} <i>(${escHtml(a.tags.find((x) => x.startsWith("agente:"))?.slice(7) ?? "agente")})</i>`);
