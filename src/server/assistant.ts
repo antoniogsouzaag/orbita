@@ -195,14 +195,15 @@ export const criarNota = {
   },
 };
 
-const buscarNotasSchema = z.object({ busca: z.string().trim().min(2).max(100) });
+const buscarNotasSchema = z.object({ busca: z.string().trim().min(2).max(100), limite: z.number().int().min(1).max(30).nullish() });
 export const buscarNotas = {
   schema: buscarNotasSchema,
   async run(v: z.infer<typeof buscarNotasSchema>): Promise<ActionResult> {
     const db = await getDb();
     const q = `%${v.busca}%`;
-    const rows = await db.select({ title: notes.title, content: notes.content }).from(notes).where(or(ilike(notes.title, q), ilike(notes.content, q))).orderBy(desc(notes.updatedAt)).limit(5);
-    return { text: rows.length ? rows.map((n) => `### ${n.title}\n${n.content.slice(0, 2000)}`).join("\n\n") : "Nenhuma nota pessoal encontrada." };
+    const limit = v.limite ?? 20;
+    const rows = await db.select({ id: notes.id, title: notes.title, content: notes.content, updatedAt: notes.updatedAt }).from(notes).where(or(ilike(notes.title, q), ilike(notes.content, q))).orderBy(desc(notes.updatedAt), desc(notes.id)).limit(limit + 1);
+    return { text: rows.length ? rows.slice(0, limit).map((n) => `### ${n.title}\nID: ${n.id} · Atualizada: ${n.updatedAt.toISOString()}\n${n.content.slice(0, 2000)}${n.content.length > 2000 ? "\n[Conteúdo parcial; abra a nota para ler o restante.]" : ""}`).join("\n\n") + (rows.length > limit ? `\n\n[Consulta parcial: exibindo ${limit} notas. Refine a busca.]` : "") : "Nenhuma nota pessoal encontrada." };
   },
 };
 
