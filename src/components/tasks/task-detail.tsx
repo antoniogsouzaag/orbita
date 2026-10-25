@@ -32,7 +32,7 @@ export function TaskDetail({ task, projects, onClose }: { task: TaskDetailData; 
   return (
     <D.Root open onOpenChange={(o) => !o && onClose()}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-[60] bg-black/40" />
+        <D.Overlay className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-[2px] animate-in" />
         <D.Content className="fixed inset-y-0 right-0 z-[61] flex w-full max-w-lg flex-col border-l border-border-strong bg-surface shadow-soft animate-in focus:outline-none">
           <div className="flex items-center gap-3 border-b border-border px-5 py-3">
             <CheckButton checked={task.status === "done"} label="Concluir" onToggle={() => start(() => toggleTask(task.id))} />

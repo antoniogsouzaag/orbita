@@ -1,11 +1,18 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Base visual de todo campo de formulário. Altura padrão (h-9) igual ao Button `md`,
+ * para que campos e botões lado a lado fiquem alinhados.
+ */
 export const inputClass =
-  "w-full rounded-xl border border-border bg-surface-2 px-3 text-sm text-fg placeholder:text-faint outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/15 disabled:opacity-60";
+  "w-full rounded-xl border border-border bg-surface-2 px-3 text-sm text-fg placeholder:text-faint outline-none transition-[border-color,box-shadow,background-color] duration-150 hover:border-border-strong focus:border-accent/60 focus:ring-2 focus:ring-accent/15 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60";
+
+/** Select nativo com chevron desenhado pelo tema (`.ui-select` em globals.css). */
+export const selectClass = cn(inputClass, "ui-select h-9 cursor-pointer truncate pr-9");
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(inputClass, "h-10", className)} {...props} />;
+  return <input className={cn(inputClass, "h-9", className)} {...props} />;
 }
 
 export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -14,9 +21,7 @@ export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<H
 
 export function Select({ className, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cn(inputClass, "h-10 appearance-none pr-8 bg-[length:16px] bg-[right_10px_center] bg-no-repeat", className)}
-      style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a94' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")" }}
-      {...props}>
+    <select className={cn(selectClass, className)} {...props}>
       {children}
     </select>
   );

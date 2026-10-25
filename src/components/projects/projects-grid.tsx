@@ -29,7 +29,7 @@ export function ProjectsGrid({ projects, scope }: { projects: ProjectWithCounts[
             <div className="truncate font-semibold">{p.name}</div>
             <div className="text-[12px] text-faint">{AREA_LABEL[p.area]}</div>
           </div>
-          <button onClick={() => { setEditing(p); setOpen(true); }} className="relative z-10 rounded-lg p-1.5 text-faint opacity-0 transition hover:bg-surface-2 hover:text-fg group-hover:opacity-100" aria-label="Editar"><Pencil className="size-3.5" /></button>
+          <button onClick={() => { setEditing(p); setOpen(true); }} className="relative z-10 rounded-lg p-1.5 text-faint opacity-0 transition hover:bg-surface-2 hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100" aria-label="Editar"><Pencil className="size-3.5" /></button>
         </div>
         {p.description && <p className="mt-3 line-clamp-2 text-[13px] text-muted">{p.description}</p>}
         <div className="mt-4 flex justify-between text-[12px] text-muted"><span>{p.open} abertas</span><span>{total ? Math.round((p.done / total) * 100) : 0}%</span></div>

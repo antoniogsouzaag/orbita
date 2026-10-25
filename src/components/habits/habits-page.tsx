@@ -57,8 +57,8 @@ export function HabitsPage({ habits }: { habits: HabitWithStats[] }) {
                 <button onClick={() => { setEditing(h); setOpen(true); }} className="rounded-lg p-1.5 text-faint hover:bg-surface-2 hover:text-fg" aria-label="Editar"><Pencil className="size-4" /></button>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-xl bg-surface-2 py-2"><div className="flex items-center justify-center gap-1 text-lg font-semibold tabular-nums"><Flame className="size-4 text-orange-400" />{h.streak.value}</div><div className="text-[11px] text-muted">atual ({h.streak.unit})</div></div>
-                <div className="rounded-xl bg-surface-2 py-2"><div className="flex items-center justify-center gap-1 text-lg font-semibold tabular-nums"><Trophy className="size-4 text-amber-300" />{best}</div><div className="text-[11px] text-muted">recorde</div></div>
+                <div className="rounded-xl bg-surface-2 py-2"><div className="flex items-center justify-center gap-1 text-lg font-semibold tabular-nums"><Flame className="size-4 text-warning" />{h.streak.value}</div><div className="text-[11px] text-muted">atual ({h.streak.unit})</div></div>
+                <div className="rounded-xl bg-surface-2 py-2"><div className="flex items-center justify-center gap-1 text-lg font-semibold tabular-nums"><Trophy className="size-4 text-warning" />{best}</div><div className="text-[11px] text-muted">recorde</div></div>
                 <div className="rounded-xl bg-surface-2 py-2"><div className="text-lg font-semibold tabular-nums">{rate}%</div><div className="text-[11px] text-muted">últimos 30 dias</div></div>
               </div>
               <div className="no-scrollbar mt-4 overflow-x-auto">

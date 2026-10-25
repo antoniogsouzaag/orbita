@@ -16,6 +16,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import type { Calendar } from "@/db/schema";
 import { eventFormSchema, type CalendarView } from "@/lib/calendar";
+import { capitalizeFirst } from "@/lib/text";
 import { cn } from "@/lib/utils";
 
 export type AgendaEvent = { id: string; title: string; date: string; endDate: string; lastDate: string; start: string | null; end: string | null; allDay: boolean; color: string; calendarName: string; editable: boolean; location: string | null; description: string | null };
@@ -84,7 +85,7 @@ export function AgendaPage({ month, today, initialDate, initialView = "mes", eve
             <div className="space-y-4 border-b border-border p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="hidden h-14 w-12 shrink-0 overflow-hidden rounded-xl border border-border bg-surface-2 text-center sm:block"><div className="bg-accent/10 py-0.5 text-[9px] font-semibold uppercase tracking-widest text-accent">{format(parseISO(today), "MMM", { locale: ptBR })}</div><div className="py-1 text-xl font-semibold tabular-nums">{Number(today.slice(8))}</div></div>
-                <div className="min-w-0 flex-1"><h2 aria-live="polite" className="text-lg font-semibold capitalize tracking-tight sm:text-xl">{title}</h2><p className="mt-0.5 text-xs text-muted">{view === "mes" ? "Espaço para o que move seu dia." : view === "semana" ? "Organize compromissos e proteja seu tempo." : view === "dia" ? format(parseISO(selected), "EEEE, yyyy", { locale: ptBR }) : "Compromissos e tarefas reunidos por dia."}</p></div>
+                <div className="min-w-0 flex-1"><h2 aria-live="polite" className="text-lg font-semibold tracking-tight sm:text-xl">{capitalizeFirst(title)}</h2><p className="mt-0.5 text-xs text-muted">{view === "mes" ? "Espaço para o que move seu dia." : view === "semana" ? "Organize compromissos e proteja seu tempo." : view === "dia" ? format(parseISO(selected), "EEEE, yyyy", { locale: ptBR }) : "Compromissos e tarefas reunidos por dia."}</p></div>
                 <Button variant="ghost" size="icon" onClick={synchronize} disabled={syncing} aria-label="Sincronizar calendários" title="Sincronizar calendários"><RefreshCw className={cn(syncing && "animate-spin")} /></Button>
                 <Button variant="primary" size="sm" onClick={() => setCreating(selected)}><Plus /><span className="hidden sm:inline">Novo evento</span><span className="sm:hidden">Evento</span></Button>
               </div>
@@ -98,7 +99,7 @@ export function AgendaPage({ month, today, initialDate, initialView = "mes", eve
                   {VIEWS.map(({ value, label, icon: Icon }) => <button key={value} type="button" aria-pressed={view === value} onClick={() => setView(value)} className={cn("flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition-all duration-200 sm:px-3", view === value ? "bg-surface text-fg shadow-sm" : "text-muted hover:bg-surface/50 hover:text-fg")}><Icon className="size-3.5" />{label}</button>)}
                 </div>
               </div>
-              <div className="relative"><Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-faint" /><Input aria-label="Buscar eventos e tarefas neste período" placeholder="Buscar neste período…" value={query} onChange={(event) => setQuery(event.target.value)} className="h-9 border-transparent bg-surface-2/65 pl-9 text-[13px]" /></div>
+              <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" /><Input aria-label="Buscar eventos e tarefas neste período" placeholder="Buscar neste período…" value={query} onChange={(event) => setQuery(event.target.value)} className="h-9 border-transparent bg-surface-2/65 pl-9 text-[13px]" /></div>
             </div>
             <div aria-busy={navigating} className={cn("relative transition-opacity duration-200", navigating && "opacity-50")}>
               {navigating && <div className="absolute inset-x-0 top-2 z-30 mx-auto flex w-fit items-center gap-2 rounded-full bg-surface px-3 py-1.5 text-xs shadow-soft" role="status"><LoaderCircle className="size-3.5 animate-spin" />Carregando período…</div>}
@@ -163,7 +164,7 @@ function EventDialog({ event, date, onClose }: { event: AgendaEvent | null; date
   return (
     <Dialog open onOpenChange={(o) => !o && !pending && onClose()}>
       <DialogContent title={readonly ? "Detalhes do evento" : event ? "Editar evento" : "Novo evento"} description={readonly ? `${event!.calendarName} · calendário assinado` : "Reserve um lugar na sua agenda."}>
-        {readonly ? <div className="space-y-4"><h3 className="text-lg font-semibold">{event!.title}</h3><p className="flex items-center gap-2 text-sm capitalize text-muted"><CalendarDays className="size-4" />{longDate(event!.date)}</p><p className="flex items-center gap-2 text-sm text-muted"><Clock3 className="size-4" />{timeLabel(event!)}</p>{event!.location && <p className="flex gap-2 text-sm text-muted"><MapPin className="size-4 shrink-0" />{event!.location}</p>}{event!.description && <p className="whitespace-pre-wrap break-words rounded-xl bg-surface-2 p-3 text-[13px] text-muted">{event!.description}</p>}<p className="rounded-xl border border-border p-3 text-xs leading-relaxed text-faint">Para alterar este evento, abra o calendário de origem e depois sincronize a agenda.</p></div> : <form
+        {readonly ? <div className="space-y-4"><h3 className="text-lg font-semibold">{event!.title}</h3><p className="flex items-center gap-2 text-sm text-muted"><CalendarDays className="size-4" />{capitalizeFirst(longDate(event!.date))}</p><p className="flex items-center gap-2 text-sm text-muted"><Clock3 className="size-4" />{timeLabel(event!)}</p>{event!.location && <p className="flex gap-2 text-sm text-muted"><MapPin className="size-4 shrink-0" />{event!.location}</p>}{event!.description && <p className="whitespace-pre-wrap break-words rounded-xl bg-surface-2 p-3 text-[13px] text-muted">{event!.description}</p>}<p className="rounded-xl border border-border p-3 text-xs leading-relaxed text-faint">Para alterar este evento, abra o calendário de origem e depois sincronize a agenda.</p></div> : <form
           onSubmit={(e) => {
             e.preventDefault();
             const data = { title: f.title, date: f.date, endDate: f.endDate || f.date, startTime: f.allDay ? null : f.start, endTime: f.allDay ? null : f.end, allDay: f.allDay, location: f.location || null, description: f.description || null, color: f.color || null };

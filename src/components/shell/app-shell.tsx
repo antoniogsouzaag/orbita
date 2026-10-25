@@ -433,7 +433,7 @@ export function Avatar({ name, src, className }: { name: string; src?: string | 
   // eslint-disable-next-line @next/next/no-img-element
   if (src) return <img src={src} alt={name} className={cn("size-8 shrink-0 rounded-full object-cover", className)} />;
   return (
-    <span className={cn("grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-accent to-violet-500 text-[12px] font-bold text-white", className)}>
+    <span className={cn("grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-accent to-accent/55 text-[12px] font-bold text-accent-fg", className)}>
       {initials}
     </span>
   );

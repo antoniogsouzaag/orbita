@@ -11,7 +11,7 @@ import { toggleHabit, toggleTask } from "@/app/actions/core";
 import { TaskItem } from "@/components/tasks/task-item";
 import { Card, CardHeader, EmptyState } from "@/components/ui/card";
 import { CheckButton, Progress, Tooltip } from "@/components/ui/misc";
-import { Input } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { relativeDay } from "@/lib/dates";
 import { cn, formatBRL, formatNumber } from "@/lib/utils";
@@ -115,7 +115,7 @@ export function HabitsWidget({ habits, total }: { habits: HomeData["habits"]; do
               </div>
               <Tooltip content={h.frequency === "weekly" ? `${h.weekDone}/${h.timesPerWeek} nesta semana` : "Sequência atual"}>
                 <span className="flex w-12 shrink-0 items-center justify-end gap-0.5 text-[12px] tabular-nums text-muted">
-                  <Flame className={cn("size-3.5", h.streak.value > 0 && "text-orange-400")} />
+                  <Flame className={cn("size-3.5", h.streak.value > 0 && "text-warning")} />
                   {h.streak.value}
                   {h.streak.unit === "sem" ? " sem" : ""}
                 </span>
@@ -295,9 +295,9 @@ export function PlanWidget({ plan, aiEnabled }: { plan: HomeData["plan"]; aiEnab
 
 function HourSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="h-8 rounded-lg border border-border bg-surface-2 px-2 text-[13px] outline-none">
+    <Select aria-label="Hora" value={value} onChange={(e) => onChange(e.target.value)} className="h-8 w-auto pl-2.5 text-[13px]">
       {Array.from({ length: 24 }, (_, h) => String(h).padStart(2, "0")).map((h) => <option key={h} value={h}>{h}h</option>)}
-    </select>
+    </Select>
   );
 }
 

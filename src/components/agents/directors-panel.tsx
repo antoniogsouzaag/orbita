@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { checkHermes } from "@/app/actions/hermes";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState } from "@/components/ui/card";
+import { Select } from "@/components/ui/input";
+import { pillClass } from "@/components/ui/pill";
 import { Chip } from "@/components/ui/misc";
 import { directorRequests, safeEvidenceUrl, type RequestGroup } from "@/lib/director-requests";
 import { agoLabel, type TeamMember } from "@/lib/team";
@@ -123,8 +125,8 @@ export function DirectorsPanel({ members, tomConfig, oracleConfig, tomInitial, o
 
     <Card className="overflow-hidden">
       <div className="space-y-4 border-b border-border p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Acompanhamento dos pedidos</h3><p className="mt-1 text-xs text-muted">Envio, retorno e evidência dos diretores.</p></div><label className="flex items-center gap-2 text-xs text-muted">Agente<select aria-label="Filtrar pedidos por agente" value={agent} onChange={event => setAgent(event.target.value)} className="rounded-lg border border-border bg-surface px-3 py-2 text-fg"><option value="all">Todos</option><option>Tom</option><option>Hermes Oracle</option></select></label></div>
-        <div role="group" aria-label="Estado dos pedidos" className="flex flex-wrap gap-2">{FILTERS.map(item => <button type="button" key={item.id} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} className={`rounded-full border px-3 py-1.5 text-xs transition ${filter === item.id ? "border-accent/40 bg-accent/10 text-accent" : "border-border text-muted hover:bg-surface-2"}`}>{item.label}<span className="ml-2 tabular-nums">{item.id === "all" ? selected.length : selected.filter(row => row.group === item.id).length}</span></button>)}</div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Acompanhamento dos pedidos</h3><p className="mt-1 text-xs text-muted">Envio, retorno e evidência dos diretores.</p></div><label className="flex items-center gap-2 text-xs text-muted">Agente<Select aria-label="Filtrar pedidos por agente" value={agent} onChange={event => setAgent(event.target.value)} className="h-8 w-auto text-[13px]"><option value="all">Todos</option><option>Tom</option><option>Hermes Oracle</option></Select></label></div>
+        <div role="group" aria-label="Estado dos pedidos" className="flex flex-wrap gap-2">{FILTERS.map(item => <button type="button" key={item.id} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} className={pillClass(filter === item.id)}>{item.label}<span className="ml-2 tabular-nums">{item.id === "all" ? selected.length : selected.filter(row => row.group === item.id).length}</span></button>)}</div>
       </div>
       {!visible.length ? <EmptyState icon={<ClipboardList />} title="Nenhum pedido nesta visão" description="Os pedidos manuais e seus resultados aparecem aqui. Você pode trocar os filtros acima." /> : <ul className="divide-y divide-border px-5">{visible.map(row => {
         const url = row.evidence ? safeEvidenceUrl(row.evidence) : null;

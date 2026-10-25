@@ -7,7 +7,7 @@ import { createAgentTokenAction, revokeAgentTokenAction, updateAgentProfileActio
 import { CopyButton } from "@/components/ops/copy-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export type TokenRow = { id: string; name: string; prefix: string; scopes: string[]; revoked: boolean; lastUsedAt: string | null; createdAt: string };
@@ -120,14 +120,14 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
                   {t.scopes.map((s) => <span key={s} className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-muted">{s}</span>)}
                 </span>
                 <span className="mt-1 block text-[11px] text-faint">{ago(t.lastUsedAt)}</span></div>
-                <select aria-label={`Perfil de ${t.name}`} className="rounded-lg border border-border bg-surface px-2 py-1 text-xs" value={t.scopes.includes("admin") ? "admin" : t.scopes.every((scope) => ["contexto", "status"].includes(scope)) ? "leitura" : "custom"} disabled={pending} onChange={(event) => {
+                <Select aria-label={`Perfil de ${t.name}`} className="h-8 w-auto text-[13px]" value={t.scopes.includes("admin") ? "admin" : t.scopes.every((scope) => ["contexto", "status"].includes(scope)) ? "leitura" : "custom"} disabled={pending} onChange={(event) => {
                   const profile = event.target.value;
                   if (profile !== "admin" && profile !== "leitura") return;
                   start(async () => {
                     try { await updateAgentProfileAction(t.id, profile); toast.success(`Perfil de ${t.name} atualizado`); }
                     catch { toast.error("Não foi possível atualizar o acesso"); }
                   });
-                }}><option value="leitura">Leitura</option><option value="admin">Administrador</option><option value="custom" disabled>Personalizado</option></select>
+                }}><option value="leitura">Leitura</option><option value="admin">Administrador</option><option value="custom" disabled>Personalizado</option></Select>
                 <Button
                   size="sm"
                   variant="danger"

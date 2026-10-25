@@ -14,6 +14,7 @@ import { Segmented } from "@/components/ui/misc";
 import { StatTile } from "@/components/ui/stat";
 import type { Transaction } from "@/db/schema";
 import { today } from "@/lib/dates";
+import { capitalizeFirst } from "@/lib/text";
 import { cn, formatBRL } from "@/lib/utils";
 
 const COLORS = ["#22d3ee", "#a78bfa", "#f59e0b", "#fb7185", "#22c55e", "#3b82f6", "#f472b6", "#84cc16", "#94a3b8", "#eab308", "#14b8a6", "#c084fc"];
@@ -34,7 +35,7 @@ export function FinancePage({ ym, rows, income, expense, categories, history }: 
       <div className="flex items-center gap-2">
         <Button size="icon-sm" variant="secondary" asChild><Link href={`/financas?mes=${shiftMonth(ym, -1)}`} aria-label="Mês anterior"><ChevronLeft /></Link></Button>
         <Button size="icon-sm" variant="secondary" asChild><Link href={`/financas?mes=${shiftMonth(ym, 1)}`} aria-label="Próximo mês"><ChevronRight /></Link></Button>
-        <h2 className="ml-1 text-lg font-semibold capitalize">{label}</h2>
+        <h2 className="ml-1 text-lg font-semibold tracking-tight">{capitalizeFirst(label)}</h2>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <StatTile icon={TrendingUp} label="Entradas" value={formatBRL(income)} tone="success" />
@@ -77,7 +78,7 @@ export function FinancePage({ ym, rows, income, expense, categories, history }: 
                   <span className="w-12 shrink-0 text-[12px] tabular-nums text-faint">{r.date.slice(8)}/{r.date.slice(5, 7)}</span>
                   <span className="min-w-0 flex-1"><span className="block truncate">{r.description}</span><span className="text-[11.5px] text-faint">{r.category}</span></span>
                   <span className={cn("shrink-0 font-medium tabular-nums", r.kind === "receita" ? "text-success" : "text-fg")}>{r.kind === "receita" ? "+" : "−"} {formatBRL(Number(r.amount))}</span>
-                  <button onClick={() => start(async () => { await deleteTransaction(r.id); toast.success("Removido"); })} className="rounded p-1 text-faint opacity-0 hover:text-danger group-hover:opacity-100" aria-label="Remover"><Trash2 className="size-3.5" /></button>
+                  <button onClick={() => start(async () => { await deleteTransaction(r.id); toast.success("Removido"); })} className="rounded-md p-1 transition text-faint opacity-0 hover:text-danger group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100" aria-label="Remover"><Trash2 className="size-3.5" /></button>
                 </div>
               ))}
             </div>

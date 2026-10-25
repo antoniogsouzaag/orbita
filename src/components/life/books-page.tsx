@@ -69,19 +69,19 @@ function BookCard({ b, onDelete }: { b: Book; onDelete: () => void }) {
   return (
     <Card className="group p-4">
       <div className="flex items-start gap-3">
-        <span className="grid h-14 w-10 shrink-0 place-items-center rounded-md bg-gradient-to-br from-amber-500/30 to-rose-500/20 text-amber-300"><BookOpen className="size-4" /></span>
+        <span className="grid h-14 w-10 shrink-0 place-items-center rounded-md bg-gradient-to-br from-accent/25 to-accent/5 text-accent ring-1 ring-inset ring-accent/15"><BookOpen className="size-4" /></span>
         <div className="min-w-0 flex-1">
           <div className="line-clamp-2 font-medium">{b.title}</div>
           {b.author && <div className="text-[12px] text-faint">{b.author}</div>}
         </div>
-        <button onClick={onDelete} className="rounded p-1 text-faint opacity-0 hover:text-danger group-hover:opacity-100" aria-label="Remover"><Trash2 className="size-3.5" /></button>
+        <button onClick={onDelete} className="rounded-md p-1 transition text-faint opacity-0 hover:text-danger group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100" aria-label="Remover"><Trash2 className="size-3.5" /></button>
       </div>
       {b.status !== "quero" && (
         <>
           <Progress value={pct} className="mt-3" />
           <div className="mt-2 flex items-center gap-2 text-[12px] text-muted">
             <span>Página</span>
-            <input value={page} onChange={(e) => setPage(e.target.value)} onBlur={() => save()} onKeyDown={(e) => e.key === "Enter" && save()} inputMode="numeric" className="h-7 w-16 rounded-md border border-border bg-surface-2 px-2 text-center text-fg outline-none" />
+            <input value={page} onChange={(e) => setPage(e.target.value)} onBlur={() => save()} onKeyDown={(e) => e.key === "Enter" && save()} inputMode="numeric" aria-label="Página atual" className="h-7 w-16 rounded-lg border border-border bg-surface-2 px-2 text-center tabular-nums text-fg outline-none transition-[border-color,box-shadow] focus:border-accent/60 focus:ring-2 focus:ring-accent/15" />
             <span>de {b.totalPages ?? "?"}</span>
             <span className="ml-auto tabular-nums">{Math.round(pct)}%</span>
           </div>

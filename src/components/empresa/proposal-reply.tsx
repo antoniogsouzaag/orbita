@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { respondToProposal } from "@/app/actions/proposals";
 import { Button } from "@/components/ui/button";
+import { Select, Textarea } from "@/components/ui/input";
 import type { ProposalSource } from "@/lib/proposals";
 
 export function ProposalReply({ source, agents, defaultAgent }: { source: ProposalSource; agents: { id: string; name: string }[]; defaultAgent?: string }) {
@@ -31,9 +32,9 @@ export function ProposalReply({ source, agents, defaultAgent }: { source: Propos
     });
   }
   return <form onSubmit={submit} className="space-y-3 border-t border-border pt-4">
-    <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Sua resposta</h3><label className="flex items-center gap-2 text-xs text-muted">Continuar com<select name="agent" aria-label="Agente responsável pela continuidade" defaultValue={defaultAgent && agents.some(a => a.id === defaultAgent) ? defaultAgent : agents.find(a => a.id === "tom")?.id ?? agents[0]?.id} required disabled={pending || !agents.length} className="max-w-48 rounded-lg border border-border bg-background px-2 py-1.5 text-fg">{agents.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</select></label></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Sua resposta</h3><label className="flex items-center gap-2 text-xs text-muted">Continuar com<Select name="agent" aria-label="Agente responsável pela continuidade" defaultValue={defaultAgent && agents.some(a => a.id === defaultAgent) ? defaultAgent : agents.find(a => a.id === "tom")?.id ?? agents[0]?.id} required disabled={pending || !agents.length} className="h-8 w-auto max-w-48 text-[13px]">{agents.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</Select></label></div>
     <label htmlFor="proposal-message" className="sr-only">Mensagem para o agente</label>
-    <textarea id="proposal-message" name="message" required minLength={2} maxLength={4000} rows={5} disabled={pending || !agents.length} placeholder="Deixe sua decisão, orientação ou pergunta para o agente continuar…" className="w-full resize-y rounded-xl border border-border bg-background p-3 text-sm outline-none focus:border-accent" />
+    <Textarea id="proposal-message" name="message" required minLength={2} maxLength={4000} rows={5} disabled={pending || !agents.length} placeholder="Deixe sua decisão, orientação ou pergunta para o agente continuar…" className="resize-y" />
     {!agents.length && <p role="status" className="text-xs text-warning">Nenhum agente com acesso ativo a tarefas está disponível. Confira os acessos em Integrações.</p>}
     {error && <p role="alert" className="text-xs text-danger">{error}</p>}
     {saved && <p role="status" className="text-xs text-success">Resposta salva. <Link className="underline" href={`/tarefas?escopo=empresa&task=${saved}`}>Acompanhar a tarefa de continuidade</Link>.</p>}
