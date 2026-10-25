@@ -314,9 +314,9 @@ export function KpiCard({ label, value, delta, good = "up", period, hint, trend,
   const up = (delta ?? 0) >= 0;
   const positive = delta === undefined ? null : (up && good === "up") || (!up && good === "down");
   return (
-    <div className={cn("card grid min-w-0 content-start gap-2 p-4", className)} {...rest}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-[12px] font-medium text-muted">{label}</p>
+    <div className={cn("card grid min-w-0 grid-cols-1 content-start gap-2 p-4", className)} {...rest}>
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <p className="min-w-0 flex-1 truncate text-[12px] font-medium text-muted">{label}</p>
         {icon && <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg [&_svg]:size-3.5", TONE[tone])}>{icon}</span>}
       </div>
       <div className="flex items-end justify-between gap-3">
