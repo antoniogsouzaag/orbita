@@ -237,11 +237,13 @@ export const statusOperacao = {
     const live = await liveOps();
     const down = live.status.filter((s) => !s.ok);
     const open = live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt);
+    const pendingWorkflows = live.events.filter(e => e.kind === "workflow_error" && !e.resolvedAt);
     const wf = live.events.filter((e) => e.kind === "workflow_error" && Date.now() - e.createdAt.getTime() < 86_400_000);
     const lines = [
       `Endereços no ar: ${live.status.length - down.length}/${live.status.length}.`,
       ...down.map((d) => `- Fora do ar: ${d.name} (${d.url}) — ${d.statusCode ?? d.error ?? "sem resposta"}`),
       `Incidentes abertos: ${open.length}. Falhas de workflow nas últimas 24h: ${wf.length}${wf.length ? ` (${wf.map((e) => e.subject).join(", ")})` : ""}.`,
+      `Falhas de workflow sem resolução registrada (inclui antigas): ${pendingWorkflows.length}${pendingWorkflows.length ? ` — ${pendingWorkflows.slice(0, 10).map(e => e.subject).join("; ")}` : ""}.`,
       `Monitores: ${live.monitors.map((m) => `${m.label}${m.silent ? " ⚠️ em silêncio" : ""}`).join("; ") || "nenhum enviando ainda"}.`,
     ];
     const soon = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - Date.now() < 45 * 86_400_000);

@@ -58,6 +58,13 @@ describe("ingestão de status (n8n → Órbita)", () => {
 });
 
 describe("limpeza automática", () => {
+  it("não duplica reenvio da mesma execução de workflow", async () => {
+    const payload = IngestSchema.parse({ source: "retry-fixture", workflowError: { workflow: "Retry fixture", message: "falhou", executionUrl: "https://n8n.example/executions/123" } });
+    expect((await ingest(payload)).events).toBe(1);
+    expect((await ingest(payload)).events).toBe(0);
+    expect((await ingest(IngestSchema.parse({ ...payload, workflowError: { ...payload.workflowError, executionUrl: "https://n8n.example/executions/124" } }))).events).toBe(1);
+  });
+
   it("apaga só o que envelheceu e mantém incidentes abertos", async () => {
     const { pruneOld } = await import("@/server/ops-live");
     const db = await getDb();
@@ -65,6 +72,7 @@ describe("limpeza automática", () => {
     await db.insert(opsEvents).values([
       { kind: "site_down", severity: "critical", source: "t", subject: "resolvido antigo", createdAt: old, resolvedAt: old },
       { kind: "site_down", severity: "critical", source: "t", subject: "aberto antigo", createdAt: old },
+      { kind: "workflow_error", severity: "warning", source: "t", subject: "workflow aberto antigo", createdAt: old },
     ]);
     await db.insert(opsStatus).values({ url: "https://saiu-do-monitor.example/", name: "x", ok: true, source: "t", checkedAt: old, changedAt: old });
     const r = await pruneOld(true);
@@ -72,6 +80,8 @@ describe("limpeza automática", () => {
     expect(r!.enderecos).toBe(1);
     const subjects = (await db.select().from(opsEvents)).map((e) => e.subject);
     expect(subjects).toContain("aberto antigo");
+    expect(subjects).toContain("workflow aberto antigo");
+    expect((await liveOps()).events.some(event => event.subject === "workflow aberto antigo")).toBe(true);
     expect(subjects).not.toContain("resolvido antigo");
     expect(await pruneOld()).toBeNull(); // só uma vez por dia
   });

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { agentActivity, opsDomains, opsEvents, opsHeartbeats, opsStatus } from "@/db/schema";
@@ -14,7 +14,6 @@ const DAY = 86_400_000;
 export async function pruneOld(force = false) {
   const last = Number(((await getRawSetting("prune")) as { at?: number } | undefined)?.at ?? 0);
   if (!force && Date.now() - last < DAY) return null;
-  await setRawSetting("prune", { at: Date.now() });
   const db = await getDb();
   const ago = (d: number) => new Date(Date.now() - d * DAY);
   const r = {
@@ -22,13 +21,14 @@ export async function pruneOld(force = false) {
     eventos: (
       await db
         .delete(opsEvents)
-        .where(or(and(isNotNull(opsEvents.resolvedAt), lt(opsEvents.createdAt, ago(90))), and(eq(opsEvents.kind, "workflow_error"), lt(opsEvents.createdAt, ago(30))), and(eq(opsEvents.severity, "info"), lt(opsEvents.createdAt, ago(30)))))
+        .where(or(and(isNotNull(opsEvents.resolvedAt), lt(opsEvents.createdAt, ago(90))), and(isNotNull(opsEvents.resolvedAt), eq(opsEvents.kind, "workflow_error"), lt(opsEvents.createdAt, ago(30))), and(eq(opsEvents.severity, "info"), notInArray(opsEvents.kind, ["site_down", "workflow_error", "domain_alert", "monitor_silent", "agente_alerta"]), lt(opsEvents.createdAt, ago(30)))))
         .returning({ id: opsEvents.id })
     ).length,
-    enderecos: (await db.delete(opsStatus).where(lt(opsStatus.checkedAt, ago(14))).returning({ url: opsStatus.url })).length,
-    monitores: (await db.delete(opsHeartbeats).where(lt(opsHeartbeats.lastSeen, ago(30))).returning({ s: opsHeartbeats.source })).length,
-    dominios: (await db.delete(opsDomains).where(lt(opsDomains.checkedAt, ago(30))).returning({ d: opsDomains.domain })).length,
+    enderecos: (await db.delete(opsStatus).where(and(eq(opsStatus.ok, true), lt(opsStatus.checkedAt, ago(90)))).returning({ url: opsStatus.url })).length,
+    monitores: 0, // Ausência de batida deve continuar visível; desativação é explícita.
+    dominios: (await db.delete(opsDomains).where(and(isNull(opsDomains.expiresAt), isNull(opsDomains.error), lt(opsDomains.checkedAt, ago(90)))).returning({ d: opsDomains.domain })).length,
   };
+  await setRawSetting("prune", { at: Date.now() });
   return r;
 }
 
@@ -139,8 +139,16 @@ export async function ingest(p: IngestPayload) {
 
   if (p.workflowError) {
     const e = p.workflowError;
-    await db.insert(opsEvents).values({ kind: "workflow_error", severity: "warning", source: p.source, subject: e.workflow, detail: { node: e.node, message: e.message, executionUrl: e.executionUrl, workflowId: e.workflowId } });
-    counters.events++;
+    // A mesma execução reenviada não é outra falha. Execuções distintas continuam visíveis.
+    const [existing] = e.executionUrl ? await db.select({ id: opsEvents.id }).from(opsEvents).where(and(
+      eq(opsEvents.kind, "workflow_error"), eq(opsEvents.source, p.source), eq(opsEvents.subject, e.workflow),
+      sql`${opsEvents.detail}->>'executionUrl' = ${e.executionUrl}`,
+      gte(opsEvents.createdAt, new Date(now.getTime() - DAY)),
+    )).limit(1) : [];
+    if (!existing) {
+      await db.insert(opsEvents).values({ kind: "workflow_error", severity: "warning", source: p.source, subject: e.workflow, detail: { node: e.node, message: e.message, executionUrl: e.executionUrl, workflowId: e.workflowId } });
+      counters.events++;
+    }
   }
   for (const e of p.events ?? []) {
     await db.insert(opsEvents).values({ kind: e.kind, severity: e.severity, source: p.source, subject: e.subject, detail: e.detail ?? {} });
@@ -157,12 +165,14 @@ export type MonitorHealth = { source: string; label: string; lastSeen: Date; eve
 export async function liveOps() {
   const db = await getDb();
   const since = new Date(Date.now() - 14 * 86_400_000);
-  const [status, events, beats, domains] = await Promise.all([
+  const [status, recentEvents, pendingEvents, beats, domains] = await Promise.all([
     db.select().from(opsStatus),
     db.select().from(opsEvents).where(gte(opsEvents.createdAt, since)).orderBy(desc(opsEvents.createdAt)).limit(80),
+    db.select().from(opsEvents).where(and(isNull(opsEvents.resolvedAt), or(eq(opsEvents.severity, "warning"), eq(opsEvents.severity, "critical")))).orderBy(desc(opsEvents.createdAt)).limit(80),
     db.select().from(opsHeartbeats),
     db.select().from(opsDomains),
   ]);
+  const events = [...new Map([...recentEvents, ...pendingEvents].map(event => [event.id, event])).values()].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const now = Date.now();
   const monitors: MonitorHealth[] = beats.map((b) => {
     const minutesAgo = Math.round((now - b.lastSeen.getTime()) / 60_000);

@@ -32,7 +32,7 @@ export async function buildContext(opts: { live?: boolean } = {}) {
     automations: autos,
     monitoring: targets,
     status,
-    incidents: live ? live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt).map((e) => ({ subject: e.subject, since: e.createdAt.toISOString() })) : null,
+    incidents: live ? live.events.filter((e) => e.severity !== "info" && !e.resolvedAt).map((e) => ({ subject: e.subject, since: e.createdAt.toISOString() })) : null,
     monitors: live ? live.monitors.map((m) => ({ label: m.label, lastSeen: m.lastSeen.toISOString(), silent: m.silent })) : null,
     n8n,
   };

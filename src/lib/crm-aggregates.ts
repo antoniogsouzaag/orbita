@@ -56,7 +56,7 @@ export const crmEmailTotalsSchema = z.object({
 });
 const crmEmailSourceSchema = crmEmailTotalsSchema.extend({ origem: z.string().max(200).regex(/^[a-z0-9][a-z0-9._-]*$/i), categoria: z.enum(CRM_EMAIL_CATEGORIES), produto: crmProductSchema.nullish() });
 export const crmEmailSchema = z.object({
-  consultado_em: z.iso.datetime().optional(), ultima_mensagem_em: z.iso.datetime().nullable().optional(),
+  consultado_em: z.iso.datetime().optional(), ultima_mensagem_em: z.iso.datetime({ offset: true }).transform(value => new Date(value).toISOString()).nullable().optional(),
   aguardando_entrega: count.optional(), entregues_sem_resposta: count.optional(), agendados_na_janela: count.optional(),
   por_origem: z.preprocess((raw) => {
     if (!Array.isArray(raw)) return undefined;
