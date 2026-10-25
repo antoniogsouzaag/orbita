@@ -1,5 +1,7 @@
 import "server-only";
-import { agentTasks, recentActivity } from "@/server/agents";
+import { recentActivity } from "@/server/agents";
+import { proposalTasks } from "@/server/proposals";
+import { ANSWERED_TAG } from "@/lib/proposals";
 import { aiEnabled } from "@/server/ai";
 import { eventsBetween } from "@/server/calendar";
 import { crmOverview, crmUrl, type CrmTask } from "@/server/crm";
@@ -22,7 +24,7 @@ export async function loadEmpresaLocal() {
   const [settings, live, asksAll, activity, tasks, counts, due, projects, goals, events] = await Promise.all([
     getSettings(),
     liveOps(),
-    agentTasks(),
+    proposalTasks(),
     recentActivity(8),
     homeTasks(7, "empresa"),
     taskCounts("empresa"),
@@ -32,9 +34,10 @@ export async function loadEmpresaLocal() {
     eventsBetween(zonedToUtc(t), zonedToUtc(shiftDate(t, 8))),
   ]);
 
-  const asks = asksAll.filter((x) => x.status !== "done" && x.scope === "empresa");
+  const asks = asksAll.filter((x) => x.status !== "done" && x.scope === "empresa" && !x.tags.includes(ANSWERED_TAG));
+  const proposalReplies = asksAll.filter(x => x.tags.includes(ANSWERED_TAG)).map(({ id, notes, tags, status }) => ({ id, notes, tags, status }));
   const askIds = new Set(asks.map((task) => task.id));
-  const waitingDue = due.filter((task) => !askIds.has(task.id));
+  const waitingDue = due.filter((task) => !askIds.has(task.id) && !task.tags.includes(ANSWERED_TAG));
   const down = live.status.filter((s) => !s.ok);
   const failures = live.events.filter((e) => e.kind === "workflow_error" && now.getTime() - e.createdAt.getTime() < DAY);
   const incidents = live.events.filter((e) => ["site_down", "workflow_error", "domain_alert", "monitor_silent"].includes(e.kind) && (!e.resolvedAt || now.getTime() - e.createdAt.getTime() < 7 * DAY));
@@ -60,6 +63,7 @@ export async function loadEmpresaLocal() {
     subtitle,
     today: t,
     asks,
+    proposalReplies,
     due: waitingDue,
     crmMine,
     crmTasksUrl: crmUrl("/tasks"),

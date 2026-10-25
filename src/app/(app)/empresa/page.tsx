@@ -70,5 +70,5 @@ async function GithubCard() { return <GithubWidget gh={await getGithub()} />; }
 async function WaitingCard({ data }: { data: Awaited<ReturnType<typeof loadEmpresaLocal>> }) {
   const [crm, github] = await Promise.all([getCrm(), getGithub()]);
   const mine = crm.configured && crm.ok ? crm.mine.filter((item) => item.prazo && item.prazo <= data.today) : [];
-  return <WaitingWidget asks={data.asks} due={data.due} crmMine={mine} crmTasksUrl={data.crmTasksUrl} today={data.today} github={github} />;
+  return <WaitingWidget asks={data.asks} due={data.due} crmMine={mine} crmTasksUrl={data.crmTasksUrl} today={data.today} github={github} proposalReplies={data.proposalReplies} />;
 }

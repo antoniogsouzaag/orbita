@@ -11,9 +11,16 @@ it("decisões classificadas aparecem no início sem converter execução em deci
   ] };
   const html = renderToStaticMarkup(createElement(WaitingWidget, { ...props, github }));
   expect(html).toContain("29 itens");
-  expect(html).toContain("Revisar 29 decisões");
-  expect(html).toContain("/github?etapa=decision");
+  expect(html).toContain("Responder 29 decisões");
+  expect(html).toContain("/propostas");
   expect(html).not.toContain("Correção técnica em execução");
+});
+it("uma decisão respondida deixa de esperar Antonio até a origem pedir nova leitura", () => {
+  const github: GithubInbox = { configured: true, error: null, org: "fixture", credential: "GITHUB_TOKEN", checkedAt: "2026-10-25T12:00:00Z", total: 1, truncated: false, warning: "", items: [{ kind: "proposta", stage: "decision", title: "Decisão respondida", repo: "app", url: "https://github.com/org/app/issues/1", number: 1, updatedAt: "2026-10-24T12:00:00Z", author: "agente" }] };
+  const proposalReplies = [{ id: "fixture", status: "todo", tags: ["resposta:antonio", "proposta:github:org/app#1"], notes: "<!-- orbita-reply:f307e8ee-993c-4efa-9b20-7d0a9a6c814b at:2026-10-25T12:00:00.000Z -->" }];
+  expect(renderToStaticMarkup(createElement(WaitingWidget, { ...props, github, proposalReplies }))).not.toContain("Decisão respondida");
+  github.items[0].updatedAt = "2026-10-26T12:00:00Z";
+  expect(renderToStaticMarkup(createElement(WaitingWidget, { ...props, github, proposalReplies }))).toContain("Decisão respondida");
 });
 it("carregamento não anuncia ausência de decisões antes de consultar a fonte", () => {
   const html = renderToStaticMarkup(createElement(WaitingWidget, props));

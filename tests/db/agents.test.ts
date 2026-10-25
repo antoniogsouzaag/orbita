@@ -74,7 +74,7 @@ describe("central dos agentes (MCP)", () => {
 
   it("agente abre tarefa para Antonio e registra evento, tudo com log", async () => {
     const t = await createAgentToken("Hermes Oracle", ["tarefas", "eventos"]);
-    expect(await toolNames(t)).toEqual(["criar_tarefa_para_antonio", "documentacao_canonica", "minhas_tarefas", "pedidos_recebidos", "registrar_evento", "registrar_resultado"]);
+    expect(await toolNames(t)).toEqual(["atualizar_minha_tarefa", "criar_tarefa_para_antonio", "documentacao_canonica", "minhas_tarefas", "pedidos_recebidos", "registrar_evento", "registrar_resultado"]);
 
     const r = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "Aprovar renovação do domínio", prioridade: "alta", prazo: "2026-11-01" } });
     expect(JSON.stringify(r.body.result)).toContain("Tarefa criada");
@@ -102,6 +102,29 @@ describe("central dos agentes (MCP)", () => {
     expect(JSON.stringify(r.body)).toMatch(/isError|invalid|error/i);
     const db = await getDb();
     expect((await db.select().from(tasks)).filter((x) => x.title === "ok")).toHaveLength(0);
+  });
+
+  it("entrega respostas e permite andamento somente nas tarefas empresariais do próprio agente", async () => {
+    const token = await createAgentToken("Continuador", ["tarefas"]);
+    const other = await createAgentToken("Outro continuador", ["tarefas"]);
+    const db = await getDb();
+    const [task] = await db.insert(tasks).values({ title: "Retomar revisão", notes: "Resposta de Antonio: prosseguir com evidência.", scope: "empresa", tags: ["agente:continuador", "resposta:antonio"] }).returning();
+    const mine = await rpc(token, "tools/call", { name: "minhas_tarefas", arguments: {} });
+    expect(JSON.stringify(mine.body.result)).toContain("prosseguir com evidência");
+    const args = { id: task.id, registro_id: "ef4de3bb-749d-4c5c-9641-768b2fa8a55e", estado: "done", resumo: "Revisão concluída com testes e PR registrado." };
+    await rpc(other, "tools/call", { name: "atualizar_minha_tarefa", arguments: args });
+    let [saved] = (await db.select().from(tasks)).filter(row => row.id === task.id);
+    expect(saved.status).toBe("todo");
+    await rpc(token, "tools/call", { name: "atualizar_minha_tarefa", arguments: args });
+    await rpc(token, "tools/call", { name: "atualizar_minha_tarefa", arguments: args });
+    [saved] = (await db.select().from(tasks)).filter(row => row.id === task.id);
+    expect(saved.status).toBe("done");
+    expect(saved.completedAt).not.toBeNull();
+    expect(saved.notes?.match(/Revisão concluída/g)).toHaveLength(1);
+    const [personal] = await db.insert(tasks).values({ title: "Pessoal protegido", scope: "pessoal", tags: ["agente:continuador"] }).returning();
+    await rpc(token, "tools/call", { name: "atualizar_minha_tarefa", arguments: { ...args, id: personal.id } });
+    const [untouched] = (await db.select().from(tasks)).filter(row => row.id === personal.id);
+    expect(untouched.status).toBe("todo");
   });
 
   it("valida datas reais e vincula pedido ao negócio explícito", async () => {
