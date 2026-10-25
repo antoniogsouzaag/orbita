@@ -1,5 +1,15 @@
 # Comercial por produto (CRM MCP #41)
 
+Extensão de ativação (25/10/2026): `metricasProduto` e o painel de negócio aceitam
+`activationFunnel` opcional do Barberias via CRM. Campos cumulativos: profissional,
+catálogo, pronta para agendar e agenda iniciada. Validação exige contagens
+inteiras não negativas, limitadas pelas contas, última etapa igual a ativadas.
+Projeção remove campos extras. Snapshot antigo continua válido; não se presume
+etapa ausente. O detalhe fica recolhido, com resumo de prontas sem reserva.
+ORBE recebe as mesmas definições: estoque atual com filiais consolidadas,
+sem inferir conversão de campanha ou atribuir causa ao abandono. Requer publicação
+da origem e do CRM; publicação só da Órbita não comprova coleta dessa extensão.
+
 - A tela existente Empresa → Negócios → Barberias consulta somente `barberias`, em Server Components/Suspense; o CRM geral da Empresa continua intacto.
 - Consultas independentes: `crm_resumo({ produto? })` e `crm_funil_emails({ produto?, dias?, categoria? })`. A tela usa 30 dias/todas as categorias. A IA aceita 1–365 dias e as cinco categorias do CRM.
 - IA da Empresa; MCP admin: `orbita_crm_resumo` e `orbita_crm_funil_emails`. Não amplia permissões de outros agentes. Sem produto, o resumo global continua compatível com CRM antigo.
