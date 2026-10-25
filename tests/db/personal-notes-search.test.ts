@@ -18,10 +18,10 @@ it("returns notes across days beyond the former five-result cut without silent o
   expect(limited.text).toContain("Consulta parcial");
 });
 
-it("marks content truncation and keeps personal note search out of company tools", async () => {
+it("marks content truncation and makes scoped notes available in both workspaces", async () => {
   const db = await getDb();
   await db.insert(notes).values({ title: "Texto longo", content: "a".repeat(2100) });
   expect((await buscarNotas.run({ busca: "Texto longo" })).text).toContain("Conteúdo parcial");
-  expect(assistantTools("empresa").some(tool => tool.name === "buscar_notas")).toBe(false);
+  expect(assistantTools("empresa").some(tool => tool.name === "buscar_notas")).toBe(true);
   expect(buscarNotas.schema.safeParse({ busca: "UI", limite: 1000 }).success).toBe(false);
 });

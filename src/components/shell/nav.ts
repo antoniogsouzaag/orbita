@@ -52,6 +52,7 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
           { href: "/propostas", label: "Propostas", icon: MessageSquareText, keywords: "decisões respostas aguardando agentes continuidade" },
           { href: "/empresa/negocios", label: "Negócios", icon: Building2, keywords: "produtos barberias members mecard viajeki" },
           { href: "/projetos?escopo=empresa", label: "Projetos", icon: FolderKanban },
+          { href: "/notas?escopo=empresa", label: "Notas", icon: NotebookPen, keywords: "rascunhos ideias anotações da empresa" },
           { href: "/kanban?escopo=empresa", label: "Kanban", icon: KanbanSquare },
           { href: "/foco?escopo=empresa", label: "Foco", icon: Timer },
         ],
@@ -90,7 +91,7 @@ export const NAV: NavSection[] = [
 export const ALL_NAV: NavItem[] = [...NAV.flatMap((s) => s.items), SETTINGS_ITEM];
 
 const EMPRESA_PATHS = ["/empresa", "/redes", "/operacao", "/agentes", "/propostas"];
-const SCOPED_PATHS = ["/tarefas", "/projetos", "/kanban", "/foco", "/metas", "/ia"];
+const SCOPED_PATHS = ["/tarefas", "/projetos", "/kanban", "/foco", "/metas", "/ia", "/notas"];
 const PESSOAL_PATHS = ["/agenda", "/notas", "/habitos", "/metas", "/financas", "/academia", "/leitura", "/revisao"];
 
 /** Espaço da rota atual; null = tela comum aos dois (IA, Integrações, Configurações). */

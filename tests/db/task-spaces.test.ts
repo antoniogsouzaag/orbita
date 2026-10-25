@@ -96,7 +96,8 @@ describe("tarefas isoladas por espaço", () => {
     expect((await runAssistantTool("criar_tarefa", { titulo: "Incoerente", projeto: "Produto oficial", escopo: "pessoal" })).ok).toBe(false);
     const created = await runAssistantTool("criar_tarefa", { titulo: "Criada no contexto empresa" }, { scope: "empresa" });
     expect(created.action?.href).toBe("/tarefas?escopo=empresa");
-    expect(assistantTools("empresa").some((tool) => tool.name === "buscar_notas")).toBe(false);
+    expect(assistantTools("empresa").some((tool) => tool.name === "buscar_notas")).toBe(true);
+    expect((await runAssistantTool("buscar_notas", { busca: "Nota pessoal", escopo: "pessoal" }, { scope: "empresa" })).ok).toBe(false);
     expect(assistantTools("empresa").some((tool) => tool.name === "registrar_lancamento")).toBe(false);
     expect(assistantTools("empresa").some((tool) => tool.name === "ver_agenda")).toBe(false);
     expect(assistantTools("empresa").some((tool) => tool.name === "criar_evento")).toBe(false);

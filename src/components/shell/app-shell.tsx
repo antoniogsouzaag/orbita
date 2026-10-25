@@ -196,11 +196,12 @@ export function AppShell({
         <header
           className={cn(
             "shell-topbar fixed inset-x-0 top-0 z-40 transition-[background,border,backdrop-filter] duration-300",
-            "pointer-events-none border-0 bg-transparent",
+            "pointer-events-none border-0",
+            scrolled ? "border-b border-border/60 bg-surface/80 shadow-sm backdrop-blur-xl lg:border-0 lg:bg-transparent lg:shadow-none lg:backdrop-blur-none" : "bg-transparent",
           )}
         >
           <div className="pointer-events-auto mx-auto flex h-14 max-w-[1500px] items-center gap-2 px-4 sm:px-6">
-              <Link href="/" className={cn("brand-lockup flex items-center gap-2", sidebar && "lg:opacity-0 lg:pointer-events-none", isHome && !scrolled ? "text-white" : "text-fg")} aria-label="Início">
+              <Link href={SPACES[space].home} className={cn("brand-lockup flex items-center gap-2", sidebar && "lg:opacity-0 lg:pointer-events-none", isHome && !scrolled ? "text-white" : "text-fg")} aria-label={`Início · ${SPACES[space].label}`}>
                 <Logo className="size-7" />
                 <span className="hidden text-[13px] font-semibold uppercase tracking-[0.22em] sm:inline">Órbita</span>
               </Link>
@@ -245,8 +246,10 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
   return (
     <aside id="workspace-sidebar" aria-label="Navegação principal" aria-hidden={!open} inert={!open} onClick={(event) => { if ((event.target as HTMLElement).closest("a[href]")) onNavigate(); }} className={cn("workspace-sidebar glass fixed inset-y-2 left-2 z-50 flex w-[256px] flex-col overflow-hidden rounded-[22px] border border-border shadow-soft", open && "is-open")}>
       <div className="flex items-center gap-2 px-4 pb-2 pt-4">
-        <Logo className="size-7" />
-        <span className="text-[13px] font-semibold uppercase tracking-[0.22em]">Órbita</span>
+        <Link href={SPACES[space].home} aria-label={`Início · ${SPACES[space].label}`} className="flex items-center gap-2">
+          <Logo className="size-7" />
+          <span className="text-[13px] font-semibold uppercase tracking-[0.22em]">Órbita</span>
+        </Link>
         <button onClick={onCollapse} className="ml-auto rounded-md p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Recolher barra lateral" aria-keyshortcuts="'">
           <PanelLeft className="size-4" />
         </button>
