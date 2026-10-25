@@ -195,7 +195,7 @@ export function buildMcpServer(agent: AgentIdentity) {
           const lines = [
             `Endereços: ${live.status.length - down.length}/${live.status.length} no ar.`,
             ...down.map((d) => `- ❌ ${d.name} (${d.url}) desde ${d.changedAt.toISOString()} — ${d.statusCode ?? d.error ?? ""}`),
-            `Incidentes abertos: ${live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt).length}`,
+            `Incidentes abertos (amostra): ${live.events.filter((e) => e.severity !== "info" && !e.resolvedAt).length}`,
             `Monitores: ${live.monitors.map((m) => `${m.label} ${m.silent ? "⚠️ em silêncio" : "ok"} (última batida ${m.lastSeen.toISOString()})`).join("; ") || "nenhum"}`,
             `Domínios < 45 dias: ${live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - Date.now() < 45 * 86_400_000).map((d) => `${d.domain} (${d.expiresAt!.toISOString().slice(0, 10)})`).join(", ") || "nenhum"}`,
           ];

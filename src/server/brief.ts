@@ -66,6 +66,8 @@ export async function buildBrief(): Promise<string> {
   const wf = live.events.filter((e) => e.kind === "workflow_error" && Date.now() - e.createdAt.getTime() < 86_400_000);
   lines.push("", `🛰️ <b>Operação</b> — ${live.status.length ? `${live.status.length - down.length}/${live.status.length} no ar` : "sem dados dos monitores"}`);
   for (const d of down) lines.push(`• ❌ ${escHtml(d.name)}`);
+  const pendingWorkflows = live.events.filter(e => e.kind === "workflow_error" && !e.resolvedAt);
+  if (pendingWorkflows.length) lines.push(`• ${pendingWorkflows.length} falha(s) de workflow sem resolução registrada (inclui antigas)`);
   if (wf.length) lines.push(`• ${wf.length} falha(s) de workflow nas últimas 24h`);
   for (const d of soon) lines.push(`• 🌐 ${escHtml(d.domain)} vence em ${Math.ceil((d.expiresAt!.getTime() - Date.now()) / 86_400_000)} dias`);
   for (const m of silent) lines.push(`• ⚠️ monitor em silêncio: ${escHtml(m.label)}`);

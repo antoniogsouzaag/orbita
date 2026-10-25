@@ -19,7 +19,7 @@ export async function loadNotifications(scope: TaskScope = "pessoal"): Promise<S
   const t = today();
   const agentIds = new Set(asks.filter((a) => a.status !== "done").map((a) => a.id));
   return [
-    ...ops.events.filter((e) => !e.resolvedAt && e.severity !== "info" && now.getTime() - e.createdAt.getTime() < 7 * 86_400_000).slice(0, 15)
+    ...ops.events.filter((e) => !e.resolvedAt && e.severity !== "info").slice(0, 15)
       .map((e) => ({ id: `o-${e.id}`, title: e.subject, detail: e.kind === "workflow_error" ? "Falha de automação" : "Incidente operacional", href: "/operacao", tone: e.severity === "critical" ? "danger" as const : "warning" as const })),
     ...ops.monitors.filter((m) => m.silent).map((m) => ({ id: `m-${m.source}-${m.lastSeen.getTime()}`, title: m.label, detail: `Monitor sem sinal há ${m.minutesAgo} min`, href: "/operacao", tone: "warning" as const })),
     ...asks.filter((a) => a.status !== "done").slice(0, 20).map((a) => ({ id: `a-${a.id}`, title: a.title, detail: "Pedido de agente aguardando você", href: `/tarefas?escopo=empresa&task=${a.id}`, tone: "info" as const })),
