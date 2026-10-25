@@ -6,6 +6,7 @@ import { githubInbox } from "@/server/github-inbox";
 import { proposalSource, proposalTasks, replyAgents } from "@/server/proposals";
 import { ProposalReply } from "@/components/empresa/proposal-reply";
 import { ProposalContext } from "@/components/empresa/proposal-context";
+import { ProposalList } from "@/components/empresa/proposal-list";
 import { Card, PageHeader } from "@/components/ui/card";
 
 export const metadata = { title: "Propostas e respostas" };
@@ -34,7 +35,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     <nav aria-label="Filas de propostas" className="flex flex-wrap gap-2 text-xs">{[{ id: "voce", label: "Aguardando você", count: asks.length + decisions.length }, { id: "agentes", label: "Com os agentes", count: tasks.filter(t => t.tags.includes(ANSWERED_TAG) && t.status !== "done").length }, { id: "concluidas", label: "Concluídas", count: tasks.filter(t => t.tags.includes(ANSWERED_TAG) && t.status === "done").length }].map(item => <Link key={item.id} href={`/propostas?fila=${item.id}`} aria-current={tab === item.id ? "page" : undefined} className={`rounded-lg border px-3 py-2 ${tab === item.id ? "border-accent/30 bg-accent/10 text-accent" : "border-border text-muted"}`}>{item.label} <span className="ml-1 tabular-nums">{item.count}</span></Link>)}</nav>
     {(inbox.error || inbox.truncated || tasks.length === 200) && <p role="status" className="text-xs text-warning">{inbox.error ? "GitHub temporariamente indisponível; as tarefas locais continuam acessíveis. " : ""}{inbox.truncated || tasks.length === 200 ? "Consulta parcial: a lista pode conter mais itens nas origens." : ""}</p>}
     <div className="grid items-start gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
-      <Card className="min-w-0 overflow-hidden"><div className="border-b border-border px-4 py-3 text-xs text-muted">{rows.length} {rows.length === 1 ? "item nesta fila" : "itens nesta fila"}</div><div className="max-h-[65vh] divide-y divide-border overflow-y-auto">{rows.map(row => <Link key={row.key} href={row.href} className={`block px-4 py-3 hover:bg-surface-2 ${detail?.title === row.title ? "bg-accent/5" : ""}`}><p className="line-clamp-2 text-[13px] font-medium">{row.title}</p><p className="mt-1 text-[11px] text-muted">{row.meta}</p></Link>)}{!rows.length && <p className="p-5 text-sm text-muted">Nenhum item nesta fila.</p>}</div></Card>
+      <ProposalList key={tab} rows={rows.map(({ key, title, meta, href }) => ({ key, title, meta, href }))} selectedKey={source?.kind === "task" ? source.id : detail?.url} />
       <Card id="resposta" className="min-w-0 scroll-mt-20 space-y-4 p-4 sm:p-5">
         {detail && source ? <>
           <div>
