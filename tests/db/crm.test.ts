@@ -77,7 +77,9 @@ describe("CRM pela Órbita", () => {
   });
 
   it("as ferramentas crm_* só aparecem para a IA com o CRM conectado", async () => {
-    expect(assistantTools().filter((t) => t.name.startsWith("crm_"))).toHaveLength(8);
+    expect(assistantTools().filter((t) => t.name.startsWith("crm_"))).toHaveLength(9);
+    expect(assistantTools('empresa', { readOnly: true }).find((t) => t.name === 'crm_prioridades')?.readOnly).toBe(true);
+    expect(assistantTools('pessoal').some((t) => t.name === 'crm_prioridades')).toBe(false);
     delete process.env.CRM_MCP_URL;
     expect(assistantTools().some((t) => t.name.startsWith("crm_"))).toBe(false);
     expect((await runAssistantTool("crm_resumo", {})).ok).toBe(false);
