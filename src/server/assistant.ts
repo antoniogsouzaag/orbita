@@ -205,7 +205,7 @@ export const buscarNotas = {
     const q = `%${v.busca}%`;
     const limit = v.limite ?? 20;
     const rows = await db.select({ id: notes.id, title: notes.title, content: notes.content, updatedAt: notes.updatedAt }).from(notes).where(and(noteScopeCondition(v.escopo ?? "pessoal"), or(ilike(notes.title, q), ilike(notes.content, q)))).orderBy(desc(notes.updatedAt), desc(notes.id)).limit(limit + 1);
-    return { text: rows.length ? rows.slice(0, limit).map((n) => `### ${n.title}\nID: ${n.id} · Atualizada: ${n.updatedAt.toISOString()}\n${n.content.slice(0, 2000)}${n.content.length > 2000 ? "\n[Conteúdo parcial; abra a nota para ler o restante.]" : ""}`).join("\n\n") + (rows.length > limit ? `\n\n[Consulta parcial: exibindo ${limit} notas. Refine a busca.]` : "") : "Nenhuma nota pessoal encontrada." };
+    return { text: rows.length ? rows.slice(0, limit).map((n) => `### ${n.title}\nID: ${n.id} · Atualizada: ${n.updatedAt.toISOString()}\n${n.content.slice(0, 2000)}${n.content.length > 2000 ? "\n[Conteúdo parcial; abra a nota para ler o restante.]" : ""}`).join("\n\n") + (rows.length > limit ? `\n\n[Consulta parcial: exibindo ${limit} notas. Refine a busca.]` : "") : v.escopo === "empresa" ? "Nenhuma nota da empresa encontrada." : "Nenhuma nota pessoal encontrada." };
   },
 };
 
