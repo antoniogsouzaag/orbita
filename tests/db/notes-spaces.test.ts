@@ -36,6 +36,7 @@ it("ORBE uses the active workspace for notes and rejects an explicit different s
   expect(result.ok).toBe(true);
   expect((await listNotes(undefined, "empresa"))).toHaveLength(1);
   expect(await listNotes()).toHaveLength(0);
+  expect((await buscarNotas.run({ busca: "Sem resultado", escopo: "empresa" })).text).toBe("Nenhuma nota da empresa encontrada.");
   expect((await runAssistantTool("buscar_notas", { busca: "Ideia", escopo: "pessoal" }, { scope: "empresa" })).ok).toBe(false);
   expect(noteHref("empresa", "note-id")).toBe("/notas?escopo=empresa&id=note-id");
 });
