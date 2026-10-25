@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Eye, EyeOff, LayoutGrid } from "lucide-react";
+import { GripVertical, Eye, EyeOff, LayoutGrid } from "lucide-react";
 import * as React from "react";
+import { Reorder, useDragControls } from "motion/react";
 import { toast } from "sonner";
 import { updateSettings } from "@/app/actions/core";
 import { Button } from "@/components/ui/button";
@@ -26,23 +27,23 @@ export function Customize({ order, hidden, labels, field = "widgets", title = "P
       <DialogTrigger className="flex items-center gap-1.5 text-[12.5px] text-muted hover:text-fg">
         <LayoutGrid className="size-3.5" /> Personalizar
       </DialogTrigger>
-      <DialogContent title={title} description="Mostre, esconda e reordene os blocos.">
-        <div className="space-y-1">
-          {o.map((id, i) => (
-            <div key={id} className={cn("flex items-center gap-2 rounded-xl border border-border px-3 py-2", h.includes(id) && "opacity-50")}>
-              <span className="flex-1 text-[13.5px]">{labels[id] ?? id}</span>
-              <button onClick={() => move(i, -1)} className="rounded p-1 text-muted hover:text-fg" aria-label="Subir"><ArrowUp className="size-4" /></button>
-              <button onClick={() => move(i, 1)} className="rounded p-1 text-muted hover:text-fg" aria-label="Descer"><ArrowDown className="size-4" /></button>
-              <button onClick={() => setH((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]))} className="rounded p-1 text-muted hover:text-fg" aria-label="Mostrar/ocultar">
-                {h.includes(id) ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
-            </div>
-          ))}
-        </div>
+      <DialogContent title={title} description="Arraste pela alça para reordenar. No teclado, use as setas para cima e para baixo na alça.">
+        <Reorder.Group axis="y" values={o} onReorder={setO} layoutScroll className="max-h-[55dvh] space-y-2 overflow-y-auto p-1" aria-label="Ordem dos blocos">
+          {o.map((id, i) => <SortableWidget key={id} id={id} label={labels[id] ?? id} hidden={h.includes(id)} position={i + 1} total={o.length} onMove={(direction) => move(i, direction)} onToggle={() => setH(list => list.includes(id) ? list.filter(item => item !== id) : [...list, id])} />)}
+        </Reorder.Group>
         <div className="mt-4 flex justify-end">
           <Button variant="primary" disabled={pending} onClick={() => start(async () => { try { await updateSettings({ [field]: { order: o as never, hidden: h as never } }); setOpen(false); } catch { toast.error("Não foi possível salvar a organização dos blocos."); } })}>Salvar</Button>
         </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+function SortableWidget({ id, label, hidden, position, total, onMove, onToggle }: { id: string; label: string; hidden: boolean; position: number; total: number; onMove: (direction: number) => void; onToggle: () => void }) {
+  const controls = useDragControls();
+  return <Reorder.Item value={id} dragListener={false} dragControls={controls} className={cn("relative flex items-center gap-2 rounded-xl border border-border bg-surface px-2 py-2", hidden && "opacity-50")} whileDrag={{ zIndex: 1, scale: 1.02 }}>
+    <button type="button" onPointerDown={event => controls.start(event)} onKeyDown={event => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); onMove(event.key === "ArrowUp" ? -1 : 1); } }} className="touch-none cursor-grab rounded-lg p-2 text-muted active:cursor-grabbing" aria-label={`Mover ${label}, posição ${position} de ${total}`}><GripVertical className="size-4" /></button>
+    <span className="min-w-0 flex-1 text-[13px]">{label}</span>
+    <button type="button" onClick={onToggle} className="rounded-lg p-2 text-muted hover:text-fg" aria-label={`${hidden ? "Mostrar" : "Ocultar"} ${label}`} aria-pressed={!hidden}>{hidden ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
+  </Reorder.Item>;
 }

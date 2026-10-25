@@ -54,15 +54,15 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-7 flex flex-wrap items-center gap-x-4 gap-y-3">
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
       <div className="flex min-w-0 items-center gap-3.5">
         {icon && (
-          <span className="card grid size-11 shrink-0 place-items-center !rounded-2xl text-accent [&_svg]:size-[20px]">
+          <span className="card grid size-10 shrink-0 place-items-center !rounded-2xl text-accent [&_svg]:size-[20px]">
             {icon}
           </span>
         )}
         <div className="min-w-0">
-          <h1 className="text-[26px] font-semibold leading-[1.15] tracking-[-0.025em]">{title}</h1>
+          <h1 className="text-[23px] font-semibold leading-[1.15] tracking-[-0.025em]">{title}</h1>
           {description && <p className="mt-1 text-[13.5px] leading-snug text-muted">{description}</p>}
         </div>
       </div>
@@ -75,7 +75,7 @@ export function EmptyState({ icon, title, description, action, className }: {
   icon?: React.ReactNode; title: string; description?: string; action?: React.ReactNode; className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col items-center justify-center gap-2 px-6 py-10 text-center", className)}>
+    <div className={cn("flex flex-col items-center justify-center gap-2 px-4 py-6 text-center", className)}>
       {icon && <div className="mb-1 rounded-2xl bg-surface-2 p-3 text-muted [&_svg]:size-5">{icon}</div>}
       <p className="text-sm font-medium">{title}</p>
       {description && <p className="max-w-xs text-[13px] text-muted">{description}</p>}

@@ -6,7 +6,7 @@ import { BarCompare, ChartCard, DonutBreakdown, KpiCard } from "@/components/ui/
 import { CRM_FUNNEL } from "@/lib/crm-aggregates";
 import { crmCommercialSummary } from "@/server/crm-commercial";
 
-const NAMES: Record<string, string> = { barberias: "Barberias", mecard: "MeCard", members: "Members", membros: "Members", viajeki: "Viajeki", aglabs: "AG LABS", "ag-labs": "AG LABS", sem_produto: "A definir" };
+const NAMES: Record<string, string> = { barberias: "Barberias", mecard: "MeCard", members: "Members", membros: "Members", viajeki: "Viajeki", aglabs: "AG LABS", "ag-labs": "AG LABS", localsite: "Desenvolvimento web", "local-site": "Desenvolvimento web", desenvolvimento_web: "Desenvolvimento web", sem_produto: "A definir" };
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 const num = (v?: number | null) => (v == null ? "—" : v.toLocaleString("pt-BR"));
 
@@ -26,7 +26,7 @@ export async function ProductPortfolio() {
   const accounts = named.filter((p) => p.contas).map((p) => ({ produto: p.name, ativas: p.contas?.ativo ?? null, teste: p.contas?.trial ?? null, encerradas: p.contas?.trial_encerrado ?? null, canceladas: p.contas?.cancelado ?? null }));
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">Ecossistema · CRM</p>
