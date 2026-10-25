@@ -12,7 +12,7 @@ export function IncidentResolution({ id }: { id: string }) {
     <form className="mt-2 space-y-2" onSubmit={event => {
       event.preventDefault();
       start(async () => {
-        try { await resolveIncidentAction({ id, evidence }); toast.success("Resolução registrada"); }
+        try { const result = await resolveIncidentAction({ id, evidence }); if (result.resolved) toast.success("Resolução registrada"); else toast.info("Incidente já encerrado ou indisponível"); }
         catch { toast.error("Não foi possível registrar a resolução"); }
       });
     }}>

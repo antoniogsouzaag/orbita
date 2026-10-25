@@ -11,7 +11,8 @@ export async function resolveIncidentAction(input: { id: string; evidence: strin
   const { id, evidence } = z.object({ id: z.uuid(), evidence: z.string().trim().min(10).max(1000) }).parse(input);
   const db = await getDb();
   const now = new Date();
-  await db.update(opsEvents).set({ resolvedAt: now, detail: sql`${opsEvents.detail} || ${JSON.stringify({ resolution: evidence, resolvedBy: "proprietario", resolvedAt: now.toISOString() })}::jsonb` }).where(and(eq(opsEvents.id, id), isNull(opsEvents.resolvedAt), eq(opsEvents.kind, "workflow_error")));
+  const rows = await db.update(opsEvents).set({ resolvedAt: now, detail: sql`${opsEvents.detail} || ${JSON.stringify({ resolution: evidence, resolvedBy: "proprietario", resolvedAt: now.toISOString() })}::jsonb` }).where(and(eq(opsEvents.id, id), isNull(opsEvents.resolvedAt), eq(opsEvents.kind, "workflow_error"))).returning({ id: opsEvents.id });
   revalidatePath("/operacao");
   revalidatePath("/empresa");
+  return { resolved: rows.length > 0 };
 }
