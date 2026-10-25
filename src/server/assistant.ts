@@ -1,11 +1,13 @@
 import "server-only";
-import { desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { events, goals, notes, projects, tasks, transactions, type TaskScope } from "@/db/schema";
 import { localDate, localTime, shiftDate, today, zonedToUtc } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
 import { projectScope, taskHref } from "@/lib/task-scope";
+import { noteHref } from "@/lib/note-scope";
+import { insertNote, noteScopeCondition } from "./notes";
 import { insertTask, patchTask } from "./task-write";
 import { eventsBetween } from "./calendar";
 import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./crm";
@@ -185,24 +187,24 @@ export const registrarLancamento = {
   },
 };
 
-const criarNotaSchema = z.object({ titulo: z.string().trim().min(1).max(200), conteudo: z.string().max(50_000).nullish() });
+const criarNotaSchema = z.object({ titulo: z.string().trim().min(1).max(200), conteudo: z.string().max(50_000).nullish(), escopo: z.enum(["pessoal", "empresa"]).nullish() });
 export const criarNota = {
   schema: criarNotaSchema,
   async run(v: z.infer<typeof criarNotaSchema>): Promise<ActionResult> {
-    const db = await getDb();
-    await db.insert(notes).values({ title: v.titulo, content: v.conteudo ?? "" });
-    return { text: `Nota criada: ${v.titulo}.`, action: { label: `Nota: ${v.titulo}`, href: "/notas" } };
+    const scope = v.escopo ?? "pessoal";
+    const id = await insertNote(v.titulo, v.conteudo ?? "", scope);
+    return { text: `Nota criada em ${scope === "empresa" ? "Empresa" : "Pessoal"}: ${v.titulo}.`, action: { label: `Nota: ${v.titulo}`, href: noteHref(scope, id) } };
   },
 };
 
-const buscarNotasSchema = z.object({ busca: z.string().trim().min(2).max(100), limite: z.number().int().min(1).max(30).nullish() });
+const buscarNotasSchema = z.object({ busca: z.string().trim().min(2).max(100), limite: z.number().int().min(1).max(30).nullish(), escopo: z.enum(["pessoal", "empresa"]).nullish() });
 export const buscarNotas = {
   schema: buscarNotasSchema,
   async run(v: z.infer<typeof buscarNotasSchema>): Promise<ActionResult> {
     const db = await getDb();
     const q = `%${v.busca}%`;
     const limit = v.limite ?? 20;
-    const rows = await db.select({ id: notes.id, title: notes.title, content: notes.content, updatedAt: notes.updatedAt }).from(notes).where(or(ilike(notes.title, q), ilike(notes.content, q))).orderBy(desc(notes.updatedAt), desc(notes.id)).limit(limit + 1);
+    const rows = await db.select({ id: notes.id, title: notes.title, content: notes.content, updatedAt: notes.updatedAt }).from(notes).where(and(noteScopeCondition(v.escopo ?? "pessoal"), or(ilike(notes.title, q), ilike(notes.content, q)))).orderBy(desc(notes.updatedAt), desc(notes.id)).limit(limit + 1);
     return { text: rows.length ? rows.slice(0, limit).map((n) => `### ${n.title}\nID: ${n.id} · Atualizada: ${n.updatedAt.toISOString()}\n${n.content.slice(0, 2000)}${n.content.length > 2000 ? "\n[Conteúdo parcial; abra a nota para ler o restante.]" : ""}`).join("\n\n") + (rows.length > limit ? `\n\n[Consulta parcial: exibindo ${limit} notas. Refine a busca.]` : "") : "Nenhuma nota pessoal encontrada." };
   },
 };
@@ -404,8 +406,8 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "criar_evento", description: "Cria um compromisso na agenda da Órbita.", ...criarEvento },
   { name: "ver_agenda", readOnly: true, description: "Mostra os compromissos de um período (inclui calendários assinados do iCloud/Google).", ...verAgenda },
   { name: "registrar_lancamento", description: "Registra uma despesa ou receita pessoal em Finanças.", ...registrarLancamento },
-  { name: "criar_nota", description: "Cria uma nota pessoal na Órbita (não no vault).", ...criarNota },
-  { name: "buscar_notas", readOnly: true, description: "Busca nas notas pessoais da Órbita.", ...buscarNotas },
+  { name: "criar_nota", description: "Cria uma nota no espaço atual da Órbita (Pessoal/Empresa), sem alterar o vault.", ...criarNota },
+  { name: "buscar_notas", readOnly: true, description: "Busca notas no espaço atual da Órbita. No MCP, informe escopo empresa para as notas empresariais; padrão pessoal.", ...buscarNotas },
   { name: "buscar_no_vault", readOnly: true, description: "Busca no vault da AG LABS (manual canônico da empresa).", ...buscarNoVault },
   { name: "ler_nota_do_vault", readOnly: true, description: "Lê uma nota inteira do vault pelo caminho ou nome.", ...lerNotaDoVault },
   { name: "status_operacao", readOnly: true, description: "Estado ao vivo: sites fora do ar, incidentes, falhas de workflow, monitores e domínios.", ...statusOperacao },
@@ -421,7 +423,7 @@ export const ASSISTANT_TOOLS: Tool[] = [
 
 /** Ferramentas disponíveis agora (as do CRM só aparecem com o CRM conectado). */
 export function assistantTools(scope?: TaskScope, options: { readOnly?: boolean } = {}) {
-  return ASSISTANT_TOOLS.filter((t) => (!options.readOnly || t.readOnly === true) && (!t.requires || t.requires()) && !(scope === "pessoal" && (t.name.startsWith("crm_") || t.name === "metricas_produto")) && !(scope === "empresa" && ["registrar_lancamento", "criar_nota", "buscar_notas", "ver_agenda", "criar_evento"].includes(t.name)));
+  return ASSISTANT_TOOLS.filter((t) => (!options.readOnly || t.readOnly === true) && (!t.requires || t.requires()) && !(scope === "pessoal" && (t.name.startsWith("crm_") || t.name === "metricas_produto")) && !(scope === "empresa" && ["registrar_lancamento", "ver_agenda", "criar_evento"].includes(t.name)));
 }
 
 export function toolJsonSchema(t: Tool): Record<string, unknown> {
@@ -456,9 +458,9 @@ export async function runAssistantTool(name: string, rawArgs: string | Record<st
         }
       } else args = { ...input, escopo: context.scope };
     }
-    if (context && ["listar_metas", "criar_meta"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
+    if (context && ["listar_metas", "criar_meta", "criar_nota", "buscar_notas"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
       const input = args as Record<string,unknown>;
-      if (input.escopo && input.escopo !== context.scope) return { ok:false, text:"Consulte ou registre metas no espaço atual." };
+      if (input.escopo && input.escopo !== context.scope) return { ok:false, text:"Consulte ou registre dados no espaço atual." };
       args = { ...input, escopo: context.scope };
     }
     const parsed = tool.schema.safeParse(args ?? {});

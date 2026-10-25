@@ -12,6 +12,7 @@ import { ParsePreview } from "@/components/tasks/parse-preview";
 import { splitActions } from "@/lib/ai-stream";
 import { relativeDay } from "@/lib/dates";
 import { cn } from "@/lib/utils";
+import { noteHref } from "@/lib/note-scope";
 
 type Tab = "tarefa" | "ia" | "nota";
 
@@ -69,7 +70,6 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
   const submit = () => {
     const text = value.trim();
     if (!text) return;
-    if (scope === "empresa" && tab === "nota") { setTab("tarefa"); toast.info("Notas rápidas ficam no Pessoal. O conhecimento durável da empresa fica no Vault."); return; }
     if (tab === "ia") {
       setValue("");
       void ask(text);
@@ -83,8 +83,8 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
         toast.success(`Tarefa criada${bits.length ? ` · ${bits.join(" · ")}` : ""}`);
       } else {
         const [first, ...rest] = text.split("\n");
-        const id = await createNote(first.slice(0, 120), rest.join("\n"));
-        toast.success("Nota criada", { action: { label: "Abrir", onClick: () => router.push(`/notas?id=${id}`) } });
+        const id = await createNote(first.slice(0, 120), rest.join("\n"), scope);
+        toast.success("Nota criada", { action: { label: "Abrir", onClick: () => router.push(noteHref(scope, id)) } });
       }
       setValue("");
       } catch { toast.error("Não foi possível salvar. Confira o projeto e tente novamente."); }
@@ -104,7 +104,7 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
             { id: "tarefa", label: "Tarefa", icon: CheckSquare },
             { id: "ia", label: "Perguntar à IA", icon: Sparkles },
             { id: "nota", label: "Nota", icon: NotebookPen },
-          ] as const).filter((item) => scope === "pessoal" || item.id !== "nota").map((t) => (
+          ] as const).map((t) => (
             <button
               key={t.id}
               onClick={() => {

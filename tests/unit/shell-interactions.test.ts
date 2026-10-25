@@ -38,7 +38,7 @@ describe("atalho da barra lateral", () => {
 
 describe("navegação entre os espaços", () => {
   it("mantém tarefas, projetos, kanban e foco no escopo explícito", () => {
-    for (const path of ["/tarefas", "/projetos", "/kanban", "/foco"]) {
+    for (const path of ["/tarefas", "/projetos", "/kanban", "/foco", "/notas"]) {
       expect(spaceOf(path)).toBe("pessoal");
       expect(spaceOf(path, "empresa")).toBe("empresa");
       expect(isActive(path, path, "empresa")).toBe(false);

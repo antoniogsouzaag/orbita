@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Card, EmptyState } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { GithubInbox as Inbox } from "@/server/github-inbox";
-import { GITHUB_STAGES, stageLabel } from "@/lib/github-triage";
+import { GITHUB_STAGES } from "@/lib/github-triage";
 
 export function GithubInbox({ initial: data }: { initial: Inbox }) {
   const [query, setQuery] = React.useState("");
@@ -18,7 +18,7 @@ export function GithubInbox({ initial: data }: { initial: Inbox }) {
 
   return (
     <div className="space-y-5">
-      <p className="text-[12px] text-muted">Correções e melhorias de baixo risco seguem na fila técnica. Só decisões estruturais, comerciais ou sensíveis aguardam Antonio. Rótulos não aprovam código nem dispensam testes, revisão ou deploy.</p>
+      <p className="text-[12px] text-muted">Correções autorizadas seguem na fila técnica. Só escolhas concretas de negócio, política ou acesso aguardam Antonio. Rótulos não aprovam código nem dispensam testes, revisão ou deploy.</p>
       <div className="flex flex-wrap gap-2" aria-label="Repositórios">
         <button type="button" aria-pressed={repo === "all"} onClick={() => setRepo("all")} className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${repo === "all" ? "border-accent/30 bg-accent/10 text-accent" : "border-border text-muted hover:bg-surface-2"}`}>Todos · {data.items.length}</button>
         {repositories.map((name) => <button key={name} type="button" aria-pressed={repo === name} onClick={() => setRepo(name)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${repo === name ? "border-accent/30 bg-accent/10 text-accent" : "border-border text-muted hover:bg-surface-2"}`}><FolderGit2 className="size-3" />{name}<span className="text-faint">{data.items.filter((item) => item.repo === name).length}</span></button>)}
@@ -36,7 +36,7 @@ export function GithubInbox({ initial: data }: { initial: Inbox }) {
               <li key={item.url}>
                 <a href={item.url} target="_blank" rel="noopener noreferrer" className="group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-2">
                   <span className="mt-0.5 rounded-lg bg-surface-2 p-2 text-muted">{item.kind === "pr" ? <GitPullRequest className="size-4" /> : <Lightbulb className="size-4" />}</span>
-                  <div className="min-w-0 flex-1"><p className="text-[13px] font-medium leading-snug">{item.title}</p><div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint"><span>{item.repo} #{item.number}</span><span>{item.author}</span><span>Atualizado {new Date(item.updatedAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span><span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-muted">{stageLabel(item)}</span></div></div>
+                  <div className="min-w-0 flex-1"><p className="text-[13px] font-medium leading-snug">{item.title}</p><div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint"><span>{item.repo} #{item.number}</span><span>{item.author}</span><span>Atualizado {new Date(item.updatedAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span></div></div>
                   <ArrowUpRight className="mt-1 size-4 shrink-0 text-faint transition-colors group-hover:text-accent" />
                 </a>
               </li>

@@ -1,20 +1,45 @@
 import "server-only";
-import { desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { notes } from "@/db/schema";
+import { notes, type TaskScope } from "@/db/schema";
+import { COMPANY_NOTE_TAG, noteTags } from "@/lib/note-scope";
 
-export async function listNotes(q?: string) {
+export function noteScopeCondition(scope: TaskScope) {
+  const company = sql`${COMPANY_NOTE_TAG} = any(${notes.tags})`;
+  return scope === "empresa" ? company : sql`not (${company})`;
+}
+
+export async function listNotes(q?: string, scope: TaskScope = "pessoal") {
   const db = await getDb();
   return db
     .select()
     .from(notes)
-    .where(q ? or(ilike(notes.title, `%${q}%`), ilike(notes.content, `%${q}%`)) : undefined)
+    .where(and(noteScopeCondition(scope), q ? or(ilike(notes.title, `%${q}%`), ilike(notes.content, `%${q}%`)) : undefined))
     .orderBy(desc(notes.pinned), desc(notes.updatedAt))
     .limit(300);
 }
 
-export async function getNote(id: string) {
+export async function getNote(id: string, scope: TaskScope = "pessoal") {
   const db = await getDb();
-  const [n] = await db.select().from(notes).where(eq(notes.id, id));
+  const [n] = await db.select().from(notes).where(and(eq(notes.id, id), noteScopeCondition(scope)));
   return n ?? null;
+}
+
+export async function insertNote(title: string, content: string, scope: TaskScope) {
+  const db = await getDb();
+  const [row] = await db.insert(notes).values({ title, content, tags: noteTags([], scope) }).returning({ id: notes.id });
+  return row.id;
+}
+
+export async function patchNote(id: string, data: { title?: string; content?: string; pinned?: boolean; tags?: string[] }, scope: TaskScope) {
+  const db = await getDb();
+  const [row] = await db.update(notes).set({ ...data, ...(data.tags ? { tags: noteTags(data.tags, scope) } : {}), updatedAt: new Date() })
+    .where(and(eq(notes.id, id), noteScopeCondition(scope))).returning({ id: notes.id });
+  if (!row) throw new Error("Nota não encontrada neste espaço.");
+}
+
+export async function removeNote(id: string, scope: TaskScope) {
+  const db = await getDb();
+  const [row] = await db.delete(notes).where(and(eq(notes.id, id), noteScopeCondition(scope))).returning({ id: notes.id });
+  if (!row) throw new Error("Nota não encontrada neste espaço.");
 }

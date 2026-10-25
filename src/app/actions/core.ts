@@ -4,7 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { AREAS, TASK_SCOPES, checkins, goals, habitLogs, habits, notes, projects, tasks } from "@/db/schema";
+import { AREAS, TASK_SCOPES, checkins, goals, habitLogs, habits, projects, tasks } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { today } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
@@ -12,6 +12,7 @@ import { projectScope } from "@/lib/task-scope";
 import { parseImageDataUrl } from "@/lib/image-data";
 import { setAvatar, setSetting, type AppSettings } from "@/server/settings";
 import { insertTask, patchTask, taskSchema } from "@/server/task-write";
+import { insertNote, patchNote, removeNote } from "@/server/notes";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -183,31 +184,25 @@ export async function deleteGoal(id: string) {
 
 /* ───────────── Notas ───────────── */
 
-export async function createNote(title?: string, content?: string) {
+export async function createNote(title?: string, content?: string, scope: "pessoal" | "empresa" = "pessoal") {
   await requireAuth();
-  const db = await getDb();
-  const [n] = await db
-    .insert(notes)
-    .values({ title: z.string().trim().max(200).parse(title || "Sem título") || "Sem título", content: z.string().max(200000).parse(content ?? "") })
-    .returning({ id: notes.id });
+  const id = await insertNote(z.string().trim().max(200).parse(title || "Sem título") || "Sem título", z.string().max(200000).parse(content ?? ""), z.enum(TASK_SCOPES).parse(scope));
   refresh();
-  return n.id;
+  return id;
 }
 
-export async function saveNote(id: string, data: { title?: string; content?: string; pinned?: boolean; tags?: string[] }) {
+export async function saveNote(id: string, data: { title?: string; content?: string; pinned?: boolean; tags?: string[] }, scope: "pessoal" | "empresa" = "pessoal") {
   await requireAuth();
   const v = z
     .object({ title: z.string().trim().max(200).optional(), content: z.string().max(200000).optional(), pinned: z.boolean().optional(), tags: z.array(z.string().max(40)).max(30).optional() })
     .parse(data);
-  const db = await getDb();
-  await db.update(notes).set({ ...v, updatedAt: new Date() }).where(eq(notes.id, uuid.parse(id)));
+  await patchNote(uuid.parse(id), v, z.enum(TASK_SCOPES).parse(scope));
   revalidatePath("/notas");
 }
 
-export async function deleteNote(id: string) {
+export async function deleteNote(id: string, scope: "pessoal" | "empresa" = "pessoal") {
   await requireAuth();
-  const db = await getDb();
-  await db.delete(notes).where(eq(notes.id, uuid.parse(id)));
+  await removeNote(uuid.parse(id), z.enum(TASK_SCOPES).parse(scope));
   refresh();
 }
 

@@ -13,28 +13,30 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/misc";
 import { today } from "@/lib/dates";
+import { noteHref } from "@/lib/note-scope";
 
 type Tab = "tarefa" | "nota" | "evento" | "financas";
 
 export function QuickAdd({ open, onOpenChange, tab, projects, scope = "pessoal" }: { scope?: "pessoal" | "empresa"; open: boolean; onOpenChange: (v: boolean) => void; tab?: string; projects: { id: string; name: string; color: string }[] }) {
-  const [current, setCurrent] = React.useState<Tab>(scope === "empresa" ? "tarefa" : ["tarefa", "nota", "evento", "financas"].includes(tab ?? "") ? tab as Tab : "tarefa");
+  const allowed = scope === "empresa" ? ["tarefa", "nota"] : ["tarefa", "nota", "evento", "financas"];
+  const [current, setCurrent] = React.useState<Tab>(allowed.includes(tab ?? "") ? tab as Tab : "tarefa");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={scope === "empresa" ? "Tarefa da empresa" : "Captura pessoal"} description={scope === "empresa" ? "Esta tarefa fica no espaço Empresa." : "Adicione sem sair do seu espaço pessoal."}>
-        {scope === "pessoal" && <Segmented
+      <DialogContent title={scope === "empresa" ? "Captura da empresa" : "Captura pessoal"} description={scope === "empresa" ? "Tarefas e notas ficam no espaço Empresa." : "Adicione sem sair do seu espaço pessoal."}>
+        <Segmented
           value={current}
           onChange={setCurrent}
           className="mb-4 w-full [&>button]:flex-1"
-          options={[
+          options={([
             { value: "tarefa", label: <span className="flex items-center justify-center gap-1.5"><CheckSquare className="size-3.5" />Tarefa</span> },
             { value: "nota", label: <span className="flex items-center justify-center gap-1.5"><NotebookPen className="size-3.5" />Nota</span> },
             { value: "evento", label: <span className="flex items-center justify-center gap-1.5"><CalendarPlus className="size-3.5" />Evento</span> },
             { value: "financas", label: <span className="flex items-center justify-center gap-1.5"><Wallet className="size-3.5" />Gasto</span> },
-          ]}
-        />}
+          ] as { value: Tab; label: React.ReactNode }[]).filter(option => allowed.includes(option.value))}
+        />
         {current === "tarefa" && <TaskForm scope={scope} projects={projects} onDone={() => onOpenChange(false)} />}
-        {current === "nota" && <NoteForm onDone={() => onOpenChange(false)} />}
+        {current === "nota" && <NoteForm scope={scope} onDone={() => onOpenChange(false)} />}
         {current === "evento" && <EventForm onDone={() => onOpenChange(false)} />}
         {current === "financas" && <TxForm onDone={() => onOpenChange(false)} />}
       </DialogContent>
@@ -70,7 +72,7 @@ function TaskForm({ projects, onDone, scope }: { scope: "pessoal" | "empresa"; p
   );
 }
 
-function NoteForm({ onDone }: { onDone: () => void }) {
+function NoteForm({ onDone, scope }: { onDone: () => void; scope: "pessoal" | "empresa" }) {
   const router = useRouter();
   const [title, setTitle] = React.useState("");
   const [content, setContent] = React.useState("");
@@ -80,10 +82,10 @@ function NoteForm({ onDone }: { onDone: () => void }) {
       onSubmit={(e) => {
         e.preventDefault();
         start(async () => {
-          const id = await createNote(title, content);
+          const id = await createNote(title, content, scope);
           toast.success("Nota criada");
           onDone();
-          router.push(`/notas?id=${id}`);
+          router.push(noteHref(scope, id));
         });
       }}
       className="space-y-3"

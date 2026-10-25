@@ -31,30 +31,12 @@ const SUGGESTIONS = [
 export function HabitsPage({ habits }: { habits: HabitWithStats[] }) {
   const [editing, setEditing] = React.useState<Habit | null>(null);
   const [open, setOpen] = React.useState(false);
-  const [pending, start] = React.useTransition();
+  const [, start] = React.useTransition();
   const t = today();
-
-  const addSuggestion = (s: (typeof SUGGESTIONS)[number]) =>
-    start(async () => {
-      try {
-        await saveHabit(null, { name: s.name, emoji: s.emoji, area: s.area, frequency: "frequency" in s ? s.frequency : "daily", timesPerWeek: "timesPerWeek" in s ? s.timesPerWeek : 7 });
-        toast.success(`Hábito “${s.name}” criado`);
-      } catch { toast.error("Não foi possível criar o hábito."); }
-    });
 
   return (
     <>
       <div className="mb-4 flex justify-end"><Button variant="primary" size="sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus /> Novo hábito</Button></div>
-      {SUGGESTIONS.some((s) => !habits.some((h) => h.name === s.name)) && (
-        <Card className="mb-6 p-5">
-          <p className="mb-3 text-sm font-medium">Modelos de hábitos</p><p className="mb-4 text-xs text-muted">Adicione uma base e ajuste a meta. Marque os dias em que fez no calendário; as fichas de exercícios ficam em <Link href="/academia" className="text-accent hover:underline">Academia</Link>.</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            {SUGGESTIONS.filter((s) => !habits.some((h) => h.name === s.name)).map((s) => (
-              <button disabled={pending} key={s.name} onClick={() => addSuggestion(s)} className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[13px] hover:border-accent/50 disabled:opacity-50">{s.emoji} {s.name}</button>
-            ))}
-          </div>
-        </Card>
-      )}
       <div className="grid gap-4 lg:grid-cols-2">
         {habits.map((h) => {
           const done = new Set(h.logs);
@@ -105,12 +87,12 @@ export function HabitsPage({ habits }: { habits: HabitWithStats[] }) {
           );
         })}
       </div>
-      {open && <HabitDialog open={open} onOpenChange={setOpen} habit={editing} />}
+      {open && <HabitDialog open={open} onOpenChange={setOpen} habit={editing} existingNames={habits.map(habit => habit.name)} />}
     </>
   );
 }
 
-function HabitDialog({ open, onOpenChange, habit }: { open: boolean; onOpenChange: (v: boolean) => void; habit: Habit | null }) {
+function HabitDialog({ open, onOpenChange, habit, existingNames }: { open: boolean; onOpenChange: (v: boolean) => void; habit: Habit | null; existingNames: string[] }) {
   const blank = { name: "", emoji: "", color: "#22d3ee", area: "pessoal" as Habit["area"], frequency: "daily", timesPerWeek: 3, weekdays: [] as number[] };
   const [f, setF] = React.useState(habit ? { name: habit.name, emoji: habit.emoji ?? "", color: habit.color, area: habit.area, frequency: habit.frequency, timesPerWeek: habit.timesPerWeek, weekdays: habit.weekdays } : blank);
   const [pending, start] = React.useTransition();
@@ -128,6 +110,19 @@ function HabitDialog({ open, onOpenChange, habit }: { open: boolean; onOpenChang
           }}
           className="space-y-4"
         >
+          {!habit && SUGGESTIONS.some(suggestion => !existingNames.includes(suggestion.name)) && (
+            <section className="rounded-xl border border-border bg-surface-2/50 p-3" aria-label="Modelos de hábitos">
+              <p className="text-xs font-medium">Começar com um modelo</p>
+              <p className="mt-1 text-xs text-muted">Escolha uma base e ajuste antes de salvar. Fichas de treino ficam em <Link href="/academia" className="text-accent hover:underline">Academia</Link>.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {SUGGESTIONS.filter(suggestion => !existingNames.includes(suggestion.name)).map(suggestion => (
+                  <button key={suggestion.name} type="button" disabled={pending} onClick={() => setF({ ...blank, name: suggestion.name, emoji: suggestion.emoji, area: suggestion.area, frequency: "frequency" in suggestion ? suggestion.frequency : "daily", timesPerWeek: "timesPerWeek" in suggestion ? suggestion.timesPerWeek : 7 })} className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs hover:border-accent/50 disabled:opacity-50">
+                    {suggestion.emoji} {suggestion.name}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
           <div className="grid grid-cols-[72px_1fr] gap-2">
             <Field label="Emoji"><Input value={f.emoji} onChange={(e) => setF({ ...f, emoji: e.target.value })} placeholder="📚" className="text-center" maxLength={8} /></Field>
             <Field label="Nome"><Input autoFocus required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ler 20 páginas" /></Field>
