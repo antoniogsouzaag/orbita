@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { awaitsOwner, githubSourceTag, latestReplyAt, proposalDisplayNotes, replyText } from "@/lib/proposals";
 import { proposalReplySchema } from "@/server/proposals";
+import { spaceOf } from "@/components/shell/nav";
 
 describe("contrato de propostas", () => {
+  it("a caixa de propostas pertence ao espaço Empresa", () => expect(spaceOf("/propostas")).toBe("empresa"));
   it("aceita apenas a origem GitHub exata, nunca URL livre ou pull request", () => {
     expect(githubSourceTag("https://github.com/aglabs-core/barberias/issues/94")).toBe("proposta:github:aglabs-core/barberias#94");
     for (const url of ["https://evil.example/aglabs-core/barberias/issues/94", "https://github.com/aglabs-core/barberias/pull/94", "https://github.com/aglabs-core/barberias/issues/94?token=x", "javascript:alert(1)"]) expect(githubSourceTag(url)).toBeNull();
@@ -12,6 +14,9 @@ describe("contrato de propostas", () => {
     expect(latestReplyAt(block)).toBe("2026-10-25T12:00:00.000Z");
     expect(proposalDisplayNotes(block)).not.toContain("orbita-reply");
     expect(proposalDisplayNotes(block)).toContain("Continuar.");
+    expect(proposalDisplayNotes(block)).toContain("09:00");
+    expect(proposalDisplayNotes(block)).toContain("Brasília");
+    expect(proposalDisplayNotes(block)).not.toContain("2026-10-25T12");
     expect(awaitsOwner({ kind: "proposta", stage: "execution", title: "X", repo: "x", url: "https://github.com/a/x/issues/1", number: 1, updatedAt: "2026-10-25T12:00:00Z", author: "x" }, [])).toBe(false);
   });
   it("valida mensagem, origem, responsável e chave do envio", () => {

@@ -24,7 +24,9 @@ export function ProposalReply({ source, agents, defaultAgent }: { source: Propos
       try {
         const result = await respondToProposal({ source, requestId, message: data.get("message"), agent: data.get("agent") });
         if (!result.ok) { setError(result.error); return; }
-        request.current = null; form.reset(); setSaved(result.id); router.refresh();
+        request.current = null; form.reset(); setSaved(result.id);
+        router.push(`/propostas?fila=agentes&task=${result.id}&respondida=1#resposta`);
+        router.refresh();
       } catch { setError("Não foi possível confirmar o salvamento. Seu texto foi mantido; tente novamente."); }
     });
   }

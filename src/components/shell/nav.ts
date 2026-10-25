@@ -89,7 +89,7 @@ export const NAV: NavSection[] = [
 
 export const ALL_NAV: NavItem[] = [...NAV.flatMap((s) => s.items), SETTINGS_ITEM];
 
-const EMPRESA_PATHS = ["/empresa", "/redes", "/operacao", "/agentes"];
+const EMPRESA_PATHS = ["/empresa", "/redes", "/operacao", "/agentes", "/propostas"];
 const SCOPED_PATHS = ["/tarefas", "/projetos", "/kanban", "/foco", "/metas", "/ia"];
 const PESSOAL_PATHS = ["/agenda", "/notas", "/habitos", "/metas", "/financas", "/academia", "/leitura", "/revisao"];
 

@@ -30,5 +30,9 @@ export function replyText(id: string, message: string, origin: string, now = new
 }
 
 export function proposalDisplayNotes(notes: string): string {
-  return notes.replace(/<!-- orbita-(?:reply:[a-f0-9-]{36} at:[^>]+|progress:[a-f0-9-]{36}) -->/g, "").trim();
+  const when = (iso: string) => Number.isFinite(Date.parse(iso)) ? `${new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })} · Brasília` : iso;
+  return notes.replace(/<!-- orbita-(?:reply:[a-f0-9-]{36} at:[^>]+|progress:[a-f0-9-]{36}) -->/g, "")
+    .replace(/^Resposta de Antonio · ([^\n]+)\nOrigem: ([^\n]+)\n/gm, (_, iso: string, origin: string) => `### Resposta de Antonio\n\n${when(iso)}\n\n[Origem da solicitação](${origin})\n\n`)
+    .replace(/^([^\n]+) · (\d{4}-\d\d-\d\dT[\d:.]+Z) · (doing|done)$/gm, (_, agent: string, iso: string, state: string) => `### ${agent} · ${state === "done" ? "concluído" : "em execução"}\n\n${when(iso)}`)
+    .trim();
 }
