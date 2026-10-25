@@ -81,7 +81,7 @@ export function StatusBoard({ initial, groupOrder }: { initial: BoardItem[]; gro
             <div className="mb-2 flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-wider text-faint">
               {group}<span className="font-normal normal-case tracking-normal">{list.filter((i) => i.ok).length}/{list.length}</span>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {list.map((r) => {
                 let host = r.url;
                 try {
@@ -91,7 +91,7 @@ export function StatusBoard({ initial, groupOrder }: { initial: BoardItem[]; gro
                 const Icon = !r.ok ? XCircle : r.unstable ? AlertTriangle : CheckCircle2;
                 return (
                   <Tooltip key={r.url} content={`${r.source} · ${ago(r.checkedAt)}${r.since ? ` · neste estado desde ${new Date(r.since).toLocaleString("pt-BR")}` : ""}`}>
-                    <a href={r.url} target="_blank" rel="noreferrer" className={cn("group flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition hover:border-border-strong", !r.ok ? "border-danger/40 bg-danger/5" : r.unstable ? "border-warning/40" : "border-border")}>
+                    <a href={r.url} target="_blank" rel="noreferrer" className={cn("group flex min-w-0 max-w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 transition hover:border-border-strong", !r.ok ? "border-danger/40 bg-danger/5" : r.unstable ? "border-warning/40" : "border-border")}>
                       <Icon className={cn("size-4 shrink-0", !r.ok ? "text-danger" : r.unstable ? "text-warning" : "text-success")} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13px] font-medium">{r.name}</span>

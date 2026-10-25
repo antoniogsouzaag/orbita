@@ -892,7 +892,7 @@ export function DraggableWidgetGrid({
 	return (
 		<MotionConfig reducedMotion="user">
 			<div
-				className={`relative w-full ${className}`}
+				className={`relative w-full min-w-0 overflow-x-clip ${className}`}
 				style={{ '--widget-radius': `${radius}px` } as CSSProperties}>
 				{editable && (
 					<p id={hintId} className="sr-only">
