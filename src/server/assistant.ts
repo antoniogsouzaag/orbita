@@ -7,7 +7,7 @@ import { localDate, localTime, shiftDate, today, zonedToUtc } from "@/lib/dates"
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
 import { projectScope, taskHref } from "@/lib/task-scope";
 import { noteHref } from "@/lib/note-scope";
-import { insertNote, noteScopeCondition } from "./notes";
+import { insertNote, noteArchiveCondition, noteScopeCondition } from "./notes";
 import { insertTask, patchTask } from "./task-write";
 import { eventsBetween } from "./calendar";
 import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./crm";
@@ -204,7 +204,7 @@ export const buscarNotas = {
     const db = await getDb();
     const q = `%${v.busca}%`;
     const limit = v.limite ?? 20;
-    const rows = await db.select({ id: notes.id, title: notes.title, content: notes.content, updatedAt: notes.updatedAt }).from(notes).where(and(noteScopeCondition(v.escopo ?? "pessoal"), or(ilike(notes.title, q), ilike(notes.content, q)))).orderBy(desc(notes.updatedAt), desc(notes.id)).limit(limit + 1);
+    const rows = await db.select({ id: notes.id, title: notes.title, content: notes.content, updatedAt: notes.updatedAt }).from(notes).where(and(noteScopeCondition(v.escopo ?? "pessoal"), noteArchiveCondition(), or(ilike(notes.title, q), ilike(notes.content, q)))).orderBy(desc(notes.updatedAt), desc(notes.id)).limit(limit + 1);
     return { text: rows.length ? rows.slice(0, limit).map((n) => `### ${n.title}\nID: ${n.id} · Atualizada: ${n.updatedAt.toISOString()}\n${n.content.slice(0, 2000)}${n.content.length > 2000 ? "\n[Conteúdo parcial; abra a nota para ler o restante.]" : ""}`).join("\n\n") + (rows.length > limit ? `\n\n[Consulta parcial: exibindo ${limit} notas. Refine a busca.]` : "") : v.escopo === "empresa" ? "Nenhuma nota da empresa encontrada." : "Nenhuma nota pessoal encontrada." };
   },
 };

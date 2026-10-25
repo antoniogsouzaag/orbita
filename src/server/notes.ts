@@ -2,19 +2,24 @@ import "server-only";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { notes, type TaskScope } from "@/db/schema";
-import { COMPANY_NOTE_TAG, noteTags } from "@/lib/note-scope";
+import { ARCHIVED_NOTE_TAG, COMPANY_NOTE_TAG, noteTags } from "@/lib/note-scope";
 
 export function noteScopeCondition(scope: TaskScope) {
   const company = sql`${COMPANY_NOTE_TAG} = any(${notes.tags})`;
   return scope === "empresa" ? company : sql`not (${company})`;
 }
 
-export async function listNotes(q?: string, scope: TaskScope = "pessoal") {
+export function noteArchiveCondition(archived = false) {
+  const condition = sql`${ARCHIVED_NOTE_TAG} = any(${notes.tags})`;
+  return archived ? condition : sql`not (${condition})`;
+}
+
+export async function listNotes(q?: string, scope: TaskScope = "pessoal", archived = false) {
   const db = await getDb();
   return db
     .select()
     .from(notes)
-    .where(and(noteScopeCondition(scope), q ? or(ilike(notes.title, `%${q}%`), ilike(notes.content, `%${q}%`)) : undefined))
+    .where(and(noteScopeCondition(scope), noteArchiveCondition(archived), q ? or(ilike(notes.title, `%${q}%`), ilike(notes.content, `%${q}%`)) : undefined))
     .orderBy(desc(notes.pinned), desc(notes.updatedAt))
     .limit(300);
 }
@@ -41,5 +46,15 @@ export async function patchNote(id: string, data: { title?: string; content?: st
 export async function removeNote(id: string, scope: TaskScope) {
   const db = await getDb();
   const [row] = await db.delete(notes).where(and(eq(notes.id, id), noteScopeCondition(scope))).returning({ id: notes.id });
+  if (!row) throw new Error("Nota não encontrada neste espaço.");
+}
+
+export async function archiveNote(id: string, archived: boolean, scope: TaskScope) {
+  const db = await getDb();
+  const tags = archived
+    ? sql`array_append(array_remove(${notes.tags}, ${ARCHIVED_NOTE_TAG}), ${ARCHIVED_NOTE_TAG})`
+    : sql`array_remove(${notes.tags}, ${ARCHIVED_NOTE_TAG})`;
+  const [row] = await db.update(notes).set({ tags, updatedAt: new Date() })
+    .where(and(eq(notes.id, id), noteScopeCondition(scope))).returning({ id: notes.id });
   if (!row) throw new Error("Nota não encontrada neste espaço.");
 }
