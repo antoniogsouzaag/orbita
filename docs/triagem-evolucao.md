@@ -1,19 +1,19 @@
 # Triagem e execução da evolução do ecossistema
 
-Decisão de Antonio em24/10/2026: bugs e melhorias delimitadas de baixo risco são trabalho de execução, não pedidos repetidos de aprovação. Mudança estrutural, diretriz, regra de negócio ou impacto sensível depende de sua decisão. Isto não ativa automações, despachos nem amplia o privilégio de ORBE/JEV/MCP.
+Diretriz de Antonio atualizada em 25/10/2026: correção de bugs, conformidade (incluindo LGPD), consistência, UX, telemetria e desempenho são trabalho de execução. Não apresentar novamente como proposta a correção de um comportamento comprovadamente incorreto. Autenticação, cobrança e acesso exigem validação proporcional, mas a área afetada, sozinha, não transforma uma correção autorizada em decisão de negócio. Isto não ativa automações, despachos nem amplia o privilégio de ORBE/JEV/MCP.
 
 ## Fluxo
 
 1. Conferir default branch, SHA, issues, PRs e implementação real antes de agir. Não confiar só no título, rótulo ou relatório de ontem.
 2. Reutilizar issue canônica. Duplicada aponta para original; implementada precisa commit/PR e evidência. Não fechar uma issue só para reduzir o contador.
-3. Baixo risco: reproduzir, implementar lote pequeno, testar, revisar, integrar e verificar publicação quando autorizada. Estado de implantação e jornada real separado do merge.
-4. Sensível: registrar a decisão concreta que falta, impacto e recomendação. Não chamar todo bug técnico de mudança comercial; correção de comportamento documentado pode ser execução, mas não dispensa validação proporcional.
+3. Correção autorizada: reproduzir, implementar lote coerente, testar, revisar, integrar e verificar publicação quando autorizada. Para autenticação, isolamento e pagamentos, testar também acesso indevido, eventos antigos, duplicidade e falha parcial, conforme o caso. Estado de implantação e jornada real separado do merge.
+4. Decisão real: registrar a escolha concreta que falta, impacto e recomendação. Novas regras comerciais, finalidade ou prazo de retenção, ampliação de acesso e ações irreversíveis sobre dados reais não são autorizados apenas pelo pedido de corrigir bugs. Implementar e validar a parte técnica independente antes de solicitar a escolha restante. Não executar pagamentos, excluir contas reais nem disparar mensagens a clientes para testar.
 5. Se infraestrutura/cota/gate bloquear, continua fila de execução com bloqueio e condição de retomada, não nova proposta a Antonio nem conclusão inventada. Não comprar minutos, dispensar gates ou usar produção como teste financeiro.
 
 ## Rótulos e painel
 
 - execucao: correção/evolução autorizada para trabalho técnico. Não significa implementada/publicada.
-- decisao: falta uma escolha estrutural, comercial, sensível ou de política. Em conflito com execucao prevalece decisão até reconciliação.
+- decisao: falta uma escolha concreta de negócio, política, acesso ou ação irreversível. Deve explicar qual escolha falta; mencionar LGPD, login ou pagamento não basta. Em conflito com execucao prevalece decisão até reconciliação individual com evidência.
 - bloqueado: modificador, por exemplo cota de CI, ambiente ou aprovação necessária. Informar causa e próximo critério na issue/PR.
 - proposta: legado ainda a classificar; não inferir decisão só por existir esse prefixo no título.
 - aprovado: legado tratado como execução se a issue continuar aberta, sem desaparecer da central.
