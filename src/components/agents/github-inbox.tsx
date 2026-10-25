@@ -4,7 +4,8 @@ import { ArrowUpRight, CircleAlert, GitPullRequest, Lightbulb, FolderGit2, Searc
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, EmptyState } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
+import { pillClass } from "@/components/ui/pill";
 import type { GithubInbox as Inbox } from "@/server/github-inbox";
 import { GITHUB_STAGES } from "@/lib/github-triage";
 
@@ -20,13 +21,13 @@ export function GithubInbox({ initial: data }: { initial: Inbox }) {
     <div className="space-y-5">
       <p className="text-[12px] text-muted">Correções autorizadas seguem na fila técnica. Só escolhas concretas de negócio, política ou acesso aguardam Antonio. Rótulos não aprovam código nem dispensam testes, revisão ou deploy.</p>
       <div className="flex flex-wrap gap-2" aria-label="Repositórios">
-        <button type="button" aria-pressed={repo === "all"} onClick={() => setRepo("all")} className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${repo === "all" ? "border-accent/30 bg-accent/10 text-accent" : "border-border text-muted hover:bg-surface-2"}`}>Todos · {data.items.length}</button>
-        {repositories.map((name) => <button key={name} type="button" aria-pressed={repo === name} onClick={() => setRepo(name)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${repo === name ? "border-accent/30 bg-accent/10 text-accent" : "border-border text-muted hover:bg-surface-2"}`}><FolderGit2 className="size-3" />{name}<span className="text-faint">{data.items.filter((item) => item.repo === name).length}</span></button>)}
+        <button type="button" aria-pressed={repo === "all"} onClick={() => setRepo("all")} className={pillClass(repo === "all")}>Todos · {data.items.length}</button>
+        {repositories.map((name) => <button key={name} type="button" aria-pressed={repo === name} onClick={() => setRepo(name)} className={pillClass(repo === name)}><FolderGit2 className="size-3" />{name}<span className="text-faint">{data.items.filter((item) => item.repo === name).length}</span></button>)}
       </div>
       <Card className="overflow-hidden !rounded-2xl">
         <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
-          <div className="relative min-w-0 flex-1 basis-56"><Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-faint" /><Input aria-label="Buscar PRs por título, repositório ou autor" className="h-9 pl-9" placeholder="Buscar título, repositório, autor…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
-          <select aria-label="Filtrar tipo de pendência" value={kind} onChange={(event) => setKind(event.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-[12px] text-fg"><option value="all">Todas as pendências</option><option value="pr">PRs para revisar</option><option value="draft">Rascunhos</option>{GITHUB_STAGES.map(stage => <option key={stage.id} value={stage.id}>{stage.label}</option>)}</select>
+          <div className="relative min-w-0 flex-1 basis-56"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" /><Input aria-label="Buscar PRs por título, repositório ou autor" className="pl-9" placeholder="Buscar título, repositório, autor…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
+          <Select aria-label="Filtrar tipo de pendência" value={kind} onChange={(event) => setKind(event.target.value)} className="w-auto text-[13px]"><option value="all">Todas as pendências</option><option value="pr">PRs para revisar</option><option value="draft">Rascunhos</option>{GITHUB_STAGES.map(stage => <option key={stage.id} value={stage.id}>{stage.label}</option>)}</Select>
 
         </div>
         {data.stale && data.error && <p role="alert" className="border-b border-border px-5 py-3 text-xs text-warning">{data.error} Exibindo a última resposta válida; os dados podem estar desatualizados.</p>}

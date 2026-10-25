@@ -29,7 +29,7 @@ export function WorkoutsPage({ workouts, plans, weekCount, monthCount }: { worko
     start(async () => { try { await (kind === "plan" ? deleteTrainingPlan(id) : deleteWorkout(id)); toast.success("Excluído"); } catch { toast.error("Não foi possível excluir."); } });
   };
   return <div className="space-y-8">
-    <Card className="relative overflow-hidden border-white/10 bg-[#101c1c] p-6 text-white sm:p-9">
+    <Card className="dark relative overflow-hidden border-white/10 bg-[#101c1c] p-6 text-white sm:p-9">
       <p className="text-xs font-medium uppercase tracking-widest text-accent">Órbita Training · sua rotina</p><h2 className="mt-3 max-w-lg text-3xl font-semibold tracking-tight sm:text-4xl">Mais presença. Mais movimento.</h2><p className="mt-3 max-w-lg text-sm leading-relaxed text-white/60">Sua ficha pronta para começar. Acompanhe cada exercício, controle as pausas e veja sua evolução a cada sessão.</p>
       <div className="mt-5 flex flex-wrap gap-2"><Button variant="primary" onClick={() => setEditor({ mode: "plan" })}><Plus />Montar ficha</Button><Button onClick={() => setEditor({ mode: "log" })}><Check />Registrar treino feito</Button><Button asChild variant="ghost"><Link href="/habitos">Frequência em Hábitos</Link></Button></div>
       <div className="mt-7 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/10 pt-5 text-xs text-white/60"><span><b className="mr-1 text-xl text-white">{weekCount}</b> {weekCount === 1 ? "registro" : "registros"} nesta semana</span><span><b className="mr-1 text-xl text-white">{monthCount}</b> nos últimos 30 dias</span><span><b className="mr-1 text-xl text-white">{plans.length}</b> fichas salvas</span></div>

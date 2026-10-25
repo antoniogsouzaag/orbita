@@ -103,9 +103,10 @@ export function Segmented<T extends string>({
         <button
           key={o.value}
           type="button"
+          aria-pressed={value === o.value}
           onClick={() => onChange(o.value)}
           className={cn(
-            "rounded-[10px] px-3 py-1.5 text-[13px] font-medium transition",
+            "inline-flex h-[30px] items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-medium transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
             value === o.value ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg",
           )}
         >

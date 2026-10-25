@@ -34,13 +34,13 @@ export function CommercialPanels({ summary, emails, url }: {
 }) {
   return <section aria-label="Comercial do produto" className="grid items-start gap-3 xl:grid-cols-2">
     <Card className="min-w-0 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Funil comercial</h2>{url && <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-accent">Abrir CRM ↗</a>}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[14px] font-semibold tracking-tight">Funil comercial</h2>{url && <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-accent">Abrir CRM ↗</a>}</div>
       {summary.status !== "ok" || !summary.data ? <p role="status" className="mt-3 text-sm text-warning">{summary.message}</p> : <SummaryBody data={summary.data} />}
       <p className="mt-3 text-[11px] leading-relaxed text-muted">{CRM_PRODUCT_COVERAGE}</p>
       <Source result={summary} />
     </Card>
     <Card className="min-w-0 p-4">
-      <h2 className="font-semibold">Funil de e-mails</h2>
+      <h2 className="text-[14px] font-semibold tracking-tight">Funil de e-mails</h2>
       <p className="mt-1 text-xs text-muted">Janela selecionada · somente registros agregados do CRM.</p>
       {emails.status !== "ok" || !emails.data ? <p role="status" className="mt-3 text-sm text-warning">{emails.message}</p> : <EmailBody data={emails.data} />}
       <p className="mt-3 text-[11px] leading-relaxed text-muted">{CRM_PIXEL_NOTE} Cliques e respostas contam mensagens, não pessoas únicas. Não há envio ou automação nesta visão.</p>

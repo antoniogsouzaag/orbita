@@ -28,9 +28,11 @@
   --chart-3: #1baf7a;
   --chart-4: #eda100;
   --chart-5: #e87ba4;
+  color-scheme: light;
 }
 
 .dark {
+  color-scheme: dark;
   --bg: #08080a;
   --surface: #101012;
   --surface-2: #16161a;
@@ -173,7 +175,10 @@ body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiase
 @keyframes page-enter { from { opacity: .4; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 .loading-shimmer { background: linear-gradient(100deg, var(--surface-2) 25%, var(--surface-3) 45%, var(--surface-2) 65%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* Em camada base: utilitários (ex.: focus-visible:outline-none + ring nos campos) podem substituir. */
+@layer base {
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+}
 html { scroll-padding-top: 80px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
@@ -204,6 +209,33 @@ html { scroll-padding-top: 80px; }
 @supports (backdrop-filter: url(#orbita-glass)) and (not (-webkit-touch-callout: none)) {
   .liquid-distort { backdrop-filter: url(#orbita-glass) blur(6px) saturate(1.6); }
 }
+
+/* ───────────── Campos ───────────── */
+/* Chevron do select feito com gradientes: segue a cor do tema (claro/escuro) sem SVG fixo. */
+.ui-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--faint) 50%),
+    linear-gradient(135deg, var(--faint) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.ui-select:hover, .ui-select:focus {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+}
+select option, select optgroup { background-color: var(--surface); color: var(--text); }
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; transition: opacity 150ms ease; }
+input[type="date"]:hover::-webkit-calendar-picker-indicator,
+input[type="time"]:hover::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator { opacity: 0.9; }
+input[type="range"] { accent-color: var(--accent); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 
 /* ───────────── Botões ───────────── */
 .btn-primary {

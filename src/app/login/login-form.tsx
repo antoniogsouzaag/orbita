@@ -21,12 +21,12 @@ export function LoginForm({ next, totp }: { next: string; totp: boolean }) {
       <input type="hidden" name="next" value={next} />
       <div className="relative">
         <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" />
-        <Input name="password" type="password" placeholder="Senha" autoFocus required autoComplete="current-password" className="pl-9" />
+        <Input name="password" type="password" placeholder="Senha" autoFocus required autoComplete="current-password" className="h-11 pl-9" />
       </div>
       {totp && (
         <div className="relative mt-2">
           <KeyRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" />
-          <Input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" placeholder="Código do autenticador" required className="pl-9 tracking-widest" />
+          <Input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" placeholder="Código do autenticador" required className="h-11 pl-9 tracking-widest" />
         </div>
       )}
       {state?.error && <p className="mt-2 text-[13px] text-danger">{state.error}</p>}

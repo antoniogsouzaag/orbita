@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { ActivityDay } from "@/server/github";
 import { githubCalendarWindow } from "@/lib/github-calendar-window";
 
-const colors = ["bg-surface-3", "bg-emerald-500/20", "bg-emerald-500/40", "bg-emerald-500/70", "bg-emerald-400"];
+const colors = ["bg-surface-3", "bg-success/25", "bg-success/45", "bg-success/70", "bg-success"];
 const months = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 /** Referência adaptada sem dados simulados ou dependência de animação. */
