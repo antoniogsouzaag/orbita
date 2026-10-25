@@ -9,6 +9,8 @@ export async function GET(req: Request) {
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!tokenMatches(bearer, "CRON_SECRET")) return Response.json({ error: "unauthorized" }, { status: 401 });
   if (!telegramConfigured()) return Response.json({ ok: false, error: "Telegram não configurado" }, { status: 503 });
-  const r = await sendTelegram(await buildBrief());
+  const brief = await buildBrief();
+  if (!brief) return Response.json({ ok: true, skipped: true, reason: "nothing_actionable" });
+  const r = await sendTelegram(brief);
   return Response.json(r, { status: r.ok ? 200 : 502 });
 }
