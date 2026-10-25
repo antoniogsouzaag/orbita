@@ -376,7 +376,7 @@ export const metricasProduto = {
     const product = crmProductKey(produto)!;
     const result = await productMetrics(product);
     return { text: JSON.stringify({ product, source: "App de origem · métricas administrativas v1", ...result,
-      coverage: "Contagens agregadas do app, sem cadastros. Ativas incluem testes e cortesias; payingAccounts é acesso de assinatura Stripe, não comprovante de recebimento ou receita conciliada. users é equipe com login, não clientes finais. Ativação é o critério do app, não uso recorrente. Não somar contas do app com contatos do CRM.",
+      coverage: "Contagens agregadas do app, sem cadastros. Ativas incluem testes e cortesias; payingAccounts é acesso de assinatura Stripe, não comprovante de recebimento ou receita conciliada. users é equipe com login, não clientes finais. Ativação é o critério do app, não uso recorrente. activationFunnel é estoque cumulativo por conta, com etapas na mesma unidade e filiais consolidadas; prontas sem reserva = readyForBooking menos firstAppointment. Não representa conversão por campanha, coorte ou período, nem comprova causa do abandono. Não somar contas do app com contatos do CRM.",
     }) };
   },
 };
