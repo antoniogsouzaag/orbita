@@ -195,7 +195,7 @@ export function AppShell({
 
         <header
           className={cn(
-            "fixed inset-x-0 top-0 z-40 transition-[background,border,backdrop-filter] duration-300",
+            "shell-topbar fixed inset-x-0 top-0 z-40 transition-[background,border,backdrop-filter] duration-300",
             "pointer-events-none border-0 bg-transparent",
           )}
         >
@@ -228,7 +228,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className={cn("pb-32", !isHome && "pt-20")}>{children}</main>
+        <main className={cn("shell-main pb-32", !isHome && "shell-page pt-20")}>{children}</main>
 
         <Dock key={`${pathname}:${space}`} pathname={pathname} hidden={sidebar} onQuick={(tab) => ctx.openQuickAdd(tab)} />
         <CommandPalette key={`${palette}:${space}`} open={palette} onOpenChange={setPalette} onQuickAdd={ctx.openQuickAdd} scope={space} onToggleSidebar={toggleSidebar} />
@@ -293,7 +293,7 @@ function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean
   const other: Space = space === "pessoal" ? "empresa" : "pessoal";
   const Other = SPACES[other];
   return (
-    <div className={cn("pointer-events-none fixed inset-x-0 bottom-4 flex justify-center px-3", dialOpen ? "z-[60]" : "z-40", hidden && "lg:hidden")}>
+    <div className={cn("shell-dock pointer-events-none fixed inset-x-0 bottom-4 flex justify-center px-3", dialOpen ? "z-[60]" : "z-40", hidden && "lg:hidden")}>
       <nav className="glass pointer-events-auto flex items-center gap-1 rounded-[22px] border border-border p-1.5 shadow-soft">
         <Link href={Other.home} prefetch={true} title={`Ir para ${Other.label}`} aria-label={`Ir para ${Other.label}`} className="grid size-10 shrink-0 place-items-center rounded-2xl text-muted transition hover:bg-surface-2 hover:text-fg">
           <Other.icon className="size-[18px]" />

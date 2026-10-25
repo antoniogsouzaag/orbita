@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AgentsWidget, CrmWidget, DomainsWidget, GithubWidget, IncidentsWidget, OperationWidget, ProjectsWidget, WaitingWidget } from "@/components/empresa/widgets";
 import { Capture } from "@/components/home/capture";
 import { Customize } from "@/components/home/customize";
@@ -43,16 +42,15 @@ export default async function Page() {
       <Hero cover={settings.empresaCover} field="empresaCover" eyebrow="AG LABS" title={data.title} subtitle={data.subtitle.text} tone={data.subtitle.tone} />
       <Capture scope="empresa" projects={data.projects.map((p) => ({ id: p.id, name: p.name, color: p.color }))} aiEnabled={data.aiEnabled} />
       <div className="mx-auto mt-6 max-w-6xl px-4 sm:px-6">
-        <Suspense fallback={null}><DecisionNotice /></Suspense>
         <div className="mb-4 flex items-center">
           <SectionLabel>Empresa hoje</SectionLabel>
           <div className="ml-auto">
             <Customize field="empresaWidgets" title="Personalizar a Empresa" order={settings.empresaWidgets.order} hidden={settings.empresaWidgets.hidden} labels={Object.fromEntries(EMPRESA_WIDGETS.map((w) => [w.id, w.label]))} />
           </div>
         </div>
-        <div className="grid grid-flow-row-dense grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="dashboard-bento grid grid-flow-row grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
           {visible.map((id) => (
-            <div key={id} className={cn("min-w-0", SPAN[id])}>
+            <div key={id} className={cn("dashboard-cell min-w-0", SPAN[id])}>
               {render[id]()}
             </div>
           ))}
@@ -73,11 +71,4 @@ async function WaitingCard({ data }: { data: Awaited<ReturnType<typeof loadEmpre
   const [crm, github] = await Promise.all([getCrm(), getGithub()]);
   const mine = crm.configured && crm.ok ? crm.mine.filter((item) => item.prazo && item.prazo <= data.today) : [];
   return <WaitingWidget asks={data.asks} due={data.due} crmMine={mine} crmTasksUrl={data.crmTasksUrl} today={data.today} github={github} />;
-}
-
-async function DecisionNotice() {
-  const gh = await getGithub();
-  const count = gh.items.filter(item => item.kind === "proposta" && item.stage === "decision").length;
-  if (!count) return gh.error ? <p role="status" className="mb-4 text-xs text-warning">Decisões do GitHub indisponíveis nesta consulta. <Link href="/github" className="underline">Conferir</Link></p> : null;
-  return <Link href="/github?etapa=decision" className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warning/25 bg-warning/5 px-4 py-3 text-sm"><span><strong className="tabular-nums">{count}</strong> {count === 1 ? "decisão aguarda" : "decisões aguardam"} você{gh.truncated ? " · consulta parcial" : ""}{gh.stale ? " · última consulta disponível" : ""}</span><span className="text-xs text-muted">Revisar no GitHub ↗</span></Link>;
 }

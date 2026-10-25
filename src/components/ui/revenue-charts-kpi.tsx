@@ -51,7 +51,7 @@ export interface ChartCardProps extends Omit<React.HTMLAttributes<HTMLElement>, 
 
 export function ChartCard({ title, subtitle, actions, footer, className, children, ...rest }: ChartCardProps) {
   return (
-    <figure className={cn("card m-0 flex min-w-0 flex-col gap-4 p-5", className)} {...rest}>
+    <figure className={cn("card m-0 flex min-w-0 flex-col gap-3 p-4", className)} {...rest}>
       <figcaption className="flex items-start justify-between gap-3">
         <div className="grid min-w-0 gap-0.5">
           <span className="text-[14px] font-semibold tracking-[-0.01em]">{title}</span>
@@ -156,9 +156,9 @@ export function AreaTrend({ data, xKey, series, format = "number", height = 220,
   const f = fmt(format);
   const mounted = useMounted();
   return (
-    <div className={cn("grid gap-3", className)}>
+    <div className={cn("grid min-w-0 gap-2", className)}>
       <Legend series={series} />
-      <div role="img" aria-label={description} style={{ height }}>
+      <div role="img" aria-label={description} className="min-w-0 overflow-hidden" style={{ height, minHeight: height }}>
         {mounted && <div aria-hidden className="size-full"><ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
             <defs>
@@ -191,9 +191,9 @@ export function BarCompare({ data, xKey, series, format = "number", height = 220
   const mounted = useMounted();
   const tick = fmt(format === "brl" ? "compact" : format);
   return (
-    <div className={cn("grid gap-3", className)}>
+    <div className={cn("grid min-w-0 gap-2", className)}>
       <Legend series={series} />
-      <div role="img" aria-label={description} style={{ height }}>
+      <div role="img" aria-label={description} className="min-w-0 overflow-hidden" style={{ height, minHeight: height }}>
         {mounted && <div aria-hidden className="size-full"><ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={{ top: 6, right: 6, bottom: 0, left: 0 }} barGap={2} barCategoryGap="28%">
             <CartesianGrid vertical={horizontal} horizontal={!horizontal} stroke="var(--border)" />
@@ -282,7 +282,7 @@ export function Sparkline({ data, slot = 1, height = 36, className }: { data: nu
   const mounted = useMounted();
   const rows = data.map((v, i) => ({ i, v }));
   return (
-    <div aria-hidden className={className} style={{ height }}>
+    <div aria-hidden className={cn("min-w-0 overflow-hidden", className)} style={{ height, minHeight: height }}>
       {mounted && <ResponsiveContainer width="100%" height="100%">
         <LineChart data={rows} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
           <Line type="monotone" dataKey="v" stroke={`var(--chart-${slot})`} strokeWidth={2} dot={false} isAnimationActive={false} strokeLinecap="round" />

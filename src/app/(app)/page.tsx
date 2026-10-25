@@ -53,7 +53,7 @@ export default async function HomePage() {
             <Customize order={settings.widgets.order} hidden={settings.widgets.hidden} labels={Object.fromEntries(WIDGETS.map((w) => [w.id, w.label]))} />
           </div>
         </div>
-        <div className="grid grid-flow-row-dense grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="personal-dashboard grid grid-flow-row-dense grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
           {visible.map((id) => (
             <div key={id} className={cn("min-w-0", SPAN[id])}>
               {render[id]()}

@@ -20,12 +20,12 @@ export default async function Page() {
     { label: "No ar", value: summary.operation ? `${summary.operation.ok}/${summary.operation.total}` : null, href: "/operacao" },
   ];
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6">
+    <div className="mx-auto max-w-6xl space-y-4 px-4 sm:px-6">
       <PageHeader icon={<Building2 />} title="Negócios" description="Cada produto com sua operação, canais e próximas decisões." />
 
       <Card className="overflow-hidden">
         <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-          <Link href="/empresa/negocios/barberias" className="group flex items-center gap-4 bg-gradient-to-br from-amber-500/10 to-transparent p-5">
+          <Link href="/empresa/negocios/barberias" className="group flex items-center gap-4 bg-gradient-to-br from-amber-500/10 to-transparent p-4">
             <div className="grid size-14 shrink-0 place-items-center rounded-2xl border border-amber-400/20 bg-black/20"><Image src={BARBERIAS.logo} alt="" width={48} height={48} className="size-12 object-contain" /></div>
             <div className="min-w-0 flex-1">
               <p className="text-[10.5px] font-semibold uppercase tracking-[.16em] text-amber-500">Produto em destaque</p>
@@ -36,7 +36,7 @@ export default async function Page() {
           </Link>
           <div className="grid grid-cols-2 border-t border-border sm:grid-cols-4 lg:border-l lg:border-t-0">
             {stats.map((item) => (
-              <Link key={item.label} href={item.href} prefetch={false} className="flex flex-col justify-center border-border px-5 py-4 transition hover:bg-surface-2 [&:not(:last-child)]:border-r max-sm:[&:nth-child(2)]:border-r-0 max-sm:[&:nth-child(-n+2)]:border-b">
+              <Link key={item.label} href={item.href} prefetch={false} className="flex flex-col justify-center border-border px-4 py-3 transition hover:bg-surface-2 [&:not(:last-child)]:border-r max-sm:[&:nth-child(2)]:border-r-0 max-sm:[&:nth-child(-n+2)]:border-b">
                 <span className="text-[20px] font-semibold tabular-nums leading-none">{item.value ?? "—"}</span>
                 <span className="mt-1.5 text-[11.5px] text-muted">{item.label}</span>
               </Link>
@@ -71,7 +71,7 @@ function PortfolioLoading() {
   return (
     <div role="status" aria-label="Consultando o CRM" className="space-y-3">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <div key={i} className="card h-[104px] p-4"><div className="loading-shimmer h-3 w-1/2 rounded" /><div className="loading-shimmer mt-4 h-6 w-1/3 rounded" /></div>)}</div>
-      <div className="grid gap-3 lg:grid-cols-2">{Array.from({ length: 2 }, (_, i) => <div key={i} className="card h-[300px] p-5"><div className="loading-shimmer h-3 w-1/3 rounded" /><div className="loading-shimmer mt-6 h-[200px] rounded-xl" /></div>)}</div>
+      <div className="grid gap-3 lg:grid-cols-2">{Array.from({ length: 2 }, (_, i) => <div key={i} className="card h-[300px] p-4"><div className="loading-shimmer h-3 w-1/3 rounded" /><div className="loading-shimmer mt-6 h-[200px] rounded-xl" /></div>)}</div>
     </div>
   );
 }

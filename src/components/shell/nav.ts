@@ -104,6 +104,7 @@ export function isActive(pathname: string, href: string, escopo?: string | null)
   const [path, query] = href.split("?");
   if (SCOPED_PATHS.includes(path)) return pathname === path && (query?.includes("escopo=empresa") ? escopo === "empresa" : escopo !== "empresa");
   if (path === "/") return pathname === "/";
+  if (path === "/empresa") return pathname === "/empresa";
   if (path === "/operacao") return pathname === "/operacao";
   return pathname === path || pathname.startsWith(`${path}/`);
 }
