@@ -22,10 +22,10 @@ export function WaitingWidget({ asks, due, crmMine, crmTasksUrl, today, github }
   const total = asks.length + due.length + crmMine.length + decisions.length;
   return (
     <Card className="h-full">
-      <CardHeader icon={<Inbox />} title="Aguardando você" meta={total ? `${total} ${total === 1 ? "item" : "itens"}` : "nada pendente"} />
+      <CardHeader icon={<Inbox />} title="Aguardando você" meta={total ? `${total} ${total === 1 ? "item" : "itens"}` : !github ? "consultando GitHub" : github.error ? "consulta parcial" : "nada pendente"} />
       {github?.error && <p role="status" className="px-5 pb-3 text-xs text-warning">GitHub: {github.error}{github.stale ? " Exibindo a última consulta disponível." : " Decisões temporariamente indisponíveis."}</p>}
       {total === 0 ? (
-        <EmptyState icon={<CheckCircle2 />} title="Nada esperando por você" description="Pedidos dos agentes, decisões do GitHub, tarefas e pendências do CRM aparecem aqui." />
+        <EmptyState icon={<CheckCircle2 />} title={!github ? "Conferindo decisões do GitHub…" : github.error ? "Nenhuma pendência nas fontes disponíveis" : "Nada esperando por você"} description="Pedidos dos agentes, decisões do GitHub, tarefas e pendências do CRM aparecem aqui." />
       ) : (
         <div className="space-y-4 px-5 pb-5">
           {decisions.length > 0 && <Group icon={<GitPullRequest />} label="Decisões no GitHub" count={decisions.length}>
