@@ -1,9 +1,9 @@
 import { beforeEach, expect, it } from "vitest";
 import { getDb } from "@/db";
 import { notes, projects } from "@/db/schema";
-import { getNote, insertNote, listNotes, patchNote, removeNote } from "@/server/notes";
+import { archiveNote, getNote, insertNote, listNotes, patchNote, removeNote } from "@/server/notes";
 import { buscarNotas, runAssistantTool } from "@/server/assistant";
-import { COMPANY_NOTE_TAG, noteHref } from "@/lib/note-scope";
+import { ARCHIVED_NOTE_TAG, COMPANY_NOTE_TAG, noteHref } from "@/lib/note-scope";
 import { listProjects } from "@/server/projects";
 
 beforeEach(async () => { const db = await getDb(); await db.delete(notes); });
@@ -50,4 +50,28 @@ it("project lists remain separate without requiring cross-workspace tabs", async
     expect(personal.some(project => project.id === inserted[1].id)).toBe(false);
     expect(company.some(project => project.id === inserted[0].id)).toBe(false);
   } finally { for (const project of inserted) { const { eq } = await import("drizzle-orm"); await db.delete(projects).where(eq(projects.id, project.id)); } }
+});
+
+
+it("archives reversibly without losing contents, pins, tags or workspace isolation", async () => {
+  const id = await insertNote("Melhoria entregue", "Evidência preservada", "pessoal");
+  const company = await insertNote("Melhoria da empresa", "Privada", "empresa");
+  await patchNote(id, { tags: ["interface"], pinned: true }, "pessoal");
+  await expect(archiveNote(company, true, "pessoal")).rejects.toThrow("neste espaço");
+  await archiveNote(id, true, "pessoal");
+  await archiveNote(id, true, "pessoal");
+  expect(await listNotes()).toHaveLength(0);
+  expect(await listNotes(undefined, "empresa")).toHaveLength(1);
+  expect(await listNotes(undefined, "pessoal", true)).toHaveLength(1);
+  expect(await getNote(id)).toMatchObject({ content: "Evidência preservada", pinned: true, tags: ["interface", ARCHIVED_NOTE_TAG] });
+  expect((await buscarNotas.run({ busca: "Melhoria" })).text).toBe("Nenhuma nota pessoal encontrada.");
+  await patchNote(id, { content: "Evidência complementada" }, "pessoal");
+  await archiveNote(id, false, "pessoal");
+  expect(await listNotes()).toHaveLength(1);
+  expect(await getNote(id)).toMatchObject({ content: "Evidência complementada", tags: ["interface"] });
+  expect(await listNotes(undefined, "pessoal", true)).toHaveLength(0);
+  await archiveNote(company, true, "empresa");
+  expect(await getNote(company, "empresa")).toMatchObject({ tags: [COMPANY_NOTE_TAG, ARCHIVED_NOTE_TAG] });
+  expect(await getNote(company, "pessoal")).toBeNull();
+  expect(noteHref("empresa", id, true)).toBe(`/notas?escopo=empresa&id=${id}&arquivo=1`);
 });

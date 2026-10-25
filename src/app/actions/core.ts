@@ -12,7 +12,7 @@ import { projectScope } from "@/lib/task-scope";
 import { parseImageDataUrl } from "@/lib/image-data";
 import { setAvatar, setSetting, type AppSettings } from "@/server/settings";
 import { insertTask, patchTask, taskSchema } from "@/server/task-write";
-import { insertNote, patchNote, removeNote } from "@/server/notes";
+import { archiveNote, insertNote, patchNote, removeNote } from "@/server/notes";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -204,6 +204,12 @@ export async function deleteNote(id: string, scope: "pessoal" | "empresa" = "pes
   await requireAuth();
   await removeNote(uuid.parse(id), z.enum(TASK_SCOPES).parse(scope));
   refresh();
+}
+
+export async function setNoteArchived(id: string, archived: boolean, scope: "pessoal" | "empresa" = "pessoal") {
+  await requireAuth();
+  await archiveNote(uuid.parse(id), z.boolean().parse(archived), z.enum(TASK_SCOPES).parse(scope));
+  revalidatePath("/notas");
 }
 
 /* ───────────── Check-in diário ───────────── */
