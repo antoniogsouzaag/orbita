@@ -37,3 +37,17 @@ export async function crmEmailFunnel(input: z.infer<typeof crmEmailInput> = {}):
 }
 
 export const crmCommercialNotes = { coverage: CRM_PRODUCT_COVERAGE, pixel: CRM_PIXEL_NOTE };
+
+export async function crmPrioritySummary(input: z.infer<typeof crmSummaryInput> = {}) {
+  const product = crmProductKey(crmSummaryInput.parse(input).produto);
+  const meta = { source: 'CRM MCP · crm_prioridades', checkedAt: new Date().toISOString() };
+  if (!crmConfigured()) return { ...meta, status: 'not_configured', data: null };
+  try {
+    const schema = z.object({ produto: z.string().nullable(), consultado_em: z.iso.datetime(), tarefas_vencidas: z.number().int().nonnegative(), testes_encerrados: z.number().int().nonnegative(), sem_proximo_passo: z.number().int().nonnegative() });
+    const data = schema.parse(await crmCall('crm_prioridades', product ? { produto: product } : {}));
+    if (data.produto !== (product ?? null)) throw new Error('product mismatch');
+    return { ...meta, status: 'ok', data, coverage: 'Tarefas vencidas, encerramento de teste confirmado e oportunidades sem tarefa pendente. Uma pessoa pode ter múltiplas ações. Confira histórico e outros canais no CRM; nenhum contato ou disparo foi autorizado.' };
+  } catch {
+    return { ...meta, status: 'unavailable', data: null, message: 'Consulta indisponível ou incompatível. Nenhuma ausência de pendências foi presumida.' };
+  }
+}
