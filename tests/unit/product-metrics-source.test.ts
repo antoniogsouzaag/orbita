@@ -46,3 +46,14 @@ describe("origem administrativa e ORBE", () => {
     expect(ORBE_STRATEGY_RULES).toContain("Não prometa uma operação inexistente");
   });
 });
+
+it("CRM centraliza coleta sem fallback direto quando não configurada", async () => {
+  vi.stubEnv("CRM_MCP_URL", "https://crm.example/api/mcp"); vi.stubEnv("CRM_MCP_TOKEN", "fixture");
+  const fetcher = vi.fn(async (_url: unknown, options: RequestInit) => {
+    expect(JSON.parse(options.body as string).params.name).toBe("crm_metricas_produto");
+    return Response.json({ result: { structuredContent: { status: "not_configured", data: null } } });
+  });
+  vi.stubGlobal("fetch", fetcher);
+  expect(await productMetrics("barberias")).toMatchObject({ status: "not_configured", data: null });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});

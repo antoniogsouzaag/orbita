@@ -17,32 +17,39 @@ function ago(iso: string | Date) {
 }
 
 /* ───────── Aguardando você ───────── */
-export function WaitingWidget({ asks, due, crmMine, crmTasksUrl, today }: Pick<EmpresaData, "asks" | "due" | "crmMine" | "crmTasksUrl" | "today">) {
-  const total = asks.length + due.length + crmMine.length;
+export function WaitingWidget({ asks, due, crmMine, crmTasksUrl, today, github }: Pick<EmpresaData, "asks" | "due" | "crmMine" | "crmTasksUrl" | "today"> & { github?: EmpresaData["gh"] }) {
+  const decisions = github?.items.filter(item => item.kind === "proposta" && item.stage === "decision") ?? [];
+  const total = asks.length + due.length + crmMine.length + decisions.length;
   return (
     <Card className="h-full">
       <CardHeader icon={<Inbox />} title="Aguardando você" meta={total ? `${total} ${total === 1 ? "item" : "itens"}` : "nada pendente"} />
+      {github?.error && <p role="status" className="px-5 pb-3 text-xs text-warning">GitHub: {github.error}{github.stale ? " Exibindo a última consulta disponível." : " Decisões temporariamente indisponíveis."}</p>}
       {total === 0 ? (
-        <EmptyState icon={<CheckCircle2 />} title="Nada esperando por você" description="Pedidos dos agentes, tarefas vencidas e pendências do CRM aparecem aqui." />
+        <EmptyState icon={<CheckCircle2 />} title="Nada esperando por você" description="Pedidos dos agentes, decisões do GitHub, tarefas e pendências do CRM aparecem aqui." />
       ) : (
         <div className="space-y-4 px-5 pb-5">
+          {decisions.length > 0 && <Group icon={<GitPullRequest />} label="Decisões no GitHub" count={decisions.length}>
+            {decisions.slice(0, 3).map(item => <Row key={item.url} href={item.url} external title={item.title} meta={`${item.repo} #${item.number}${item.blocked ? " · bloqueada" : ""}`} />)}
+            <Link href="/github?etapa=decision" className="block pt-2 text-xs text-accent">Revisar {decisions.length} decisões ↗</Link>
+            {(github?.truncated || github?.stale) && <p className="mt-1 text-[11px] text-warning">{github.stale ? "Última consulta disponível. " : ""}{github.truncated ? "Consulta parcial; pode haver mais decisões." : ""}</p>}
+          </Group>}
           {asks.length > 0 && (
             <Group icon={<Bot />} label="Pedidos dos agentes" count={asks.length}>
-              {asks.slice(0, 5).map((a) => (
+              {asks.slice(0, 3).map((a) => (
                 <Row key={a.id} href={`/tarefas?escopo=empresa&task=${a.id}`} title={a.title} meta={`${a.tags.find((x) => x.startsWith("agente:"))?.slice(7) ?? "agente"} · ${ago(a.createdAt)}`} tone={a.priority >= 3 ? "danger" : undefined} />
               ))}
             </Group>
           )}
           {due.length > 0 && (
             <Group icon={<CheckSquare />} label="Tarefas vencidas ou de hoje" count={due.length}>
-              {due.slice(0, 5).map((x) => (
+              {due.slice(0, 3).map((x) => (
                 <Row key={x.id} href={`/tarefas?escopo=empresa&task=${x.id}`} title={x.title} meta={x.dueDate ? relativeDay(x.dueDate) : ""} tone={x.dueDate && x.dueDate < today ? "danger" : undefined} />
               ))}
             </Group>
           )}
           {crmMine.length > 0 && (
             <Group icon={<Users />} label="CRM — suas tarefas" count={crmMine.length}>
-              {crmMine.slice(0, 5).map((x) => (
+              {crmMine.slice(0, 3).map((x) => (
                 <Row key={x.id} href={crmTasksUrl ?? "/empresa"} external={!!crmTasksUrl} title={`${x.titulo}${x.contato?.nome ? ` · ${x.contato.nome}` : ""}`} meta={x.prazo ? relativeDay(x.prazo) : ""} tone={x.vencida ? "danger" : undefined} />
               ))}
             </Group>
@@ -248,10 +255,10 @@ export function IncidentsWidget({ incidents }: { incidents: EmpresaData["inciden
   const sorted = [...incidents].sort((a, b) => Number(!!a.resolvedAt) - Number(!!b.resolvedAt) || b.createdAt.getTime() - a.createdAt.getTime());
   return (
     <Card className="h-full">
-      <CardHeader icon={<AlertTriangle />} title="Incidentes e falhas" meta="7 dias" href="/operacao/automacoes" hrefLabel="Automações" />
+      <CardHeader icon={<AlertTriangle />} title="Incidentes e falhas" meta="abertos + 7 dias" href="/operacao/automacoes" hrefLabel="Automações" />
       <div className="px-5 pb-5 text-[13px]">
         {sorted.length === 0 ? (
-          <p className="text-muted">Nada nos últimos 7 dias. ✅</p>
+          <p className="text-muted">Nenhum incidente aberto ou recente.</p>
         ) : (
           <ul className="space-y-2">
             {sorted.slice(0, 6).map((e) => (

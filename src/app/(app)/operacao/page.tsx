@@ -1,3 +1,4 @@
+import { IncidentResolution } from "@/components/ops/incident-resolution";
 import { Activity, AlertTriangle, Bot, CheckCircle2, Gauge, Plug, Radio, XCircle } from "lucide-react";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -51,6 +52,7 @@ export default async function Page() {
   });
   const groupOrder = [...new Set((targets ?? []).map((t) => t.group))];
   const openIncidents = live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt);
+  const pendingWorkflows = live.events.filter(e => e.kind === "workflow_error" && !e.resolvedAt);
   const wf24 = live.events.filter((e) => e.kind === "workflow_error" && live.generatedAt - e.createdAt.getTime() < 86_400_000);
   const soonDomains = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - live.generatedAt < 45 * 86_400_000);
   const silent = live.monitors.filter((m) => m.silent);
@@ -60,6 +62,7 @@ export default async function Page() {
   const priorities = [
     ...(silent.length ? [{ title: `${silent.length} monitor(es) sem atualização`, detail: "Restabeleça a coleta antes de interpretar disponibilidade.", href: "/operacao/automacoes", tone: "err" as Tone }] : []),
     ...(down.length ? [{ title: `${down.length} endereço(s) com falha`, detail: "Priorize os produtos afetados.", href: "#disponibilidade", tone: "err" as Tone }] : []),
+    ...(pendingWorkflows.length ? [{ title: `${pendingWorkflows.length} falha(s) de workflow sem resolução`, detail: "Inclui pendências antigas. Registre a correção e a evidência antes de encerrar.", href: "#incidentes", tone: "warn" as Tone }] : []),
     ...(wf24.length ? [{ title: `${wf24.length} falha(s) de workflow em 24h`, detail: "Inspecione a execução antes de repetir efeitos.", href: "/operacao/automacoes", tone: "warn" as Tone }] : []),
     ...(soonDomains.length ? [{ title: `${soonDomains.length} domínio(s) perto do vencimento`, detail: "Confira responsabilidade na origem antes de renovar.", href: "#dominios", tone: "warn" as Tone }] : []),
     ...(coh?.notMonitored.length || coh?.notInVault.length ? [{ title: "Inventário e coleta diferentes", detail: "Revise vínculos entre vault e monitor.", href: "#coerencia", tone: "warn" as Tone }] : []),
@@ -172,7 +175,7 @@ export default async function Page() {
       <WidgetShell title="Incidentes e eventos" meta={`${events14} em 14 dias`} href="/operacao/automacoes" hrefLabel="Automações">
         <ColumnBars height={72} axis={axis} label={`Eventos por dia nos últimos 14 dias, por tipo: ${EVENT_GROUP.map((g) => `${stacked.reduce((n, c) => n + (c.segments.find((s) => s.name === g.name)?.value ?? 0), 0)} ${g.name}`).join(", ")}.`} columns={stacked} />
         <Legend className="mt-2.5" items={EVENT_GROUP.map((g) => ({ name: g.name, tone: g.tone }))} />
-        <ul className="-mx-2 mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto border-t border-border pt-2">
+        <ul id="incidentes" className="-mx-2 mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto border-t border-border pt-2">
           {live.events.length === 0 && <li className="px-2 text-[13px] text-muted">Nenhum evento registrado.</li>}
           {live.events.map((e) => {
             const st = EVENT_STYLE[e.kind] ?? { icon: Activity, tone: "text-muted", label: e.kind };
@@ -181,8 +184,10 @@ export default async function Page() {
               <li key={e.id} className="flex gap-2.5 rounded-lg px-2 py-1.5 hover:bg-surface-2">
                 <st.icon className={cn("mt-0.5 size-3.5 shrink-0", st.tone)} />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2 text-[12.5px]"><span className="truncate font-medium">{e.subject}</span>{e.kind === "site_down" && e.resolvedAt && <span className="shrink-0 text-[11px] text-faint">resolvido</span>}{e.source.startsWith("agente:") && <Link href={`/agentes/${e.source.slice(7)}`} className="shrink-0 text-[11px] text-accent hover:underline">{String((e.detail as { agent?: string }).agent ?? e.source.slice(7))} ↗</Link>}</div>
+                  <div className="flex items-baseline gap-2 text-[12.5px]"><span className="truncate font-medium">{e.subject}</span>{e.resolvedAt && <span className="shrink-0 text-[11px] text-faint">resolvido</span>}{e.source.startsWith("agente:") && <Link href={`/agentes/${e.source.slice(7)}`} className="shrink-0 text-[11px] text-accent hover:underline">{String((e.detail as { agent?: string }).agent ?? e.source.slice(7))} ↗</Link>}</div>
                   <div className="truncate text-[11.5px] text-faint">{st.label}{(d.message ?? d.error ?? (d.status ? `HTTP ${d.status}` : null)) ? ` · ${d.message ?? d.error ?? `HTTP ${d.status}`}` : ""}{d.node ? ` · nó ${d.node}` : ""}</div>
+                  {e.kind === "workflow_error" && !e.resolvedAt && <IncidentResolution id={e.id} />}
+                  {e.resolvedAt && typeof e.detail.resolution === "string" && <p className="mt-1 text-[11px] text-muted">Resolução: {e.detail.resolution}</p>}
                 </div>
                 <div className="shrink-0 text-right text-[11px] tabular-nums text-faint">
                   {e.createdAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}

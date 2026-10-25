@@ -40,3 +40,20 @@ Pergunta de prioridade não se limita a urgência. A assistente cruza identidade
 Metas empresariais e contexto de projetos/tarefas entram no resumo inicial. Dados agregados do CRM ajudam a orientar a investigação, sem confundir disponibilidade técnica com resultado de negócio. Quando necessário, buscar_no_vault, ler_nota_do_vault, crm_resumo e crm_funil_emails permitem aprofundar. Hipóteses e metas sugeridas devem ser apresentadas como propostas; gravar ou despachar continua dependendo do pedido de Antonio.
 
 Novas ferramentas listar_metas e criar_meta respeitam o espaço da conversa. Criação inicia progresso em zero, sem inventar medições. O esforço de raciocínio na conversa Empresa sobe de low para medium no provedor atual; não foi trocado o modelo nem habilitado JEV. Qualidade de resposta real do modelo exige validação conversacional; testes locais verificam contexto, ferramentas e isolamento usando provedor simulado.
+
+
+## Atualização 24/10 — CRM como ponto de coleta de negócio
+
+A coleta administrativa deve seguir Barberias → CRM → Órbita. O CRM disponibiliza `crm_metricas_produto` no escopo leitura, consulta a API autenticada do produto e entrega apenas o contrato v1 validado. A Órbita usa essa ferramenta quando o CRM está configurado e não faz fallback silencioso em uma falha. A conexão direta anterior só permanece para instalações sem CRM durante a transição. A data `generatedAt` é preservada; consulta nova não torna snapshot antigo recente.
+
+Configurar `APP_METRICS_SOURCES` no servidor do CRM com o token dedicado já aceito pelo produtor. Não distribuir a credencial ao navegador ou ao modelo. A coleta agrega usuários/contas/ativação/assinaturas, sem mudar contatos, pagamentos, etapas ou campanhas. O endpoint isolado não sincroniza a jornada: eventos de conta continuam no contrato existente de ingestão de contas do CRM; pagamento vem do ledger, com identificadores explícitos.
+
+Ativação operacional ainda exige credencial nos dois ambientes e comparação contra o superadmin. Código e build não comprovam a conexão ao vivo.
+
+## Visibilidade e retenção operacional
+
+Decisões do GitHub (`decisao`) entram em Aguardando você; PR, execução e triagem continuam no painel GitHub, sem virar pedidos de decisão. Ambos usam a mesma consulta por renderização. Os totais são da amostra disponível, com aviso de consulta parcial ou antiga.
+
+Incidentes abertos não expiram com a janela de gráficos nem são apagados por terem 30 dias. A leitura reserva uma amostra própria para pendências, além dos eventos recentes. Reenvios sequenciais da mesma URL de execução de workflow em 24 horas não criam outra falha; execuções diferentes continuam registradas. Não é deduplicação concorrente com garantia transacional. Logs informativos e auditoria têm retenção; batidas ausentes continuam visíveis. A marca de limpeza só é gravada após sucesso.
+
+Integrações exibe apenas conexões necessárias; o diagnóstico antigo de configuração foi removido da navegação. Remover o diagnóstico não desativa os monitores reais em Operação.

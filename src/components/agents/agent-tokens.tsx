@@ -43,8 +43,8 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
   return (
     <Card>
       <CardHeader icon={<KeyRound />} title="Acessos dos agentes" meta={`${active.length} ativo${active.length === 1 ? "" : "s"}`} />
-      <div className="space-y-5 px-5 pb-5 text-[13px]">
-        <div className="flex flex-wrap gap-2" aria-label="Perfis dos coordenadores">
+      <div className="space-y-4 px-4 pb-4 text-[13px] sm:px-5 sm:pb-5">
+        <details className="group" open={active.length === 0}><summary className="mb-3 cursor-pointer text-sm font-medium">Criar acesso</summary><div className="mb-3 flex flex-wrap gap-2" aria-label="Perfis dos coordenadores">
           {["Tom", "Hermes Oracle", "Hermes EasyPanel"].map((coordinator) => <Button key={coordinator} size="sm" variant="outline" onClick={() => { setName(coordinator); setScopes(["admin", "contexto", "status", "tarefas", "eventos"]); }}>{coordinator} · admin</Button>)}
           <Button size="sm" variant="ghost" onClick={() => { setName(""); setScopes(["contexto", "status"]); }}>Outro agente · leitura</Button>
         </div>
@@ -66,7 +66,7 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
               <Plus /> Criar acesso
             </Button>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {SCOPES.map((s) => {
               const on = scopes.includes(s.id);
               return (
@@ -81,7 +81,7 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
             })}
           </div>
           <p className="text-[12px] text-faint">Coordenadores Tom, Hermes Oracle e Hermes Easy: perfil Administrador. Demais agentes: Contexto e Status para leitura. A permissão fica no token individual; o nome não concede acesso. Administradores usam as mesmas ações da IA e todas as chamadas ficam registradas.</p>
-        </form>
+        </form></details>
 
         {created && (
           <div className="space-y-3 rounded-xl border border-warning/40 bg-warning/5 p-4">
@@ -113,13 +113,13 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
         ) : (
           <ul className="divide-y divide-border">
             {active.map((t) => (
-              <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
-                <span className="font-medium">{t.name}</span>
-                <code className="font-mono text-[11.5px] text-faint">{t.prefix}…</code>
-                <span className="flex flex-wrap gap-1">
+              <li key={t.id} className="grid items-center gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                <div className="min-w-0"><span className="font-medium">{t.name}</span>
+                <code className="ml-2 font-mono text-[11.5px] text-faint">{t.prefix}…</code>
+                <span className="mt-1 flex flex-wrap gap-1">
                   {t.scopes.map((s) => <span key={s} className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-muted">{s}</span>)}
                 </span>
-                <span className="ml-auto text-[12px] text-faint">{ago(t.lastUsedAt)}</span>
+                <span className="mt-1 block text-[11px] text-faint">{ago(t.lastUsedAt)}</span></div>
                 <select aria-label={`Perfil de ${t.name}`} className="rounded-lg border border-border bg-surface px-2 py-1 text-xs" value={t.scopes.includes("admin") ? "admin" : t.scopes.every((scope) => ["contexto", "status"].includes(scope)) ? "leitura" : "custom"} disabled={pending} onChange={(event) => {
                   const profile = event.target.value;
                   if (profile !== "admin" && profile !== "leitura") return;

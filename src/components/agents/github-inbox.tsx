@@ -2,6 +2,7 @@
 
 import { ArrowUpRight, CircleAlert, GitPullRequest, Lightbulb, FolderGit2, Search } from "lucide-react";
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, EmptyState } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { GithubInbox as Inbox } from "@/server/github-inbox";
@@ -9,7 +10,8 @@ import { GITHUB_STAGES, stageLabel } from "@/lib/github-triage";
 
 export function GithubInbox({ initial: data }: { initial: Inbox }) {
   const [query, setQuery] = React.useState("");
-  const [kind, setKind] = React.useState("all");
+  const params = useSearchParams();
+  const [kind, setKind] = React.useState(() => GITHUB_STAGES.some(stage => stage.id === params.get("etapa")) ? params.get("etapa")! : "all");
   const [repo, setRepo] = React.useState("all");
   const repositories = [...new Set(data.items.map((item) => item.repo))].sort();
   const items = data.items.filter((item) => (repo === "all" || item.repo === repo) && `${item.title} ${item.repo} ${item.author} #${item.number}`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR")) && (kind === "all" || item.kind === "proposta" && kind === (item.stage ?? "triage") || kind === "draft" && item.kind === "pr" && item.draft || kind === "pr" && item.kind === "pr" && !item.draft));
@@ -56,5 +58,5 @@ export function GithubStats({ data }: { data: Inbox }) { return (<div className=
         {[
           { label: "PRs abertos", value: data.items.filter((item) => item.kind === "pr").length },
           ...GITHUB_STAGES.map(stage => ({ label: stage.label, value: data.items.filter(item => item.kind === "proposta" && (item.stage ?? "triage") === stage.id).length })),
-        ].map((stat) => <Card key={stat.label} className="!rounded-2xl p-3 sm:p-4"><p className="text-[11px] text-muted">{stat.label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{data.error && !data.stale || !data.configured ? "—" : stat.value}</p></Card>)}
+        ].map((stat) => <Card key={stat.label} className="!rounded-xl !shadow-none p-3"><p className="text-[11px] text-muted">{stat.label}</p><p className="mt-1 text-xl font-semibold tabular-nums">{data.error && !data.stale || !data.configured ? "—" : stat.value}</p></Card>)}
       </div>); }

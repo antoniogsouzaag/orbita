@@ -1,4 +1,5 @@
 import "server-only";
+import { crmCall, crmConfigured } from "./crm";
 import { validateProductMetrics, type ProductMetrics } from "@/lib/product-metrics";
 
 type Source = { product: string; url: string; token: string };
@@ -31,6 +32,16 @@ export type ProductMetricsResult = { status: "ok" | "stale" | "not_configured" |
 
 export async function productMetrics(product: string): Promise<ProductMetricsResult> {
   const checkedAt = new Date().toISOString();
+  if (crmConfigured()) {
+    try {
+      const result = await crmCall<{ status: string; data: unknown; checkedAt: string }>("crm_metricas_produto", { produto: product });
+      if (!["ok", "stale", "not_configured", "unavailable"].includes(result.status)) throw new Error("Contrato inválido");
+      if (result.status === "not_configured" || result.status === "unavailable") return { status: result.status, checkedAt, data: null, message: result.status === "not_configured" ? "Coleta administrativa do produto ainda não configurada no CRM." : "Coleta do produto pelo CRM indisponível. Nenhum zero foi presumido." };
+      const data = validateProductMetrics(result.data, product);
+      const stale = result.status === "stale" || Date.now() - Date.parse(data.generatedAt) > 24 * 3_600_000;
+      return { status: stale ? "stale" : "ok", checkedAt, data, message: stale ? "Snapshot do aplicativo via CRM há mais de 24 horas." : "Agregados do aplicativo via CRM." };
+    } catch { return { status: "unavailable", checkedAt, data: null, message: "Não foi possível obter as métricas pelo CRM. Verifique a conexão e a versão do conector." }; }
+  }
   const source = sources().find(item => item.product === product);
   if (!source) return { status: "not_configured", checkedAt, data: null, message: "Coleta administrativa do app ainda não conectada. Os dados do CRM abaixo não substituem os usuários e assinaturas da origem." };
   try {

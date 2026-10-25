@@ -37,7 +37,7 @@ export async function loadEmpresaLocal() {
   const waitingDue = due.filter((task) => !askIds.has(task.id));
   const down = live.status.filter((s) => !s.ok);
   const failures = live.events.filter((e) => e.kind === "workflow_error" && now.getTime() - e.createdAt.getTime() < DAY);
-  const incidents = live.events.filter((e) => ["site_down", "workflow_error", "domain_alert", "monitor_silent"].includes(e.kind) && now.getTime() - e.createdAt.getTime() < 7 * DAY);
+  const incidents = live.events.filter((e) => ["site_down", "workflow_error", "domain_alert", "monitor_silent"].includes(e.kind) && (!e.resolvedAt || now.getTime() - e.createdAt.getTime() < 7 * DAY));
   const domains = live.domains.filter((d) => d.expiresAt || d.error).map((d) => ({ ...d, days: d.expiresAt ? Math.ceil((d.expiresAt.getTime() - now.getTime()) / DAY) : null }));
   const soon = domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - now.getTime() < 45 * DAY);
   const silent = live.monitors.filter((m) => m.silent);

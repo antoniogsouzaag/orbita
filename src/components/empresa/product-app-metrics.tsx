@@ -35,7 +35,7 @@ export async function ProductAppMetrics({ product }: { product: string }) {
             rows={shares.map((s) => ({ key: s.key, label: s.label, value: s.value ?? 0, display: s.value == null ? "—" : `${s.value.toLocaleString("pt-BR")} · ${Math.round((s.value / total) * 100)}%`, tone: s.value == null ? "idle" : s.tone }))} /> : <p className="text-xs text-muted">Total de contas indisponível.</p>}
         </div>
       </div>
-      <p className="border-t border-border px-5 py-3 text-[10.5px] leading-relaxed text-faint">Fonte: API administrativa do app · tentativa {when(result.checkedAt)} · snapshot {when(result.data.generatedAt)}. Conta ativa, cortesia, ativação e pagamento são medidas distintas. — indica dado não disponível.</p>
+      <p className="border-t border-border px-5 py-3 text-[10.5px] leading-relaxed text-faint">Fonte: agregados administrativos do app · coleta pelo conector configurado · tentativa {when(result.checkedAt)} · snapshot {when(result.data.generatedAt)}. Conta ativa, cortesia, ativação e pagamento são medidas distintas. — indica dado não disponível.</p>
     </Card>
   );
 }
