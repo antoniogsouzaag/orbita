@@ -280,5 +280,7 @@ export async function revokeCaptureTokenAction() {
 export async function sendBriefNow(): Promise<{ ok: boolean; error?: string }> {
   await requireAuth();
   const [{ buildBrief }, { sendTelegram }] = await Promise.all([import("@/server/brief"), import("@/server/telegram")]);
-  return sendTelegram(await buildBrief());
+  const brief = await buildBrief();
+  if (!brief) return { ok: true };
+  return sendTelegram(brief);
 }
