@@ -10,7 +10,7 @@ import { insertTask, patchTask } from "./task-write";
 import { eventsBetween } from "./calendar";
 import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./crm";
 import { liveOps } from "./ops-live";
-import { crmCommercialSummary, crmEmailFunnel, crmCommercialNotes } from "./crm-commercial";
+import { crmCommercialSummary, crmEmailFunnel, crmCommercialNotes, crmPrioritySummary } from "./crm-commercial";
 import { crmSummaryInput, crmEmailInput, crmProductSchema, crmProductKey } from "@/lib/crm-aggregates";
 import { productMetrics } from "./product-metrics";
 import { listTasks, type TaskView } from "./tasks";
@@ -383,7 +383,16 @@ export const metricasProduto = {
 
 type Tool = { name: string; description: string; schema: z.ZodObject; run: (v: never) => Promise<ActionResult>; requires?: () => boolean; readOnly?: boolean };
 
+export const crmPrioridades = {
+  schema: z.object({ produto: crmProductSchema.optional() }),
+  async run({ produto }: { produto?: string }): Promise<ActionResult> {
+    const result = await crmPrioritySummary({ produto });
+    return { text: JSON.stringify(result), ...(result.status === 'ok' ? { action: { label: 'Revisar no CRM', href: crmUrl('/actions') || '/empresa/negocios' } } : {}) };
+  },
+};
+
 export const ASSISTANT_TOOLS: Tool[] = [
+  { name: 'crm_prioridades', description: 'Consulta sinais comerciais por produto: tarefas vencidas, testes encerrados confirmados e oportunidades sem tarefa pendente. Use para recomendar próximos passos do negócio; cruze com metas, vault e receita. Contagem não autoriza envio nem mudança de etapa.', readOnly: true, requires: crmConfigured, ...crmPrioridades },
   { name: "metricas_produto", description: "Consulta na mesma fonte do painel usuários de equipe, contas, acesso, teste, assinatura, cortesia e ativação do app. Use antes de responder números do produto. Não substitui o CRM nem receita conciliada. Informa não conectado/indisponível/desatualizado sem presumir zero; não executa operações no app.", readOnly: true, ...metricasProduto },
   { name: "listar_metas", readOnly: true, description: "Consulta metas e objetivos do espaço atual com progresso, prazo e contexto. Use para discutir prioridades e evolução.", ...listarMetas },
   { name: "criar_meta", description: "Registra uma meta somente quando Antonio pedir para criar ou salvar, com título, indicador, alvo e prazo acordados. Sugestão de meta não autoriza gravação. Não invente linha de base ou progresso.", ...criarMeta },

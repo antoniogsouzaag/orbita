@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { crmCommercialSummary, crmEmailFunnel } from "@/server/crm-commercial";
+import { crmCommercialSummary, crmEmailFunnel, crmPrioritySummary } from "@/server/crm-commercial";
 import { crmCall, crmConfigured } from "@/server/crm";
 import { crmEmailInput, crmSummaryInput } from "@/lib/crm-aggregates";
 
@@ -8,6 +8,18 @@ const call = vi.mocked(crmCall);
 const summary = { produto: "barberias", hoje: "2026-10-24", funil: { Lead: 3, Pagamento: 0 }, clientes: 2, contas_no_produto: { trial: 4, trial_encerrado: 1, ativo: 3, cancelado: 0 } };
 const emails = { produto: "barberias", categoria: null, dias: 30, desde: "2026-09-24T03:00:00.000Z", total: { enviados: 5, entregues: 4, abertos: 2, cliques: 1, respostas: 0, falhas: 1, descadastros: 0, taxa_entrega: 80, taxa_abertura: 50, taxa_clique: 25, taxa_resposta: 0 } };
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(crmConfigured).mockReturnValue(true); });
+
+it('prioridades validam produto, projetam apenas agregados e não convertem falha em zero', async () => {
+  const data = { produto: 'barberias', consultado_em: '2026-10-25T05:00:00Z', tarefas_vencidas: 2, testes_encerrados: 0, sem_proximo_passo: 3, nome: 'privado', cobertura: 'private@example.test' };
+  call.mockResolvedValue(data);
+  expect(await crmPrioritySummary({ produto: 'barberpro' })).toMatchObject({ status: 'ok', data: { tarefas_vencidas: 2 } });
+  expect(call).toHaveBeenCalledWith('crm_prioridades', { produto: 'barberias' });
+  expect(JSON.stringify(await crmPrioritySummary({ produto: 'barberias' }))).not.toMatch(/privado|private@/);
+  call.mockResolvedValue({ ...data, produto: 'mecard' });
+  expect(await crmPrioritySummary({ produto: 'barberias' })).toMatchObject({ status: 'unavailable', data: null });
+  call.mockRejectedValue(new Error('private@example.test'));
+  expect(await crmPrioritySummary()).toMatchObject({ status: 'unavailable', data: null });
+});
 
 describe("CRM comercial por produto", () => {
   it("normaliza o vínculo e mantém contas separadas de clientes", async () => {
