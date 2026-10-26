@@ -57,7 +57,7 @@ function MarketplaceMetrics({ data, result }: { data: ProductMetrics; result: Pr
         { key: "approved", label: "Aprovados para vender", value: m.producers.approved, display: `${num(m.producers.approved)}${m.producers.onboarding ? ` · ${Math.round((m.producers.approved / m.producers.onboarding) * 100)}%` : ""}`, tone: "accent" as const },
       ]} />
     </div>
-    <Footer result={result} data={data} note="Mês no fuso de São Paulo, mesmos números do painel /plataforma do Members. Mês atual parcial; mês anterior completo. Receita da plataforma inclui produtos próprios e comissões, com taxas do provedor ainda não descontadas; não comprova liquidação. Marketplace não tem contas de assinatura." />
+    <Footer result={result} data={data} note="Mês no fuso de São Paulo, mesma fonte do painel /plataforma do Members. Mês atual parcial; mês anterior completo. Receita da plataforma inclui produtos próprios e comissões, com valores conciliados ou estimados e estornos alocados conforme o relatório; não comprova liquidação nem saldo disponível. Marketplace não tem contas de assinatura." />
   </Card>;
 }
 
