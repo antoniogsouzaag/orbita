@@ -1,13 +1,13 @@
 /** Fonte única do manual: página, Markdown HTTP e resource/ferramenta MCP. */
-export const AGENT_MANUAL_VERSION = "2026-10-26.3";
+export const AGENT_MANUAL_VERSION = "2026-10-26.4";
 export const AGENT_MANUAL_URI = "orbita://manual";
 export const AGENT_MANUAL_PATH = "/documentacao";
 export const AGENT_MANUAL_API = "/api/docs/agentes";
 
 export const CORE_AGENT_TOOLS = [
-  { name: "documentacao_canonica", scope: "todos", description: "Manual de entrada, fontes, escopos e fluxo de trabalho" },
+  { name: "documentacao", scope: "todos", description: "Manual de entrada, fontes, escopos e fluxo de trabalho" },
   { name: "contexto_operacional", scope: "contexto", description: "Inventário do vault; estado ao vivo quando solicitado" },
-  { name: "buscar_no_vault", scope: "contexto", description: "Localizar decisões e fichas por palavras-chave" },
+  { name: "buscar", scope: "contexto", description: "Busca geral por fonte: manual e vault; admin também tarefas, projetos e notas por espaço" },
   { name: "ler_nota_do_vault", scope: "contexto", description: "Ler a nota e sua versão antes de agir" },
   { name: "status_ao_vivo", scope: "status", description: "Disponibilidade, incidentes e batida dos monitores" },
   { name: "pendencias_github", scope: "status", description: "PRs e propostas, com cobertura da consulta" },
@@ -35,10 +35,11 @@ export const SOURCE_OWNERS = [
 ] as const;
 
 export const AGENT_MANUAL_SECTIONS = [
+  { id: "busca", title: "Busca geral e nomes das ferramentas", body: "Use documentacao para consultar este manual e buscar({consulta, fonte?}) para localizar informação. A busca reúne documentação e vault; no MCP admin, inclui tarefas, projetos e notas do escopo escolhido (padrão pessoal). Na ORBE vale o espaço ativo. Contexto não concede acesso às bases internas. Cada fonte retorna seu estado; indisponível não significa vazio. Até 8 resultados por fonte; refine consulta ou fonte, sem presumir cobertura completa. Leia a nota pelo caminho e SHA antes de editar. CRM, conversas e status ao vivo mantêm ferramentas próprias para preservar identidade, permissões e atualidade. Os nomes antigos documentacao_canonica e buscar_no_vault foram substituídos: atualize clientes e redescubra tools/list após publicar. Não há orbita_buscar duplicado no MCP; use buscar. O catálogo abaixo inclui as ações administrativas, inclusive as condicionadas à conexão do CRM; tools/list informa as efetivamente disponíveis." },
   { id: "propostas-respostas", title: "Respostas do proprietário e continuidade", body: "Propostas e pedidos podem ser respondidos em /propostas. A resposta fica no histórico da tarefa empresarial, marcada resposta:antonio e atribuída ao agente escolhido. Consulte minhas_tarefas para ler o contexto e o retorno, execute dentro do escopo autorizado e use atualizar_minha_tarefa com id, registro_id UUID, estado doing/done e resumo/evidência. Reutilize registro_id ao repetir o mesmo envio. O acesso de tarefas só atualiza tarefas empresariais atribuídas ao próprio nome autenticado. Nova resposta reabre a continuidade; retry antigo não reabre uma conclusão. Responder na Órbita não fecha issue, não publica comentário no GitHub e não dispara o diretor. Reconcilie a origem ao executar e registre o resultado; conclusão registrada não é verificação independente de produção. Consulte docs/propostas-respostas.md no repositório." },
   { id: "proposito", title: "O papel da Órbita", body: "ORBE é a assistente da Órbita, com ferramentas limitadas ao espaço ativo. Cruza Vault, metas, projetos, tarefas e sinais comerciais para discutir crescimento, sugerir caminhos e organizar próximos passos. Operação sem incidentes não significa ausência de prioridades. Sugestões não se tornam metas ou tarefas sem pedido; listar_metas e criar_meta respeitam o espaço atual. Central de controle pessoal e empresarial de Antonio e da AG LABS. Conecta conhecimento, negócios, execução e revisão sem duplicar os sistemas de origem. A unidade de negócio relaciona produto, páginas, canais, tarefas internas, CRM e operação por identificadores explícitos. Barberias é a primeira visão detalhada; o catálogo permite ampliar aos demais produtos." },
   { id: "documentacao", title: "Documentação e cópias locais do vault", body: "O vault canônico pode ser consultado pelas cópias sincronizadas de cada ambiente; a Órbita oferece visualização, edição e contexto remoto quando necessário. Uma cópia local não comprova que esteja atualizada: confira branch, commit e alterações locais antes de editar; sincronize sem sobrescrever trabalho concorrente. Para editar pelo MCP, administradores usam orbita_salvar_nota_vault; a IA usa salvar_nota_vault quando disponível. Leia a nota e informe o SHA antes de salvar. Documentação do código e este manual são mantidos no repositório da Órbita, junto da funcionalidade e de sua validação. Publicar uma mudança não atualiza automaticamente o vault nem todas as cópias locais. Registre o comportamento implementado, limites e evidências; propostas e decisões pendentes devem continuar identificadas como pendentes." },
-  { id: "inicio", title: "Primeiros passos do agente", body: "1. Leia este manual (documentacao_canonica ou orbita://manual).\n2. Consulte contexto_operacional com ao_vivo: false e localize a ficha do produto/agente no vault.\n3. Leia as notas relevantes por caminho e versão; consulte o estado ao vivo para a decisão atual.\n4. Confira seus escopos em tools/list. Escolha a fonte da ação e mantenha Pessoal ou Empresa explícito.\n5. Execute dentro da autorização recebida. Registre evidência, resultado e próximo passo; releia o estado antes de afirmar conclusão." },
+  { id: "inicio", title: "Primeiros passos do agente", body: "1. Leia este manual (documentacao ou orbita://manual).\n2. Consulte contexto_operacional com ao_vivo: false e localize a ficha do produto/agente no vault.\n3. Leia as notas relevantes por caminho e versão; consulte o estado ao vivo para a decisão atual.\n4. Confira seus escopos em tools/list. Escolha a fonte da ação e mantenha Pessoal ou Empresa explícito.\n5. Execute dentro da autorização recebida. Registre evidência, resultado e próximo passo; releia o estado antes de afirmar conclusão." },
   { id: "conexao", title: "Conexão e descoberta", body: "Endpoint /api/mcp, transporte Streamable HTTP sem estado. Autenticação Authorization: Bearer orb_… com acesso individual criado em Integrações → Acessos MCP. Não exige OAuth. Inicialize o cliente e consulte tools/list, resources/list e prompts/list. Resource: orbita://manual. Prompt iniciar_operacao: roteiro de entrada. Alternativa HTTP: GET /api/docs/agentes (Markdown), com sessão, token individual de agente ou CONTEXT_TOKEN. Tokens nunca entram em Git, prompts, URLs ou relatórios." },
   { id: "permissoes", title: "Permissões e limites", body: "Contexto lê o vault; Status consulta a operação; Tarefas abre e acompanha pedidos do agente na Empresa; Eventos registra relatos. Administrador também acessa contexto pessoal e ferramentas orbita_* da IA, incluindo escrita em tarefas, agenda, finanças, vault e CRM. O nome do agente não concede permissões. Revogação e mudança de escopo valem nas próximas chamadas. tools/list fornece o catálogo e os schemas efetivos; disponibilidade não equivale a autorização humana para qualquer ação." },
   { id: "tarefas", title: "Tarefas e negócios", body: "Pessoal e Empresa são espaços separados, inclusive nas listas de projetos e nas notas. Notas empresariais são rascunhos; conhecimento canônico continua no Vault. A busca/criação de notas pela ORBE usa o espaço ativo; no MCP administrativo informe escopo empresa para essas notas, com padrão pessoal. Notas antigas continuam pessoais, sem reclassificação por título. Consulte docs/notas-por-espaco.md. Pedidos via criar_tarefa_para_antonio são empresariais; informe negocio com o identificador explícito do produto quando houver (ex.: barberias). Subtarefas seguem o escopo da tarefa mãe. Tarefas comerciais são gerenciadas no CRM e aparecem como leitura na Empresa; não criar cópias sincronizadas nas duas bases. Não mover tarefas antigas por nome, autor ou suposição." },
@@ -53,15 +54,30 @@ export const AGENT_MANUAL_SECTIONS = [
   { id: "lacunas", title: "Conexões que ainda precisam evoluir", body: "O CRM oferece funil, contas e e-mails agregados por produto; uso interno de cada app e receita recorrente reconciliada ainda exigem integração própria. Métricas e nomes de canais dependem da API e permissões do Postiz. O vault documenta o time, mas isso não comprova agente conectado ou execução recente; veja atividade autenticada em Agentes. Cron, mensagens e modelos precisam de verificação própria. Consulte Integrações e os horários de Operação antes de considerar uma fonte validada." },
 ] as const;
 
-export function agentManualMarkdown() {
+export type CatalogTool = { name: string; scope: string; description: string };
+export function toolCategory(name: string) {
+  const key = name.replace(/^orbita_/, "");
+  if (key.startsWith("crm_") || key === "metricas_produto") return "Comercial e produtos";
+  if (/agenda|evento$|lancamento/.test(key) && key !== "registrar_evento") return "Agenda e finanças";
+  if (/tarefa|fila_empresa|meta|projeto/.test(key)) return "Tarefas, projetos e metas";
+  if (/pedido|resultado|registrar_evento/.test(key)) return "Agentes e registros";
+  if (/status|github|automacoes|eventos_recentes/.test(key)) return "Operação e monitoramento";
+  return "Documentação e conhecimento";
+}
+export function toolGroups(tools: readonly CatalogTool[]) {
+  const categories = ["Documentação e conhecimento", "Tarefas, projetos e metas", "Operação e monitoramento", "Agentes e registros", "Comercial e produtos", "Agenda e finanças"];
+  return categories.map(category => ({ category, tools: tools.filter(t => toolCategory(t.name) === category) })).filter(g => g.tools.length);
+}
+
+export function agentManualMarkdown(tools: readonly CatalogTool[] = CORE_AGENT_TOOLS) {
   return [
     "# Órbita · manual canônico dos agentes", `Versão ${AGENT_MANUAL_VERSION} · página ${AGENT_MANUAL_PATH} · resource ${AGENT_MANUAL_URI}`, "",
     ...AGENT_MANUAL_SECTIONS.slice(0, 2).flatMap(s => [`## ${s.title}`, "", s.body, ""]),
     "## Fontes e responsabilidades", "", "| Área | Fonte | Regra |", "| --- | --- | --- |",
     ...SOURCE_OWNERS.map(s => `| ${s.area} | ${s.source} | ${s.rule} |`), "",
     ...AGENT_MANUAL_SECTIONS.slice(2).flatMap(s => [`## ${s.title}`, "", s.body, ""]),
-    "## Catálogo operacional", "", "| Ferramenta | Escopo | Uso |", "| --- | --- | --- |",
-    ...CORE_AGENT_TOOLS.map(t => `| ${t.name} | ${t.scope} | ${t.description} |`), "",
+    "## Catálogo operacional", "",
+    ...toolGroups(tools).flatMap(g => [`### ${g.category}`, "", "| Ferramenta | Escopo | Uso |", "| --- | --- | --- |", ...g.tools.map(t => `| ${t.name} | ${t.scope} | ${t.description} |`), ""]),
     "Administradores recebem também contexto_pessoal e orbita_* gerados a partir das ações da IA. tools/list é o catálogo efetivo do token, com schemas atuais.", "",
     "## Manutenção deste contrato", "", "Fonte única: src/lib/agent-handbook.ts no repositório da Órbita. Página, Markdown HTTP e MCP leem a mesma versão. Estratégia e decisões da empresa continuam no vault; este manual define a interface operacional da central.",
   ].join("\n");

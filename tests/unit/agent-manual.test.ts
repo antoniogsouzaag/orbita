@@ -1,5 +1,6 @@
+import { fullAgentManualMarkdown } from "@/server/agent-catalog";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AGENT_MANUAL_VERSION, agentManualMarkdown } from "@/lib/agent-handbook";
+import { AGENT_MANUAL_VERSION } from "@/lib/agent-handbook";
 import { GET } from "@/app/api/docs/agentes/route";
 import { isAuthenticated, tokenMatches } from "@/lib/auth";
 import { verifyAgentToken } from "@/server/agents";
@@ -19,7 +20,7 @@ describe("manual canônico autenticado", () => {
     const res = await GET(new Request("https://orb.example/api/docs/agentes", { headers: { authorization: "Bearer orb_example" } }));
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("private, no-store");
-    expect(await res.text()).toBe(agentManualMarkdown());
+    expect(await res.text()).toBe(fullAgentManualMarkdown());
   });
   it("aceita sessão do proprietário", async () => {
     vi.mocked(isAuthenticated).mockResolvedValueOnce(true);

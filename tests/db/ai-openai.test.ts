@@ -66,7 +66,7 @@ describe("IA via OpenAI", () => {
     expect(req.input.at(-1)!.content).toContain("Metas empresariais ativas");
     expect(req.input.at(-1)!.content).toContain("Projetos da empresa");
     expect(req.reasoning.effort).toBe("medium");
-    expect(req.tools.map(tool => tool.name)).toEqual(expect.arrayContaining(["listar_metas","criar_meta","buscar_no_vault","ler_nota_do_vault"]));
+    expect(req.tools.map(tool => tool.name)).toEqual(expect.arrayContaining(["listar_metas","criar_meta","buscar","ler_nota_do_vault"]));
   });
 
   it("monta o plano do dia com saída estruturada e ordena os blocos", async () => {

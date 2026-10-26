@@ -134,7 +134,7 @@ export async function vaultContext(question: string, scope: TaskScope = "pessoal
   const idx = await getVaultIndexSafe();
   if (!idx) return "Vault indisponível nesta consulta; prossiga com o contexto conhecido e identifique as hipóteses.";
   const selected = selectOrbeNotes([...idx.notes.values()], question, scope === "empresa");
-  return selected.length ? formatOrbeNotes(selected) : "Nenhum trecho relevante recuperado automaticamente. Use buscar_no_vault com conceitos curtos ou ler_nota_do_vault antes de concluir que não há informação.";
+  return selected.length ? formatOrbeNotes(selected) : "Nenhum trecho relevante recuperado automaticamente. Use buscar com conceitos curtos ou ler_nota_do_vault antes de concluir que não há informação.";
 }
 
 

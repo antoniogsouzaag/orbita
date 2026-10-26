@@ -17,7 +17,8 @@ import { crmSummaryInput, crmEmailInput, crmProductSchema, crmProductKey } from 
 import { businessUnit, MODEL_INFO } from "@/lib/business-models";
 import { productMetrics } from "./product-metrics";
 import { listTasks, type TaskView } from "./tasks";
-import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
+import { getVaultIndexSafe, getVaultProvider } from "./vault";
+import { searchKnowledge } from "./tool-search";
 import { editVault, editVaultSchema } from "./vault-edit";
 import { buscarConversas, memoria, pedirAgente, statusAgentes, ToolRefusal } from "./orbe-tools";
 
@@ -249,18 +250,6 @@ export const buscarNotas = {
   },
 };
 
-const buscarNoVaultSchema = z.object({ consulta: z.string().trim().min(2).max(200) });
-export const buscarNoVault = {
-  schema: buscarNoVaultSchema,
-  async run(v: z.infer<typeof buscarNoVaultSchema>): Promise<ActionResult> {
-    if (!getVaultProvider()) return { text: "Vault não configurado." };
-    const health = await vaultHealth();
-    if (!health.ok) return { text: "Vault indisponível nesta consulta. Tente novamente mais tarde." };
-    const hits = await searchVault(v.consulta, 8);
-    return { text: hits.length ? hits.map((h) => `- ${h.title} — \`${h.path}\`: ${h.snippet}`).join("\n") : "Nada encontrado no vault." };
-  },
-};
-
 const lerNotaDoVaultSchema = z.object({ caminho: z.string().trim().min(1).max(400).describe("Caminho ou nome da nota") });
 export const lerNotaDoVault = {
   schema: lerNotaDoVaultSchema,
@@ -457,7 +446,7 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "registrar_lancamento", description: "Registra uma despesa ou receita pessoal em Finanças.", ...registrarLancamento },
   { name: "criar_nota", description: "Cria uma nota no espaço atual da Órbita (Pessoal/Empresa), sem alterar o vault.", ...criarNota },
   { name: "buscar_notas", readOnly: true, description: "Busca notas no espaço atual da Órbita. No MCP, informe escopo empresa para as notas empresariais; padrão pessoal.", ...buscarNotas },
-  { name: "buscar_no_vault", readOnly: true, description: "Busca no vault da AG LABS (manual canônico da empresa).", ...buscarNoVault },
+  { name: "buscar", readOnly: true, description: "Busca geral no manual, vault, tarefas, projetos e notas do espaço atual. Filtre fonte quando souber onde procurar; CRM, conversas e operação têm consultas próprias.", schema: z.object({ consulta: z.string().trim().min(2).max(200), fonte: z.enum(["todos", "documentacao", "vault", "tarefas", "projetos", "notas"]).optional(), escopo: z.enum(["pessoal", "empresa"]).optional() }), run: async (v: { consulta: string; fonte?: "todos" | "documentacao" | "vault" | "tarefas" | "projetos" | "notas"; escopo?: TaskScope }) => ({ text: JSON.stringify(await searchKnowledge(v.consulta, { internal: true, scope: v.escopo, source: v.fonte })) }) },
   { name: "ler_nota_do_vault", readOnly: true, description: "Lê uma nota inteira do vault pelo caminho ou nome.", ...lerNotaDoVault },
   { name: "status_operacao", readOnly: true, description: "Estado ao vivo: sites fora do ar, incidentes, falhas de workflow, monitores e domínios.", ...statusOperacao },
   { name: "crm_resumo", readOnly: true, description: "Agregados do CRM: funil comercial, contas (não equivalem a pagantes), receita e tarefas. produto opcional (ex.: barberias); sem produto, CRM inteiro. Preserva fonte e indisponibilidade.", requires: crmConfigured, ...crmResumo },
@@ -516,7 +505,7 @@ export async function runAssistantTool(name: string, rawArgs: string | Record<st
       const input = args as Record<string, unknown>;
       if (input.espaco !== "geral" && input.espaco !== context.scope) return { ok: false, text: `Use espaco "geral" ou o espaço atual (${context.scope}).` };
     }
-    if (context && ["listar_metas", "criar_meta", "criar_nota", "buscar_notas", "listar_projetos", "criar_projeto"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
+    if (context && ["listar_metas", "criar_meta", "criar_nota", "buscar_notas", "buscar", "listar_projetos", "criar_projeto"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
       const input = args as Record<string,unknown>;
       if (input.escopo && input.escopo !== context.scope) return { ok:false, text:"Consulte ou registre dados no espaço atual." };
       args = { ...input, escopo: context.scope };

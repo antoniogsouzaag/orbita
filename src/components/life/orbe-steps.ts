@@ -14,7 +14,7 @@ const LABELS: Record<string, [string, string]> = {
   criar_meta: ["Criando meta", "Criou meta"],
   criar_nota: ["Criando nota", "Criou nota"],
   buscar_notas: ["Buscando notas", "Buscou notas"],
-  buscar_no_vault: ["Buscando no vault", "Buscou no vault"],
+  buscar: ["Buscando nas fontes", "Consultou as fontes"],
   ler_nota_do_vault: ["Lendo nota do vault", "Leu nota do vault"],
   salvar_nota_vault: ["Salvando nota no vault", "Salvou nota no vault"],
   status_operacao: ["Verificando a operação", "Verificou a operação"],
