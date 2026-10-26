@@ -118,7 +118,7 @@ export async function ProductPortfolio() {
                   <div className="mt-3 space-y-2 border-t border-border pt-3 text-[11px]">
                     <p className={p.result.status === "ok" ? "text-muted" : "text-faint"}>{status}{p.result.data ? ` · ${new Date(p.result.data.generatedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}</p>
                     <p className="text-faint">CRM: {num(commercial?.oportunidades_abertas)} oportunidades · {num(commercial?.clientes)} clientes</p>
-                    {engagement && <p className="text-faint">Engajados no mês: {num(engagement.currentMonth.engaged)} · aulas observadas desde {new Date(engagement.playbackObservedFrom).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>}
+                    {engagement && <p className="text-faint">Engajados · {new Date(p.result.data!.audience!.monthFrom).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", month: "short", year: "numeric" })}: {num(engagement.currentMonth.engaged)} · aulas observadas desde {new Date(engagement.playbackObservedFrom).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>}
                     <p className="text-faint">{p.model === "compra_unica" ? commerce ? "Compras registradas; cliques não são usuários únicos." : "Ativar a coleta de compras e eventos." : users.total === null ? "Conectar dados de usuários do aplicativo." : users.active === null ? "Falta medir atividade de usuários." : users.newMonth === null ? "Falta medir cadastros no mês." : "Cadastros e atividade disponíveis."}</p>
                   </div>
                 </>
