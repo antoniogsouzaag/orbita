@@ -20,3 +20,10 @@ Acesso ao plano não é pagamento. MeCard reutiliza account_plan e publication_o
 MeCard checkbase/check e Viajeki check não iniciaram por billing/spending limit do GitHub, conforme anotações dos checks dos SHAs 65ccfa7 e 04b1da9. Preview Cloudflare aprovado não substitui o check agregado obrigatório do MeCard. A implementação não equivale à publicação/ativação dos aplicativos.
 
 A tarefa só se encerra após gates exigidos, merges/publicações, aplicação da migration do MeCard, tokens próprios configurados nos apps/CRM, 401 sem token e 200 autenticado/no-store, comparação com os painéis administrativos e recepção válida no CRM/Órbita. Não foram aplicados novos tokens ou migration de produção, nem usados pagamentos, geração paga, contas reais ou mensagens como teste.
+
+
+## Autorização de merge e compactação da disponibilidade
+
+Antonio confirmou nesta continuação que quer os PRs mesclados agora, sem aguardar renovação da cota. Integração normal após os gates locais, sem alterar workflows, cobrança ou proteções; o CI que não iniciou continua registrado como indisponível. A decisão elimina novas perguntas repetidas sobre a mesma cota nesta rodada.
+
+A lista de disponibilidade passa a usar quatro colunas no desktop amplo, três no desktop menor, duas no tablet e uma no mobile. Cada endereço ocupa uma linha compacta com nome e status; domínio completo, erro e metadados ficam no tooltip acessível. A mudança é de apresentação, sem nova consulta, monitor ou alteração das regras de disponibilidade.
