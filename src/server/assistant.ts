@@ -14,6 +14,7 @@ import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./c
 import { liveOps } from "./ops-live";
 import { crmCommercialSummary, crmEmailFunnel, crmCommercialNotes, crmPrioritySummary } from "./crm-commercial";
 import { crmSummaryInput, crmEmailInput, crmProductSchema, crmProductKey } from "@/lib/crm-aggregates";
+import { businessUnit, MODEL_INFO } from "@/lib/business-models";
 import { productMetrics } from "./product-metrics";
 import { listTasks, type TaskView } from "./tasks";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
@@ -380,7 +381,14 @@ export const metricasProduto = {
   async run({ produto }: { produto: string }): Promise<ActionResult> {
     const product = crmProductKey(produto)!;
     const result = await productMetrics(product);
-    return { text: JSON.stringify({ product, source: "App de origem · métricas administrativas v1", ...result,
+    const unit = businessUnit(product);
+    const modelCoverage = result.data?.marketplace
+      ? "Modelo marketplace: a unidade é o produtor; não há contas de assinatura (campos de conta nulos de propósito). currentMonth/previousMonth são faturamento bruto, receita da plataforma (produtos próprios + comissões) e vendas pagas do mês no fuso de São Paulo, iguais ao painel /plataforma; valores em centavos sem taxas do provedor, não liquidados. producers.onboarding = cadastro de produtor iniciado; approved = aptos a vender. Mês corrente é parcial: compare com o anterior sabendo disso."
+      : result.data?.commerceFunnel
+        ? "Modelo compra única: eventos anônimos sem visitantes únicos nem conversão entre etapas; compras registradas e acessos provisionados na janela; valor em checkout sem estornos ou taxas, não é receita líquida. Campos de conta são nulos de propósito."
+        : null;
+    return { text: JSON.stringify({ product, source: "App de origem · métricas administrativas v1", businessModel: unit ? { ...MODEL_INFO[unit.model], indicators: unit.indicators } : null, ...result,
+      ...(modelCoverage ? { modelCoverage } : {}),
       coverage: "Contagens agregadas do app, sem cadastros. Ativas incluem testes e cortesias; payingAccounts é acesso de assinatura Stripe, não comprovante de recebimento ou receita conciliada. users é equipe com login, não clientes finais. Ativação é o critério do app, não uso recorrente. activationFunnel é estoque cumulativo por conta, com etapas na mesma unidade e filiais consolidadas; prontas sem reserva = readyForBooking menos firstAppointment. Não representa conversão por campanha, coorte ou período, nem comprova causa do abandono. Não somar contas do app com contatos do CRM.",
     }) };
   },

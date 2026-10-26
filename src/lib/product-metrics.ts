@@ -16,6 +16,25 @@ export const productMetricsSchema = z.object({
     professional: z.number().int().nonnegative(), catalog: z.number().int().nonnegative(),
     readyForBooking: z.number().int().nonnegative(), firstAppointment: z.number().int().nonnegative(),
   }).optional(),
+  /** Compra única (VibeKit): eventos anônimos e compras registradas; sem conversão entre etapas. */
+  commerceFunnel: z.object({
+    version: z.literal(1),
+    events: z.object({ pageViews: count, pricingViews: count, ctaClicks: count, checkoutClicks: count, checkoutCreated: count, checkoutFailures: count, successViews: count }),
+    observedFrom: z.iso.datetime().nullable(),
+    registeredPurchases: z.number().int().nonnegative(),
+    provisionedPurchases: z.number().int().nonnegative(),
+    registeredCheckoutAmountCents: count,
+    currency: z.literal("BRL"),
+  }).optional(),
+  /** Marketplace (Members): unidade é o produtor; receita da plataforma vem das vendas. */
+  marketplace: z.object({
+    version: z.literal(1),
+    currency: z.literal("BRL"),
+    currentMonth: z.object({ from: z.iso.datetime(), grossCents: z.number().int().nonnegative(), platformFeeCents: z.number().int().nonnegative(), paidItems: z.number().int().nonnegative() }),
+    previousMonth: z.object({ from: z.iso.datetime(), to: z.iso.datetime(), grossCents: z.number().int().nonnegative(), platformFeeCents: z.number().int().nonnegative(), paidItems: z.number().int().nonnegative() }),
+    producers: z.object({ onboarding: z.number().int().nonnegative(), approved: z.number().int().nonnegative() }),
+    users: z.object({ total: z.number().int().nonnegative(), new30d: z.number().int().nonnegative() }),
+  }).optional(),
 });
 export type ProductMetrics = z.infer<typeof productMetricsSchema>;
 
@@ -27,6 +46,12 @@ export function validateProductMetrics(raw: unknown, product: string, now = Date
     const f = data.activationFunnel;
     const stages = [data.metrics.accounts, f.professional, f.catalog, f.readyForBooking, f.firstAppointment];
     if (product !== "barberias" || stages[0] == null || stages.some((value, index) => index > 0 && value! > stages[index - 1]!) || f.firstAppointment !== data.metrics.activatedAccounts) throw new Error("Funil inválido");
+  }
+  if (data.commerceFunnel && (product !== "vibekit" || data.commerceFunnel.provisionedPurchases > data.commerceFunnel.registeredPurchases)) throw new Error("Funil comercial inválido");
+  if (data.marketplace) {
+    const m = data.marketplace;
+    if (product !== "members" || m.producers.approved > m.producers.onboarding || m.users.total !== data.metrics.users
+      || [m.currentMonth, m.previousMonth].some((p) => p.platformFeeCents > p.grossCents)) throw new Error("Marketplace inválido");
   }
   return data;
 }
