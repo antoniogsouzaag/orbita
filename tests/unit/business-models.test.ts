@@ -15,7 +15,7 @@ describe("catálogo de negócios", () => {
     expect(businessUnit("members")?.model).toBe("marketplace");
     expect(businessUnit("vibekit")?.model).toBe("compra_unica");
     expect(businessUnit("barberias")?.model).toBe("saas_b2b");
-    expect(businessUnit("aglabs")?.model).toBe("creditos");
+    expect(businessUnit("aglabs-app")?.model).toBe("creditos");
     expect(businessUnit("inexistente")).toBeUndefined();
   });
 });

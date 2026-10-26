@@ -7,13 +7,14 @@ const when = (v: string) => new Date(v).toLocaleString("pt-BR", { timeZone: "Ame
 const num = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("pt-BR"));
 const brl = (cents: number | null | undefined) => (cents == null ? "—" : (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
 
-/** Dados administrativos do app no modelo de negócio dele: SaaS, marketplace ou compra única. */
+/** Dados administrativos do app no modelo de negócio dele: SaaS, marketplace, compra única ou créditos. */
 export async function ProductAppMetrics({ product }: { product: string }) {
   const result = await productMetrics(product);
   if (!result.data) return <Card className="flex flex-wrap items-center gap-4 p-3"><div className="min-w-0 flex-1"><p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-faint">Dados do app · conexão pendente</p><h2 className="mt-1 text-sm font-semibold">Indicadores do negócio</h2><p className="mt-1 text-xs leading-relaxed text-muted">{result.message}</p></div><span className="rounded-full border border-border px-3 py-1 text-[11px] text-muted">Sem snapshot disponível</span></Card>;
   const data = result.data;
   if (data.marketplace) return <MarketplaceMetrics data={data} result={result} />;
   if (data.commerceFunnel) return <CommerceMetrics data={data} result={result} />;
+  if (data.credits) return <CreditsMetrics data={data} result={result} />;
   return <AccountMetrics data={data} result={result} />;
 }
 
@@ -58,6 +59,26 @@ function MarketplaceMetrics({ data, result }: { data: ProductMetrics; result: Pr
       ]} />
     </div>
     <Footer result={result} data={data} note="Mês no fuso de São Paulo, mesma fonte do painel /plataforma do Members. Mês atual parcial; mês anterior completo. Receita da plataforma inclui produtos próprios e comissões, com valores conciliados ou estimados e estornos alocados conforme o relatório; não comprova liquidação nem saldo disponível. Marketplace não tem contas de assinatura." />
+  </Card>;
+}
+
+const PLAN_NAMES = { basic: "Básico", advanced: "Advanced", premium: "Premium" } as const;
+
+function CreditsMetrics({ data, result }: { data: ProductMetrics; result: ProductMetricsResult }) {
+  const c = data.credits!;
+  const sub = c.subscriptions, cr = c.credits;
+  return <Card className="overflow-hidden">
+    <Header title="Créditos: compras, assinaturas e consumo em 30 dias" result={result} />
+    <Tiles items={[
+      { label: "Receita registrada", value: brl(c.sales.revenueCents), hint: `${num(c.sales.count)} compras · ${num(c.sales.payingUsers)} compradores` },
+      { label: "Assinaturas ativas", value: num(sub?.active), hint: sub ? `MRR estimado ${brl(sub.mrrCents)} · ${num(sub.trialing)} em teste` : "seção indisponível no admin" },
+      { label: "Usuários ativos", value: num(c.users.active30d), hint: `de ${num(c.users.total)} · ${num(c.users.generating)} geraram` },
+      { label: "Créditos consumidos", value: num(cr?.consumed), hint: cr ? `vendidos ${num(cr.sold)} · bônus ${num(cr.bonus)}` : "seção indisponível no admin" },
+    ]} />
+    {sub && sub.byPlan.length > 0 && <div className="border-t border-border p-3">
+      <BarRows label="Assinaturas ativas por plano" max={sub.active || 1} rows={sub.byPlan.map((p) => ({ key: p.plan, label: PLAN_NAMES[p.plan], value: p.active, display: num(p.active), tone: "accent" as const }))} />
+    </div>}
+    <Footer result={result} data={data} note={`Janela móvel de 30 dias, mesma fonte da aba do admin do AG LABS App. ${num(c.generations)} gerações no período. Receita é o valor registrado das compras sem reembolso aprovado; não é liquidação. Créditos reembolsados: ${num(cr?.refunded)}. Modelo de créditos não tem contas SaaS.`} />
   </Card>;
 }
 
