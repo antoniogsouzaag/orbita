@@ -33,13 +33,13 @@ async function withMeta(rows: { task: Task; project: { id: string; name: string;
 
 const projectCols = { id: projects.id, name: projects.name, color: projects.color };
 
-export async function listTasks(opts: { view?: TaskView; projectId?: string; tag?: string; limit?: number; scope?: TaskScope } = {}): Promise<TaskRow[]> {
+export async function listTasks(opts: { view?: TaskView; projectId?: string; tag?: string; limit?: number; scope?: TaskScope; includeParts?: boolean } = {}): Promise<TaskRow[]> {
   if (opts.projectId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(opts.projectId)) return [];
   const db = await getDb();
   const t = today();
   const view = opts.view ?? "todas";
   // Em andamento mostra também as partes de tarefas divididas, para ver quem está com o quê.
-  const where = view === "andamento" ? [] : [isNull(tasks.parentId)];
+  const where = view === "andamento" || opts.includeParts ? [] : [isNull(tasks.parentId)];
   if (view === "concluidas") where.push(eq(tasks.status, "done"));
   else where.push(ne(tasks.status, "done"));
   if (view === "hoje") where.push(lte(tasks.dueDate, t));

@@ -14,6 +14,7 @@ import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./c
 import { liveOps } from "./ops-live";
 import { crmCommercialSummary, crmEmailFunnel, crmCommercialNotes, crmPrioritySummary } from "./crm-commercial";
 import { crmSummaryInput, crmEmailInput, crmProductSchema, crmProductKey } from "@/lib/crm-aggregates";
+import { businessUnit, MODEL_INFO } from "@/lib/business-models";
 import { productMetrics } from "./product-metrics";
 import { listTasks, type TaskView } from "./tasks";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
@@ -380,10 +381,13 @@ export const metricasProduto = {
   async run({ produto }: { produto: string }): Promise<ActionResult> {
     const product = crmProductKey(produto)!;
     const result = await productMetrics(product);
-    return { text: JSON.stringify({ product, source: "App de origem · métricas administrativas v1", ...result,
+    const unit = businessUnit(product);
+    return { text: JSON.stringify({ product, source: "App de origem · métricas administrativas v1", businessModel: unit ? { ...MODEL_INFO[unit.model], indicators: unit.indicators } : null, ...result,
       coverage: product === "vibekit"
         ? "Comércio de compra única. commerceFunnel contém eventos anônimos, compras live registradas e acessos provisionados na janela informada. Eventos não são pessoas únicas nem etapas da mesma coorte; não dividir etapas como taxa de conversão. Visita à página de sucesso não comprova compra. Valor registrado em checkout não desconta taxas/estornos e não é receita líquida ou liquidada. observedFrom limita a cobertura; nulo não é zero. Métricas SaaS permanecem nulas. Sem cadastros e sem autorização para envio, convite ou mudança de contato."
-        : "Contagens agregadas do app, sem cadastros. Ativas incluem testes e cortesias; payingAccounts é acesso de assinatura Stripe, não comprovante de recebimento ou receita conciliada. users é equipe com login, não clientes finais. Ativação é o critério do app, não uso recorrente. activationFunnel é estoque cumulativo por conta, com etapas na mesma unidade e filiais consolidadas; prontas sem reserva = readyForBooking menos firstAppointment. Não representa conversão por campanha, coorte ou período, nem comprova causa do abandono. Não somar contas do app com contatos do CRM.",
+        : product === "members"
+          ? "Marketplace. Usuários incluem alunos, produtores e administração; não são contas SaaS. marketplace distingue cadastro de produtor iniciado/aprovado e vendas/bruto/receita da plataforma nos meses informados em São Paulo. O mês corrente é parcial; compará-lo ao anterior completo exige explicitar essa diferença. Receita da plataforma inclui produtos próprios e comissões, com alocações conciliadas ou estimadas e estornos alocados conforme o relatório. Não afirmar que taxas nunca foram descontadas: não comprova liquidação ou saldo disponível. Não é MRR nem receita dos produtores. Sem o bloco, só users está disponível; não presumir os demais valores. Nenhuma identidade ou autorização para enviar mensagens, liberar acesso ou mudar cobrança."
+          : "Contagens agregadas do app, sem cadastros. Ativas incluem testes e cortesias; payingAccounts é acesso de assinatura Stripe, não comprovante de recebimento ou receita conciliada. users é equipe com login, não clientes finais. Ativação é o critério do app, não uso recorrente. activationFunnel é estoque cumulativo por conta, com etapas na mesma unidade e filiais consolidadas; prontas sem reserva = readyForBooking menos firstAppointment. Não representa conversão por campanha, coorte ou período, nem comprova causa do abandono. Não somar contas do app com contatos do CRM.",
     }) };
   },
 };
@@ -400,7 +404,7 @@ export const crmPrioridades = {
 
 export const ASSISTANT_TOOLS: Tool[] = [
   { name: 'crm_prioridades', description: 'Consulta sinais comerciais por produto: tarefas vencidas, testes encerrados confirmados e oportunidades sem tarefa pendente. Use para recomendar próximos passos do negócio; cruze com metas, vault e receita. Contagem não autoriza envio nem mudança de etapa.', readOnly: true, requires: crmConfigured, ...crmPrioridades },
-  { name: "metricas_produto", description: "Consulta agregados do app via CRM: contas, acesso, assinatura e ativação; no VibeKit, eventos anônimos, compras registradas e acesso provisionado na janela informada. Eventos não são pessoas únicas; valor de checkout não é receita liquidada. Use antes de responder números do produto. Informa não conectado/indisponível/desatualizado sem presumir zero; não executa operações no app.", readOnly: true, ...metricasProduto },
+  { name: "metricas_produto", description: "Consulta agregados do app via CRM: contas, acesso, assinatura e ativação; no Members, usuários, produtores e vendas/receita da plataforma nos meses informados; no VibeKit, eventos anônimos, compras registradas e acesso provisionado. Eventos não são pessoas únicas; valores registrados não comprovam liquidação. Use antes de responder números do produto. Informa não conectado/indisponível/desatualizado sem presumir zero; não executa operações no app.", readOnly: true, ...metricasProduto },
   { name: "listar_metas", readOnly: true, description: "Consulta metas e objetivos do espaço atual com progresso, prazo e contexto. Use para discutir prioridades e evolução.", ...listarMetas },
   { name: "criar_meta", description: "Registra uma meta somente quando Antonio pedir para criar ou salvar, com título, indicador, alvo e prazo acordados. Sugestão de meta não autoriza gravação. Não invente linha de base ou progresso.", ...criarMeta },
   { name: "salvar_nota_vault", description: "Cria ou atualiza nota canônica do vault com controle de versão. Leia antes e forneça o SHA. Só registre mudanças de política, produto ou responsabilidade explicitamente aprovadas por Antonio; nunca salve segredos ou dados de clientes.", schema: editVaultSchema, run: editVault, requires: () => Boolean(getVaultProvider()) },
