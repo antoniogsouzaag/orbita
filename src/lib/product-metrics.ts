@@ -1,3 +1,4 @@
+import { projectFreemium, type FreemiumMetrics } from "./freemium-metrics";
 import { z } from "zod";
 import { marketplaceMetricsSchema, validateMarketplaceMetrics } from "./marketplace-metrics";
 import { creditsMetricsSchema, validateCreditsMetrics } from "./credits-metrics";
@@ -33,6 +34,7 @@ export const productMetricsSchema = z.object({
   marketplace: marketplaceMetricsSchema.optional(),
   credits: creditsMetricsSchema.optional(),
   audience: audienceMetricsSchema.optional(),
+  freemium: z.custom<FreemiumMetrics>().optional(),
 });
 export type ProductMetrics = z.infer<typeof productMetricsSchema>;
 
@@ -72,5 +74,9 @@ export function validateProductMetrics(raw: unknown, product: string, now = Date
       validateCreditsMetrics(data.credits, data.metrics.users);
     }
   } else if (data.credits) throw new Error("Produto de créditos divergente");
+  if (data.freemium !== undefined) {
+    if (Object.entries(data.metrics).some(([key,value]) => key !== "users" && value !== null)) throw new Error("Unidade freemium inválida");
+    data.freemium = projectFreemium(data.freemium, product, data.metrics.users);
+  }
   return data;
 }

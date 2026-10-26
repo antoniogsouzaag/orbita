@@ -69,11 +69,11 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
     summary: "Cartão de visita digital. Plano grátis e Pro mensal ou anual pelo Mercado Pago.",
     indicators: [
       { label: "Usuários cadastrados", source: "app", available: true },
-      { label: "Páginas publicadas", source: "app", available: false },
-      { label: "Assinantes Pro pagantes (mensal e anual)", source: "app", available: false },
+      { label: "Páginas publicadas e no ar", source: "app", available: true },
+      { label: "Assinantes pagantes Pro e Negócios (mensal e anual)", source: "app", available: true },
       { label: "Conversão grátis → Pro", source: "app", available: false },
     ],
-    next: "Ativar o token e definir no app os indicadores de páginas publicadas e Pro pagante.",
+    next: "Acompanhar publicação e assinatura paga; medir conversão por coorte sem confundir acesso de teste com pagamento.",
   },
   {
     // No CRM a chave "aglabs" é o AG LABS institucional; as métricas do app usam "aglabs-app".
@@ -92,11 +92,11 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
     id: "viajeki", name: "Viajeki", domain: "viajeki.com.br", logo: "/brands/viajeki.png", tag: "viajeki", model: "freemium_assinatura",
     summary: "Roteiros de viagem com IA. Plano Essencial grátis, Pro anual e compra de roteiro.",
     indicators: [
-      { label: "Usuários e roteiros criados", source: "app", available: false },
-      { label: "Assinantes Pro e roteiros comprados", source: "app", available: false },
+      { label: "Usuários e viagens criadas", source: "app", available: true },
+      { label: "Pro pago e compras avulsas de roteiro", source: "app", available: true },
       { label: "Conversão grátis → pago", source: "app", available: false },
     ],
-    next: "Definir as métricas no app e criar o endpoint para o CRM.",
+    next: "Acompanhar criação e compra avulsa de roteiros, Pro pago e renovação; medir conversão por coorte.",
   },
 ];
 

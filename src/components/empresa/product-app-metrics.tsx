@@ -12,6 +12,7 @@ export async function ProductAppMetrics({ product }: { product: string }) {
   const result = await productMetrics(product);
   if (!result.data) return <Card className="flex flex-wrap items-center gap-4 p-3"><div className="min-w-0 flex-1"><p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-faint">Dados do app · conexão pendente</p><h2 className="mt-1 text-sm font-semibold">Indicadores do negócio</h2><p className="mt-1 text-xs leading-relaxed text-muted">{result.message}</p></div><span className="rounded-full border border-border px-3 py-1 text-[11px] text-muted">Sem snapshot disponível</span></Card>;
   const data = result.data;
+  if (data.freemium) return <FreemiumMetrics data={data} result={result} />;
   if (data.marketplace) return <MarketplaceMetrics data={data} result={result} />;
   if (data.commerceFunnel) return <CommerceMetrics data={data} result={result} />;
   if (data.credits) return <CreditsMetrics data={data} result={result} />;
@@ -145,4 +146,24 @@ function AccountMetrics({ data, result }: { data: ProductMetrics; result: Produc
     </details>}
     <Footer result={result} data={data} note="Conta ativa, cortesia, ativação e pagamento são medidas distintas." />
   </Card>;
+}
+
+function FreemiumMetrics({ data, result }: { data: ProductMetrics; result: ProductMetricsResult }) {
+  const f = data.freemium!;
+  return <Card className="overflow-hidden"><Header title={data.product === "mecard" ? "MeCard · cartões e assinaturas" : "Viajeki · viagens e assinaturas"} result={result} /><Tiles items={[
+    { label: "Usuários cadastrados", value: num(data.metrics.users) },
+    { label: "Com acesso por plano", value: num(f.subscriptionAccessUsers), hint: "Acesso inclui permissões do produto; não comprova pagamento" },
+    { label: "Assinantes pagantes", value: num(f.paidSubscriptionUsers), hint: "Pagamento aprovado e período pago vigente" },
+    ...(data.product === "mecard" ? [
+      { label: "Páginas publicadas", value: num(f.publishedPages) }, { label: "Páginas no ar", value: num(f.onlinePages) },
+      { label: "Usuários que publicaram", value: num(f.publishers) },
+      { label: "Pro mensal / anual", value: `${num(f.proMonthly)} / ${num(f.proYearly)}` },
+      { label: "Negócios mensal / anual", value: `${num(f.businessMonthly)} / ${num(f.businessYearly)}` },
+    ] : [
+      { label: "Viagens criadas", value: num(f.trips) }, { label: "Usuários com viagem", value: num(f.tripCreators) },
+      { label: "Compras de roteiro · 30d", value: num(f.tripPurchases30d) },
+      { label: "Compradores · 30d", value: num(f.tripBuyers30d) },
+      { label: "Valor de roteiros · 30d", value: brl(f.tripRevenueCents30d), hint: "Valor bruto aprovado registrado; não liquidação" },
+    ]),
+  ]} /><Footer data={data} result={result} note="Acesso administrativo e teste grátis não contam como pagamento. Assinantes são usuários distintos, com um plano pago vigente por usuário. Compras de roteiro e assinaturas são medidas separadas; não são uma coorte de conversão." /></Card>;
 }
