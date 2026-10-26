@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { marketplaceMetricsSchema, validateMarketplaceMetrics } from "./marketplace-metrics";
 import { creditsMetricsSchema, validateCreditsMetrics } from "./credits-metrics";
+import { audienceMetricsSchema, validateAudienceMetrics } from "./audience-metrics";
 
 const count = z.number().int().nonnegative().nullable();
 export const commerceFunnelSchema = z.object({
@@ -31,12 +32,17 @@ export const productMetricsSchema = z.object({
   commerceFunnel: commerceFunnelSchema.optional(),
   marketplace: marketplaceMetricsSchema.optional(),
   credits: creditsMetricsSchema.optional(),
+  audience: audienceMetricsSchema.optional(),
 });
 export type ProductMetrics = z.infer<typeof productMetricsSchema>;
 
 export function validateProductMetrics(raw: unknown, product: string, now = Date.now()): ProductMetrics {
   const data = productMetricsSchema.parse(raw);
   if (data.product !== product) throw new Error("Produto divergente");
+  if (data.audience) {
+    if (product === "vibekit") throw new Error("Compra única não mede usuários");
+    validateAudienceMetrics(data.audience, data.metrics.users, data.generatedAt, product);
+  }
   if (Date.parse(data.window.from) > Date.parse(data.window.to) || Date.parse(data.generatedAt) > now + 300_000 || Date.parse(data.window.to) > now + 300_000) throw new Error("Janela inválida");
   if (data.activationFunnel) {
     const f = data.activationFunnel;
