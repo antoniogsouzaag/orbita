@@ -50,7 +50,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
       { label: "Produtores com venda no período", source: "app", available: false },
       { label: "Compradores únicos", source: "app", available: false },
     ],
-    next: "Ativar o token da coleta e conferir com o painel /plataforma.",
+    next: "Medir produtores com venda e compradores únicos no período, separando cadastro aprovado de venda realizada.",
   },
   {
     id: "vibekit", name: "VibeKit", domain: "templates.aglabs.ia.br", tag: "vibekit", model: "compra_unica",
@@ -84,7 +84,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
       { label: "Créditos vendidos, bônus, consumidos e reembolsados", source: "app", available: true },
       { label: "Gerações com falha e custo por geração", source: "app", available: false },
     ],
-    next: "Publicar o endpoint no Render, ativar o token aglabs-app e conferir com a aba de 30 dias do admin.",
+    next: "Medir falhas e custo por geração; validar privacidade e limite de créditos antes do MCP de mídia.",
   },
   {
     id: "viajeki", name: "Viajeki", domain: "viajeki.com.br", tag: "viajeki", model: "freemium_assinatura",
