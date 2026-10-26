@@ -32,7 +32,7 @@ O painel separa **Fila de execução**, **Decisão de Antonio** e **A classifica
 
 ## Qualidade da ORBE
 
-O chat tem modo **Somente leitura**, consultas explícitas visíveis e interrupção com preservação dos recibos já recebidos. Interromper não desfaz escritas iniciadas; confira a origem antes de repetir. O histórico continua local à aba, não memória permanente. Contrato, limites e matriz de avaliação em [docs/orbe-qualidade.md](docs/orbe-qualidade.md).
+O chat tem modo **Somente leitura**, consultas explícitas visíveis e interrupção com preservação dos recibos já recebidos. Interromper não desfaz escritas iniciadas; confira a origem antes de repetir. Conversas ficam guardadas por 60 dias e a ORBE mantém uma memória curta e editável (ORBE → Memória); veja [docs/orbe-memoria-escopo.md](docs/orbe-memoria-escopo.md). Ela também consulta e envia pedidos aos agentes (status_agentes, pedir_a_agente). Contrato, limites e matriz de avaliação em [docs/orbe-qualidade.md](docs/orbe-qualidade.md).
 
 ## Endpoints
 

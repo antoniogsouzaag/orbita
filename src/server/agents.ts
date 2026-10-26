@@ -344,7 +344,7 @@ export function buildMcpServer(agent: AgentIdentity) {
       const { personalContext } = await import("./ai");
       return text(await personalContext());
     }));
-    for (const tool of assistantTools()) {
+    for (const tool of assistantTools().filter((t) => !t.orbeOnly)) {
       server.registerTool(`orbita_${tool.name}`, {
         title: tool.name,
         description: `Administrador: ${tool.description}`,

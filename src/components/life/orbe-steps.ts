@@ -1,4 +1,4 @@
-import { Activity, BarChart3, BookOpen, CalendarDays, CheckSquare, Mail, NotebookPen, Target, Users, Wallet, Wrench, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, BookOpen, Bot, Brain, History, Send, CalendarDays, CheckSquare, Mail, NotebookPen, Target, Users, Wallet, Wrench, type LucideIcon } from "lucide-react";
 import type { AiStep } from "@/lib/ai-stream";
 import type { TraceNode } from "@/components/ui/ai-agent-response";
 
@@ -28,9 +28,17 @@ const LABELS: Record<string, [string, string]> = {
   crm_criar_tarefa: ["Criando tarefa no CRM", "Criou tarefa no CRM"],
   crm_concluir_tarefa: ["Concluindo tarefa no CRM", "Concluiu tarefa no CRM"],
   crm_registrar_atividade: ["Registrando atividade", "Registrou atividade"],
+  memoria: ["Atualizando a memória", "Atualizou a memória"],
+  buscar_conversas: ["Buscando em conversas anteriores", "Buscou em conversas anteriores"],
+  pedir_a_agente: ["Enviando pedido ao agente", "Enviou pedido ao agente"],
+  status_agentes: ["Consultando os agentes", "Consultou os agentes"],
 };
 
 function iconFor(name: string): LucideIcon {
+  if (name === "memoria") return Brain;
+  if (name === "buscar_conversas") return History;
+  if (name === "pedir_a_agente") return Send;
+  if (name === "status_agentes") return Bot;
   if (name === "crm_funil_emails") return Mail;
   if (name.startsWith("crm_")) return Users;
   if (name.includes("vault")) return BookOpen;

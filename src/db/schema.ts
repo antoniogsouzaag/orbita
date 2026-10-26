@@ -360,3 +360,43 @@ export const dispatches = pgTable(
 );
 
 export type Dispatch = typeof dispatches.$inferSelect;
+
+/* ───────────── Memória e conversas da ORBE ───────────── */
+
+/** geral = como a ORBE deve trabalhar com Antonio, válido nos dois espaços. */
+export const ORBE_MEMORY_SCOPES = ["geral", "pessoal", "empresa"] as const;
+export type OrbeMemoryScope = (typeof ORBE_MEMORY_SCOPES)[number];
+
+/** Anotações curtas e curadas, sempre no contexto da ORBE. O limite de caracteres força escolher o que importa. */
+export const orbeMemories = pgTable(
+  "orbe_memories",
+  {
+    id: id(),
+    scope: text("scope").$type<OrbeMemoryScope>().notNull(),
+    content: text("content").notNull(),
+    /** conversa | consolidacao | manual */
+    source: text("source").notNull().default("conversa"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("orbe_memories_scope_idx").on(t.scope, t.createdAt)],
+);
+
+/** Conversas da ORBE por espaço. Consolidadas na memória antes de expirar. */
+export const orbeConversations = pgTable(
+  "orbe_conversations",
+  {
+    id: uuid("id").primaryKey(),
+    scope: text("scope").$type<TaskScope>().notNull(),
+    title: text("title").notNull(),
+    messages: jsonb("messages").$type<unknown[]>().notNull().default([]),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Última consolidação na memória; nula ou anterior a updatedAt = pendente. */
+    consolidatedAt: timestamp("consolidated_at", { withTimezone: true }),
+  },
+  (t) => [index("orbe_conversations_scope_updated_idx").on(t.scope, t.updatedAt)],
+);
+
+export type OrbeMemory = typeof orbeMemories.$inferSelect;
+export type OrbeConversation = typeof orbeConversations.$inferSelect;

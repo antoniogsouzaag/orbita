@@ -5,6 +5,7 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import type { TaskScope } from "@/db/schema";
+import { MEMORY_RULES, memoryContext } from "./orbe-memory";
 import { ACTION_MARK, actionMarker, actionOrigins, modelText, sourceMarker, splitActions, stepMarker, STREAM_END_MARK } from "@/lib/ai-stream";
 import type { ChatTurn } from "@/lib/orbe-chat";
 export type { ChatTurn } from "@/lib/orbe-chat";
@@ -164,7 +165,9 @@ const CRM_RULES = `CRM da AG LABS (ferramentas crm_*): clientes, leads, funil, r
 - Tarefa da empresa sobre cliente ou venda vai para o CRM; tarefa pessoal ou interna de Antonio continua na Órbita.
 - Você não muda a etapa do funil, não apaga e não vê e-mail ou telefone dos contatos.`;
 
-const NO_CRM = "- Tarefas e dados de clientes da empresa ficam no CRM, que ainda não está conectado à Órbita.";
+const AGENT_RULES = `Agentes da AG LABS (Tom, Hermes Oracle, Linus e os demais do Vault): para saber o que estão fazendo use status_agentes; para passar trabalho use pedir_a_agente, com pedido específico (verbo + objeto + produto) e critério de pronto. Pedido criado não é trabalho feito: o agente registra andamento e evidência na tarefa.`;
+
+const NO_CRM ="- Tarefas e dados de clientes da empresa ficam no CRM, que ainda não está conectado à Órbita.";
 
 /** Resposta em streaming (texto) para a pergunta, com contexto do dia + vault e ferramentas para agir. */
 export async function askStream(history: ChatTurn[], opts: { tools?: boolean; scope?: TaskScope; readOnly?: boolean; signal?: AbortSignal } = {}): Promise<ReadableStream<Uint8Array>> {
@@ -174,12 +177,12 @@ export async function askStream(history: ChatTurn[], opts: { tools?: boolean; sc
   const useTools = opts.tools ?? true;
   const readOnly = opts.readOnly ?? false;
   const scope = opts.scope ?? "pessoal";
-  const [personal, vault] = await Promise.all([scope === "empresa" ? empresaContext() : personalContext(), vaultContext(history.filter(turn => turn.role === "user").slice(-3).map(turn => turn.content).join("\n"), scope)]);
+  const [personal, vault, memory] = await Promise.all([scope === "empresa" ? empresaContext() : personalContext(), vaultContext(history.filter(turn => turn.role === "user").slice(-3).map(turn => turn.content).join("\n"), scope), memoryContext(scope)]);
   opts.signal?.throwIfAborted();
   const context = `<contexto_do_dia>\n${personal}\n</contexto_do_dia>${vault ? `\n<vault>\n${vault}\n</vault>` : ""}`;
   const turns = history.map((m, i) => (i === history.length - 1 ? { role: "user" as const, content: `${context}\n\n<pergunta>\n${m.content}\n</pergunta>` } : m));
   const spaceRules = `Espaço atual: ${scope}. Crie e consulte tarefas apenas neste espaço. Tags não mudam o espaço. Tarefas de outro espaço devem ser tratadas na respectiva tela. ${scope === "empresa" ? "Dados comerciais e tarefas ligadas a contatos ficam exclusivamente nas ferramentas crm_*. Notas, finanças e agenda pessoais não estão disponíveis neste espaço." : "O CRM e as tarefas internas da empresa ficam no espaço Empresa."}`;
-  const instructions = `${readOnly ? "Modo somente leitura: investigue e recomende; nenhuma escrita está disponível ou autorizada nesta consulta.\n" : ""}${SYSTEM}\n\n${scope === "empresa" ? ORBE_STRATEGY_RULES : ""}\n\n${spaceRules}${useTools ? `\n\n${TOOL_RULES}\n${scope === "empresa" ? crmConfigured() ? CRM_RULES : NO_CRM : ""}` : ""}`;
+  const instructions = `${readOnly ? "Modo somente leitura: investigue e recomende; nenhuma escrita está disponível ou autorizada nesta consulta.\n" : ""}${SYSTEM}\n\n${scope === "empresa" ? ORBE_STRATEGY_RULES : ""}\n\n${spaceRules}${useTools ? `\n\n${TOOL_RULES}\n${AGENT_RULES}\n${scope === "empresa" ? crmConfigured() ? CRM_RULES : NO_CRM : ""}` : ""}\n\n${MEMORY_RULES}\n\n${memory}`;
   const enc = new TextEncoder();
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -219,12 +222,13 @@ export async function askOnce(text: string): Promise<{ answer: string; actions: 
 /** Nome inventado pelo provedor não vira rótulo arbitrário na interface. */
 const safeStepName = (name: string) => (/^[a-z][a-z0-9_]{0,79}$/.test(name) ? name : "ferramenta");
 
-type RunArgs = { instructions: string; turns: ChatTurn[]; useTools: boolean; scope: TaskScope; readOnly: boolean; emit: (t: string) => void; signal: AbortSignal };
+type RunArgs = { instructions: string; turns: ChatTurn[]; useTools: boolean; scope: TaskScope; readOnly: boolean; emit: (t: string) => void; signal: AbortSignal; /** Restringe as ferramentas (a consolidação usa só memoria). */ only?: string[] };
+const toolsFor = (scope: TaskScope, readOnly: boolean, only?: string[]) => assistantTools(scope, { readOnly }).filter((t) => !only || only.includes(t.name));
 
-async function runOpenAI({ instructions, turns, useTools, scope, readOnly, emit, signal }: RunArgs) {
+async function runOpenAI({ instructions, turns, useTools, scope, readOnly, emit, signal, only }: RunArgs) {
   let stepSeq = 0;
   const client = openaiClient();
-  const tools: OpenAI.Responses.Tool[] = useTools ? assistantTools(scope, { readOnly }).map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
+  const tools: OpenAI.Responses.Tool[] = useTools ? toolsFor(scope, readOnly, only).map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
   let input: OpenAI.Responses.ResponseInput = turns.map((t) => ({ role: t.role, content: t.content }));
   let reasoning = true; // alguns modelos não aceitam o parâmetro: cai para a chamada simples
   let synthesize = false;
@@ -290,7 +294,7 @@ async function runOpenAI({ instructions, turns, useTools, scope, readOnly, emit,
       const isRead = Boolean(assistantTools(scope).find(t => t.name === c.name)?.readOnly);
       const step = { id: ++stepSeq, name: safeStepName(c.name), write: !isRead };
       emit(stepMarker({ ...step, status: "running" }));
-      const r = await runAssistantTool(c.name, c.arguments, { scope, readOnly, signal });
+      const r = only && !only.includes(c.name) ? { ok: false, text: "Ferramenta indisponível nesta etapa." } as Awaited<ReturnType<typeof runAssistantTool>> : await runAssistantTool(c.name, c.arguments, { scope, readOnly, signal });
       emit(stepMarker({ ...step, status: r.ok ? "done" : "failed" }));
       if (isRead) emit(sourceMarker({ name: c.name, ok: r.ok }));
       if (r.action) emit(actionMarker(r.action));
@@ -300,9 +304,9 @@ async function runOpenAI({ instructions, turns, useTools, scope, readOnly, emit,
   emit("\n\n_(parei após muitas etapas; confira o que foi feito)_");
 }
 
-async function runAnthropic({ instructions, turns, useTools, scope, readOnly, emit, signal }: RunArgs) {
+async function runAnthropic({ instructions, turns, useTools, scope, readOnly, emit, signal, only }: RunArgs) {
   let stepSeq = 0;
-  const tools = useTools ? assistantTools(scope, { readOnly }).map((t) => ({ name: t.name, description: t.description, input_schema: toolJsonSchema(t) as Anthropic.Beta.BetaTool.InputSchema })) : undefined;
+  const tools = useTools ? toolsFor(scope, readOnly, only).map((t) => ({ name: t.name, description: t.description, input_schema: toolJsonSchema(t) as Anthropic.Beta.BetaTool.InputSchema })) : undefined;
   const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role, content: t.content }));
   for (let round = 0; round < MAX_ROUNDS; round++) {
     signal.throwIfAborted();
@@ -327,7 +331,7 @@ async function runAnthropic({ instructions, turns, useTools, scope, readOnly, em
       const isRead = Boolean(assistantTools(scope).find(t => t.name === b.name)?.readOnly);
       const step = { id: ++stepSeq, name: safeStepName(b.name), write: !isRead };
       emit(stepMarker({ ...step, status: "running" }));
-      const r = await runAssistantTool(b.name, b.input as Record<string, unknown>, { scope, readOnly, signal });
+      const r = only && !only.includes(b.name) ? { ok: false, text: "Ferramenta indisponível nesta etapa." } as Awaited<ReturnType<typeof runAssistantTool>> : await runAssistantTool(b.name, b.input as Record<string, unknown>, { scope, readOnly, signal });
       emit(stepMarker({ ...step, status: r.ok ? "done" : "failed" }));
       if (isRead) emit(sourceMarker({ name: b.name, ok: r.ok }));
       if (r.action) emit(actionMarker(r.action));
@@ -336,6 +340,28 @@ async function runAnthropic({ instructions, turns, useTools, scope, readOnly, em
     messages.push({ role: "user", content: results });
   }
   emit("\n\n_(parei após muitas etapas; confira o que foi feito)_");
+}
+
+const CONSOLIDATE_RULES = `Você é a ORBE revisando, sem Antonio presente, uma conversa já encerrada com ele. Objetivo: manter sua memória útil e enxuta.
+- Leia a conversa e o bloco <memoria>. Use a ferramenta memoria apenas para aprendizados duráveis que vão melhorar conversas futuras e ainda não estão lá: preferências de atendimento, correções que Antonio fez, combinados e decisões que não estão no Vault, lições sobre o ecossistema.
+- Não guarde resumo da conversa, tarefas, métricas, status, nem o que já está no Vault ou no manual. Nada de segredos, dados de clientes, saúde ou finanças detalhadas.
+- Prefira substituir ou juntar anotações a adicionar. Se o bloco estiver cheio, só troque por algo claramente mais útil.
+- Na dúvida, não guarde. Não fazer nada é um resultado válido. Responda ao final com uma linha: o que mudou ou "nada a guardar".`;
+
+/** Consolidação de uma conversa encerrada na memória (rotina diária). Só a ferramenta memoria fica disponível. */
+export async function consolidateConversation(conv: { scope: TaskScope; messages: unknown[] }, signal?: AbortSignal): Promise<{ changed: number; note: string }> {
+  const provider = aiProvider();
+  if (!provider) throw new Error("IA não configurada");
+  const { transcript } = await import("./orbe-conversations");
+  const text = transcript(conv.messages);
+  if (!text.trim()) return { changed: 0, note: "conversa vazia" };
+  const memory = await memoryContext(conv.scope);
+  const instructions = `${CONSOLIDATE_RULES}\n\n${MEMORY_RULES}\n\n${memory}`;
+  let raw = "";
+  const run = provider === "openai" ? runOpenAI : runAnthropic;
+  await run({ instructions, turns: [{ role: "user", content: `<conversa espaco="${conv.scope}">\n${text}\n</conversa>` }], useTools: true, scope: conv.scope, readOnly: false, emit: (t) => { raw += t; }, signal: signal ?? AbortSignal.timeout(90_000), only: ["memoria"] });
+  const parsed = splitActions(raw);
+  return { changed: parsed.actions.length, note: parsed.text.trim().slice(-300) };
 }
 
 const PlanSchema = z.object({
