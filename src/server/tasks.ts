@@ -9,7 +9,7 @@ export type TaskRow = Task & {
   subtasks: { total: number; done: number };
 };
 
-export type TaskView = "hoje" | "proximos" | "atrasadas" | "semdata" | "todas" | "concluidas";
+export type TaskView = "hoje" | "proximos" | "atrasadas" | "semdata" | "andamento" | "todas" | "concluidas";
 
 async function withMeta(rows: { task: Task; project: { id: string; name: string; color: string } | null }[]): Promise<TaskRow[]> {
   const db = await getDb();
@@ -43,6 +43,7 @@ export async function listTasks(opts: { view?: TaskView; projectId?: string; tag
   if (view === "atrasadas") where.push(lt(tasks.dueDate, t));
   if (view === "proximos") where.push(and(gte(tasks.dueDate, shiftDate(t, 1)), lte(tasks.dueDate, shiftDate(t, 14)))!);
   if (view === "semdata") where.push(isNull(tasks.dueDate));
+  if (view === "andamento") where.push(eq(tasks.status, "doing"));
   if (opts.projectId) where.push(eq(tasks.projectId, opts.projectId));
   if (opts.tag) where.push(sql`${opts.tag} = any(${tasks.tags})`);
   if (opts.scope) where.push(eq(tasks.scope, opts.scope));
@@ -50,6 +51,8 @@ export async function listTasks(opts: { view?: TaskView; projectId?: string; tag
   const order =
     view === "concluidas"
       ? [desc(tasks.completedAt)]
+      : view === "andamento"
+      ? [sql`${tasks.assignee} asc nulls last`, sql`${tasks.claimedAt} asc nulls last`, desc(tasks.priority)]
       : [sql`${tasks.dueDate} asc nulls last`, desc(tasks.priority), asc(tasks.sort), desc(tasks.createdAt)];
 
   const rows = await db
@@ -80,6 +83,7 @@ export async function taskCounts(scope?: TaskScope) {
   const [c] = await db
     .select({
       open: sql<number>`count(*) filter (where ${tasks.status} <> 'done')::int`,
+      doing: sql<number>`count(*) filter (where ${tasks.status} = 'doing')::int`,
       today: sql<number>`count(*) filter (where ${tasks.status} <> 'done' and ${tasks.dueDate} = ${t})::int`,
       overdue: sql<number>`count(*) filter (where ${tasks.status} <> 'done' and ${tasks.dueDate} < ${t})::int`,
       doneToday: sql<number>`count(*) filter (where ${tasks.status} = 'done' and ${tasks.completedAt} >= now() - interval '24 hours')::int`,

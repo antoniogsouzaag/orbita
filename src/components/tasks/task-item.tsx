@@ -5,6 +5,7 @@ import { Chip, CheckButton } from "@/components/ui/misc";
 import { relativeDay, today } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import type { TaskRow } from "@/server/tasks";
+import { AssigneeBadge } from "./assignee-badge";
 import { PriorityIcon } from "./priority-icon";
 
 export function TaskItem({ task, onToggle, onOpen, compact, showDate = true, showScope }: { task: TaskRow; onToggle: () => void; onOpen?: () => void; compact?: boolean; showDate?: boolean; showScope?: boolean }) {
@@ -23,7 +24,13 @@ export function TaskItem({ task, onToggle, onOpen, compact, showDate = true, sho
       <CheckButton checked={done} onToggle={onToggle} label={done ? "Reabrir tarefa" : "Concluir tarefa"} />
       <div className="min-w-0 flex-1">
         <div className={cn("truncate text-[14px]", done && "text-faint line-through")}>{task.title}</div>
-        {!compact && task.tags.length > 0 && <div className="mt-0.5 truncate text-[11.5px] text-faint">{task.tags.map((x) => `#${x}`).join(" ")}</div>}
+        {!compact && (task.assignee || task.tags.length > 0) && (
+          <div className="mt-0.5 flex min-w-0 items-center gap-2">
+            <AssigneeBadge task={task} className="shrink-0" />
+            {task.tags.length > 0 && <span className="truncate text-[11.5px] text-faint">{task.tags.map((x) => `#${x}`).join(" ")}</span>}
+          </div>
+        )}
+        {compact && task.assignee && task.status !== "done" && <AssigneeBadge task={task} className="mt-0.5" />}
         {/* Nos cards (compacto) os detalhes vão para a linha de baixo: o título nunca some. */}
         {compact && ((showScope && task.scope === "empresa") || task.project || (showDate && task.dueDate)) && (
           <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[11.5px] text-faint">

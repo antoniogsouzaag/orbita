@@ -11,6 +11,7 @@ import { relativeDay, today } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { taskHref } from "@/lib/task-scope";
 import type { TaskRow } from "@/server/tasks";
+import { AssigneeBadge } from "./assignee-badge";
 import { PriorityIcon } from "./priority-icon";
 
 const COLUMNS: { id: TaskStatus; label: string; dot: string }[] = [
@@ -69,6 +70,7 @@ export function Kanban({ tasks, projectId, scope }: { tasks: TaskRow[]; projectI
                   className="cursor-grab rounded-xl border border-border bg-surface p-3 shadow-sm transition hover:border-border-strong active:cursor-grabbing"
                 >
                   <div className={cn("text-[13.5px]", task.status === "done" && "text-faint line-through")}>{task.title}</div>
+                  {task.assignee && <AssigneeBadge task={task} className="mt-1.5" />}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     {task.project && <Chip color={task.project.color}>{task.project.name}</Chip>}
                     {task.dueDate && (

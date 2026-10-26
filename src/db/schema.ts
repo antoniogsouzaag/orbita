@@ -54,11 +54,15 @@ export const tasks = pgTable(
     dueDate: date("due_date"),
     dueTime: text("due_time"),
     tags: text("tags").array().notNull().default([]),
+    /** Quem assumiu a execução (nome do agente autenticado ou "Antonio"). Um responsável por vez. */
+    assignee: text("assignee"),
+    /** Quando o responsável atual assumiu; zera ao liberar. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     sort: integer("sort").notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [index("tasks_status_due_idx").on(t.status, t.dueDate), index("tasks_parent_idx").on(t.parentId), index("tasks_scope_idx").on(t.scope, t.status)],
+  (t) => [index("tasks_status_due_idx").on(t.status, t.dueDate), index("tasks_parent_idx").on(t.parentId), index("tasks_scope_idx").on(t.scope, t.status), index("tasks_assignee_idx").on(t.scope, t.assignee)],
 );
 
 export const goals = pgTable("goals", {
