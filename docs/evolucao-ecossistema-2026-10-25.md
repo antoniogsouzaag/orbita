@@ -11,9 +11,13 @@ Antonio autorizou escolher as opções de implementação, concluir propostas e 
 | MeCard | [PR 52](https://github.com/aglabs-core/mecard/pull/52), `d15d187` | 557 testes, 107 cenários de autenticação simulada, 208 E2E, SQL, Cloudflare, lint, build e auditoria | Workers Builds de produção aprovado no commit integrado |
 | Barber-PRO | [PR 143](https://github.com/aglabs-core/barberias/pull/143), `6e7379d` | 395 testes frontend, 550 backend, 100 controles de segurança, tipos, lint, build e auditoria | EasyPanel concluiu o deployment identificado pelo PR 143 |
 | Members | [PR 48](https://github.com/aglabs-core/members/pull/48), `0b139b8` | 1.013 testes, SQL, tipos, lint, build e auditoria | EasyPanel concluiu o deployment identificado pelo PR 48 |
-| AG LABS | [PR 119](https://github.com/aglabs-core/aglabs/pull/119), `a01b107`; [PR 120](https://github.com/aglabs-core/aglabs/pull/120), `da2b2da` | 338 testes no lote final, três testes de OpenAI simulado, tipos, build e auditoria | A confirmação do Render deve ser registrada separadamente |
+| AG LABS | [PR 119](https://github.com/aglabs-core/aglabs/pull/119), `a01b107`; [PR 120](https://github.com/aglabs-core/aglabs/pull/120), `da2b2da` | 338 testes no lote final, três testes de OpenAI simulado, tipos, build e auditoria | Render `dep-dbfa8j4s728c73em3lag` concluído e Live no commit `da2b2da` |
 
 O Actions da organização falhou antes dos passos por cobrança/limite da conta. Os merges autorizados usaram o mecanismo normal, sem alteração de proteção ou configuração de cobrança. Os gates locais não são apresentados como execução remota verde. O CI próprio da Órbita passou no PR 33.
+
+O Render ainda servia `5b7e5bb`, de dez dias antes, e foi atualizado manualmente. Antes da publicação, uma consulta somente leitura confirmou 63 migrations até `0064_welcome_credits_acknowledgement.sql` e a presença dos requisitos de produção, sem expor valores secretos. O comando de pré-deploy do painel estava vazio; a estrutura do banco já correspondia ao código desta entrega. A configuração de auto-deploy após checks foi preservada.
+
+Respostas públicas observadas: Viajeki e Members 200; Barberias `/health` 200/OK; AG LABS `/api/health` 200. Órbita sem autenticação redireciona ao login. MeCard `https://mecard.com.br` renderizou a home no Chrome; a consulta automatizada recebeu 403, por isso não foi registrada como um health 200. Essas observações não substituem a jornada autenticada.
 
 ## Escolhas implementadas
 
@@ -59,3 +63,5 @@ O maior risco de velocidade é mudar vários fluxos financeiros enquanto o CI n�
 | 9 | Concluir o piloto do cofre de segredos com recuperação testada e permissões mínimas, começando em Preview. A conta e o aceite dos termos pertencem ao proprietário. Não migrar arquivos inteiros nem sobrescrever produção por valores vazios. | [Infisical](./infisical-cloud-implantacao.md) |
 
 As cinco issues funcionais acima permanecem abertas enquanto sua implementação e validação não forem concluídas. Encerrar os antigos índices de revisão significa consolidar a fila e preservar o histórico, não declarar essas funcionalidades prontas. Nenhuma campanha, nova automação ou ampliação de acesso foi ativada pelo plano.
+
+O desenho de exclusão e a distinção dos prazos estão em [retenção e exclusão de contas](./retencao-e-exclusao-contas.md). Não havia prazo empresarial definido; a proposta separa a exclusão operacional da guarda financeira mínima e exige validação contábil antes da purga de comprovantes. O primeiro Lighthouse desta rodada terminou em `NO_FCP`, sem nota ou métricas válidas; não foi usado como evidência de melhora ou regressão nem justificou encerrar a issue de desempenho.
