@@ -55,7 +55,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
     next: "Medir produtores com venda e compradores únicos no período, separando cadastro aprovado de venda realizada.",
   },
   {
-    id: "vibekit", name: "VibeKit", domain: "templates.aglabs.ia.br", logo: "/brands/vibekit.png", tag: "vibekit", model: "compra_unica",
+    id: "vibekit", name: "VibeKit", domain: "templates.aglabs.ia.br", logo: "/brands/vibekit-purple.png", tag: "vibekit", model: "compra_unica",
     summary: "Templates vendidos por compra única; o acesso é provisionado após a compra.",
     indicators: [
       { label: "Visitas, preço, cliques e checkouts (eventos anônimos)", source: "app", available: true },
@@ -65,7 +65,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
     next: "Publicar a coleta, ativar o token e comparar uma navegação controlada.",
   },
   {
-    id: "mecard", name: "MeCard", domain: "mecard.com.br", logo: "/brands/mecard.svg", tag: "mecard", model: "freemium_assinatura",
+    id: "mecard", name: "MeCard", domain: "mecard.com.br", logo: "/brands/mecard.png", tag: "mecard", model: "freemium_assinatura",
     summary: "Cartão de visita digital. Plano grátis e Pro mensal ou anual pelo Mercado Pago.",
     indicators: [
       { label: "Usuários cadastrados", source: "app", available: true },
@@ -77,7 +77,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
   },
   {
     // No CRM a chave "aglabs" é o AG LABS institucional; as métricas do app usam "aglabs-app".
-    id: "aglabs-app", name: "AG LABS App", domain: "aglabs.app.br", logo: "/brands/aglabs-app.webp", tag: "aglabs", model: "creditos",
+    id: "aglabs-app", name: "AG LABS App", domain: "aglabs.app.br", logo: "/brands/aglabs-app-purple.png", tag: "aglabs", model: "creditos",
     summary: "Geração de mídia com IA. Créditos por assinatura mensal ou pacote avulso; contas novas ganham bônus.",
     indicators: [
       { label: "Usuários, ativos em 30 dias e que geraram", source: "app", available: true },
