@@ -114,3 +114,21 @@ describe("pedidos aos agentes pela ORBE", () => {
     expect(orbeOnly).toEqual(expect.arrayContaining(["memoria", "pedir_a_agente", "status_agentes", "buscar_conversas"]));
   });
 });
+
+describe("projetos pela ORBE", () => {
+  it("cria no espaço da conversa, não duplica e lista só o espaço", async () => {
+    const db = await getDb();
+    const { projects } = await import("@/db/schema");
+    await db.delete(tasks);
+    await db.delete(projects);
+    const created = await runAssistantTool("criar_projeto", { nome: "IA econômica", descricao: "Usar Jev e modelos baratos nas partes leves." }, { scope: "empresa" });
+    expect(created).toMatchObject({ ok: true, text: expect.stringContaining("criado em empresa") });
+    const again = await runAssistantTool("criar_projeto", { nome: "ia econômica" }, { scope: "empresa" });
+    expect(again.text).toContain("já existe");
+    expect(await db.select().from(projects)).toHaveLength(1);
+    expect((await runAssistantTool("listar_projetos", {}, { scope: "pessoal" })).text).toContain("Nenhum projeto");
+    expect((await runAssistantTool("listar_projetos", {}, { scope: "empresa" })).text).toContain("IA econômica");
+    const outro = await runAssistantTool("criar_projeto", { nome: "X", escopo: "pessoal" }, { scope: "empresa" });
+    expect(outro.ok).toBe(false);
+  });
+});

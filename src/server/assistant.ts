@@ -47,6 +47,42 @@ function fmtTask(t: { id: string; scope?: string; title: string; dueDate: string
   return `- [${t.status === "done" ? "x" : " "}] ${t.title} (id ${t.id})${t.scope === "empresa" ? " · empresa" : ""}${t.status === "doing" ? " · em andamento" : ""}${t.assignee ? ` · responsável ${t.assignee}` : ""}${t.dueDate ? ` · prazo ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ""}` : ""}${t.priority ? ` · prioridade ${PRIO_NOME[t.priority]}` : ""}${t.project ? ` · projeto ${t.project.name}` : ""}${t.tags?.length ? ` · #${t.tags.join(" #")}` : ""}`;
 }
 
+/* ───────────── Projetos ───────────── */
+
+const escopoProjeto = z.enum(["pessoal", "empresa"]).nullish().describe("Espaço do projeto; padrão pessoal");
+
+export const listarProjetos = {
+  schema: z.object({ escopo: escopoProjeto }),
+  async run(v: { escopo?: "pessoal" | "empresa" | null }): Promise<ActionResult> {
+    const scope = v.escopo ?? "pessoal";
+    const db = await getDb();
+    const rows = await db.select().from(projects).where(eq(projects.archived, false));
+    const list = rows.filter((p) => projectScope(p.area) === scope);
+    return { text: list.length ? list.map((p) => `- ${p.name} (id ${p.id})${p.description ? ` — ${p.description.slice(0, 200)}` : ""}`).join("\n") : `Nenhum projeto ativo em ${scope}.` };
+  },
+};
+
+const criarProjetoSchema = z.object({
+  nome: z.string().trim().min(2).max(80).describe("Nome curto do projeto"),
+  descricao: z.string().trim().max(2000).nullish().describe("Objetivo, escopo e critério de pronto combinados com Antonio"),
+  cor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullish(),
+  escopo: escopoProjeto,
+});
+
+/** Cria projeto somente a pedido; mesmo nome no mesmo espaço devolve o existente. */
+export const criarProjeto = {
+  schema: criarProjetoSchema,
+  async run(v: z.infer<typeof criarProjetoSchema>): Promise<ActionResult> {
+    const scope = v.escopo ?? "pessoal";
+    const db = await getDb();
+    const rows = await db.select().from(projects).where(eq(projects.archived, false));
+    const existing = rows.find((p) => projectScope(p.area) === scope && p.name.trim().toLowerCase() === v.nome.toLowerCase());
+    if (existing) return { text: `Projeto já existe em ${scope} (id ${existing.id}): ${existing.name}.`, action: { label: `Projeto: ${existing.name}`, href: `/projetos/${existing.id}` } };
+    const [row] = await db.insert(projects).values({ name: v.nome, description: v.descricao ?? null, color: v.cor ?? (scope === "empresa" ? "#8b5cf6" : "#3b82f6"), area: scope }).returning({ id: projects.id });
+    return { text: `Projeto criado em ${scope} (id ${row.id}): ${v.nome}. Tarefas podem usar projeto "${v.nome}".`, action: { label: `Projeto: ${v.nome}`, href: `/projetos/${row.id}` } };
+  },
+};
+
 /* ───────────── Ações ───────────── */
 
 const criarTarefaSchema = z.object({
@@ -411,6 +447,8 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "listar_metas", readOnly: true, description: "Consulta metas e objetivos do espaço atual com progresso, prazo e contexto. Use para discutir prioridades e evolução.", ...listarMetas },
   { name: "criar_meta", description: "Registra uma meta somente quando Antonio pedir para criar ou salvar, com título, indicador, alvo e prazo acordados. Sugestão de meta não autoriza gravação. Não invente linha de base ou progresso.", ...criarMeta },
   { name: "salvar_nota_vault", description: "Cria ou atualiza nota canônica do vault com controle de versão. Leia antes e forneça o SHA. Só registre mudanças de política, produto ou responsabilidade explicitamente aprovadas por Antonio; nunca salve segredos ou dados de clientes.", schema: editVaultSchema, run: editVault, requires: () => Boolean(getVaultProvider()) },
+  { name: "listar_projetos", readOnly: true, description: "Lista os projetos ativos do espaço atual com id e descrição.", ...listarProjetos },
+  { name: "criar_projeto", description: "Cria um projeto no espaço atual somente quando Antonio pedir, com nome e objetivo combinados. Use para agrupar tarefas de uma iniciativa nova; depois crie as tarefas com projeto igual ao nome.", ...criarProjeto },
   { name: "criar_tarefa", description: "Cria uma tarefa para Antonio. Use datas absolutas (AAAA-MM-DD) calculadas a partir de hoje.", ...criarTarefa },
   { name: "listar_tarefas", readOnly: true, description: "Lista tarefas com id, prazo, prioridade e projeto. Use antes de atualizar ou concluir.", ...listarTarefas },
   { name: "atualizar_tarefa", description: "Altera ou conclui uma tarefa existente (status done = concluir). Para reorganizar, mude prazo e prioridade.", ...atualizarTarefa },
@@ -478,7 +516,7 @@ export async function runAssistantTool(name: string, rawArgs: string | Record<st
       const input = args as Record<string, unknown>;
       if (input.espaco !== "geral" && input.espaco !== context.scope) return { ok: false, text: `Use espaco "geral" ou o espaço atual (${context.scope}).` };
     }
-    if (context && ["listar_metas", "criar_meta", "criar_nota", "buscar_notas"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
+    if (context && ["listar_metas", "criar_meta", "criar_nota", "buscar_notas", "listar_projetos", "criar_projeto"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
       const input = args as Record<string,unknown>;
       if (input.escopo && input.escopo !== context.scope) return { ok:false, text:"Consulte ou registre dados no espaço atual." };
       args = { ...input, escopo: context.scope };

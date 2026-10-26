@@ -44,6 +44,17 @@ Como o OpenClaw faz com a "dreaming" noturna, uma rotina diária (`/api/cron/orb
 2. A conversa é marcada como consolidada somente se a revisão terminar. Falha volta na próxima rodada.
 3. Conversas com mais de 60 dias, ou além das 50 mais recentes do espaço, são apagadas **apenas se já consolidadas** depois da última mudança.
 
+### Custo da rotina
+
+Só conversas novas ou alteradas entram, no máximo 20 por noite. Para gastar pouco:
+
+- **Conversas curtas** (menos de 2 mensagens de Antonio) são marcadas como consolidadas sem chamar IA.
+- **`ORBE_CONSOLIDATION_MODEL`**: modelo mais barato do mesmo provedor só para escrever a memória, com raciocínio mínimo. Vazio usa o modelo da conversa, também com raciocínio mínimo.
+- **`ORBE_CONSOLIDATION_GATE=jev`** (opcional): o Jev, via OpenRouter, decide antes se há algo a guardar. Só um "nada" com confiança ≥ 0,8 pula o modelo que escreve; dúvida ou falha seguem o caminho normal. Isso envia o texto da conversa (até 12 mil caracteres) ao OpenRouter, por isso fica desligado por padrão.
+- **`ORBE_CONSOLIDATION_ENABLED=false`** pausa a rotina inteira, inclusive a expiração das conversas.
+
+A resposta da rotina informa quantas conversas foram revisadas, quantas foram puladas sem modelo e quantas mudanças de memória houve.
+
 Apagar uma conversa pelo Histórico é imediato e não passa pela consolidação: é uma escolha explícita de Antonio.
 
 ## Limites conhecidos

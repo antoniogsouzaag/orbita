@@ -8,6 +8,26 @@ export const jevConfigured = () => Boolean(process.env.OPENROUTER_API_KEY?.trim(
 export async function personalPriorities() {
   return rankPriorities(await listTasks({ scope: "pessoal", limit: 200 }), today()).slice(0, 20).map(({ id, title, dueDate, priority }) => ({ id, title, dueDate, priority }));
 }
+/**
+ * Pergunta de escolha ao Jev (OpenRouter). Barato e rápido; não escreve texto.
+ * Devolve null quando não configurado, indisponível ou sem resposta válida: quem chama decide o caminho seguro.
+ */
+export async function jevChoice(input: { state: Record<string, unknown>; instructions: string; criteria: Record<string, string>; timeoutMs?: number }): Promise<{ choice: string; confidence: number; probability: number } | null> {
+  if (!jevConfigured()) return null;
+  try {
+    const response = await fetch("https://openrouter.ai/api/alpha/decisions", {
+      method: "POST", headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY?.trim()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: process.env.OPENROUTER_JEV_MODEL || "typesafe/jev-1.14", state: input.state, questions: { q: { type: "choice", instructions: input.instructions, criteria: input.criteria } } }),
+      signal: AbortSignal.timeout(input.timeoutMs ?? 8000), cache: "no-store", redirect: "error",
+    });
+    if (!response.ok) return null;
+    const schema = z.object({ answers: z.object({ q: z.object({ choice: z.string(), confidence: z.number().min(0).max(1), probabilities: z.record(z.string(), z.number().min(0).max(1)) }) }) });
+    const answer = schema.parse(await response.json()).answers.q;
+    if (!(answer.choice in input.criteria)) return null;
+    return { choice: answer.choice, confidence: answer.confidence, probability: answer.probabilities[answer.choice] ?? 0 };
+  } catch { return null; }
+}
+
 export type NextActionDecision = { taskId: string | null; source: "rules" | "jev"; confidence: number | null; message: string };
 export async function suggestNextAction(): Promise<NextActionDecision> {
   const tasks = await personalPriorities();
