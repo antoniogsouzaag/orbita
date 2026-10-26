@@ -33,3 +33,8 @@ Não foram criadas cópias de contatos, novas credenciais, integrações diretas
 A atualização anterior de catálogo e busca foi integrada na PR54, merge `1ca0c148`, CI aprovado e produção `dpl_DSpqbdWsuespfaDQZqK4Jj6Esze6` READY; o manual por categorias foi conferido na sessão autenticada. Clientes externos precisam redescobrir `tools/list` e usar os nomes novos; seus runtimes não foram reconfigurados nesta sessão.
 
 O diagnóstico adicional tem testes para os seis estados por produto, falha isolada, snapshot datado e Hermes sem despacho ou vazamento de credenciais. O fechamento da tarefa depende de merge, deployment READY e verificação autenticada da tela publicada. Nenhuma falha de infraestrutura equivale a teste aprovado. Não houve compra, geração paga, envio a clientes ou exclusão real usada como teste.
+
+
+## Correção de direção do proprietário
+
+Antonio reiterou que não quer saúde das integrações no painel: dependências internas são diagnosticadas pelos agentes. A tela restaurada na PR55 foi uma decisão incorreta e foi removida. O diagnóstico permanece interno pela API autenticada e pela ferramenta administrativa `diagnostico_integracoes`. Integrações contém somente conexões úteis que exigem configuração/gestão pelo proprietário. As métricas permanecem nas páginas de negócio.

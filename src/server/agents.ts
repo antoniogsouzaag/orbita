@@ -337,6 +337,12 @@ export function buildMcpServer(agent: AgentIdentity) {
   }
 
   if (can("admin")) {
+    server.registerTool("diagnostico_integracoes", {
+      title: "Diagnóstico interno das integrações", description: "Administrador: sondagens de leitura das dependências da Órbita e coleta dos negócios. Distingue configuração, resposta, ausência e desatualização. Não envia mensagens, não executa workflows ou agentes e não altera credenciais.", inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    }, async () => run("diagnostico_integracoes", "consultou o diagnóstico interno", async () => {
+      const { checkIntegrationHealth } = await import("./integrations");
+      return text(JSON.stringify({ checkedAt: new Date().toISOString(), items: await checkIntegrationHealth() }));
+    }));
     server.registerTool("contexto_pessoal", { description: "Administrador: contexto atual de tarefas, hábitos, agenda, metas e saúde do proprietário.", inputSchema: {} }, async () => run("contexto_pessoal", "consultou o contexto pessoal", async () => {
       const { personalContext } = await import("./ai");
       return text(await personalContext());
