@@ -51,4 +51,3 @@ As duas tarefas adicionadas pelo proprietário — telemetria do VibeKit e conex
 7. **Vault e agentes.** Atualizar apenas notas canônicas quando houver mudança durável aprovada. Tom/Hermes mantêm os papéis registrados e os canais existentes. Pedido recebido, execução iniciada e entrega verificada são estados diferentes; não criar outro diretor nem ampliar acesso para acelerar a fila.
 
 As cinco issues funcionais acima continuam abertas pelos critérios restantes. As oito tarefas internas abertas da Órbita representam entregas distintas; o encerramento do backlog depende dessas evidências, não da quantidade de PRs integradas. Não foram criadas campanhas, novas automações ou tarefas duplicadas nesta conciliação.
-
