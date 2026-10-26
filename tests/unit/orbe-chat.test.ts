@@ -61,4 +61,12 @@ describe("recibos e consultas visíveis", () => {
     expect((await readChatStream(body, () => {})).text).toBe("ação");
     expect((await readChatStream(new ReadableStream({start(out) {out.close();}}), () => {})).text).toContain("sem conteúdo");
   });
+  it("não oculta ausência de análise quando chegaram apenas recibos e fontes", async () => {
+    const raw = actionMarker({label:"Revisar",href:"/tarefas"}) + sourceMarker({name:"metricas_produto",ok:true});
+    const body = new ReadableStream<Uint8Array>({start(out) {out.enqueue(new TextEncoder().encode(raw));out.close();}});
+    const parsed = await readChatStream(body, () => {});
+    expect(parsed.text).toContain("sem conteúdo");
+    expect(parsed.actions).toEqual([{label:"Revisar",href:"/tarefas"}]);
+    expect(parsed.sources).toEqual([{name:"metricas_produto",ok:true}]);
+  });
 });
