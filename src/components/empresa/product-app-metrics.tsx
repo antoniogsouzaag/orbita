@@ -43,6 +43,7 @@ function delta(current: number, previous: number) {
 
 function MarketplaceMetrics({ data, result }: { data: ProductMetrics; result: ProductMetricsResult }) {
   const m = data.marketplace!;
+  const engagement = data.audience?.members;
   const cur = m.currentMonth, prev = m.previousMonth;
   return <Card className="overflow-hidden">
     <Header title="Marketplace: vendas, receita e produtores" result={result} />
@@ -58,6 +59,11 @@ function MarketplaceMetrics({ data, result }: { data: ProductMetrics; result: Pr
         { key: "approved", label: "Aprovados para vender", value: m.producers.approved, display: `${num(m.producers.approved)}${m.producers.onboarding ? ` · ${Math.round((m.producers.approved / m.producers.onboarding) * 100)}%` : ""}`, tone: "accent" as const },
       ]} />
     </div>
+    {engagement && <div className="space-y-3 border-t border-border p-3">
+      <h3 className="text-xs font-semibold">Engajamento · {new Date(data.audience!.monthFrom).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", month: "long", year: "numeric" })} · {num(engagement.currentMonth.engaged)} usuários</h3>
+      <dl className="grid grid-cols-3 gap-3 text-xs">{[["Criaram produto", engagement.currentMonth.creating], ["Fizeram venda", engagement.currentMonth.selling], ["Consumiram aulas", engagement.currentMonth.learning]].map(([label, value]) => <div key={label}><dt className="text-muted">{label}</dt><dd className="mt-1 font-semibold tabular-nums">{num(value as number)}</dd></div>)}</dl>
+      <p className="text-[11px] text-faint">Pessoas distintas no total; os papéis podem se sobrepor. Reprodução observada desde {when(engagement.playbackObservedFrom)}, sem histórico anterior de tempo assistido. Não depende de marcar a aula como vista e não comprova conclusão.</p>
+    </div>}
     <Footer result={result} data={data} note="Mês no fuso de São Paulo, mesma fonte do painel /plataforma do Members. Mês atual parcial; mês anterior completo. Receita da plataforma inclui produtos próprios e comissões, com valores conciliados ou estimados e estornos alocados conforme o relatório; não comprova liquidação nem saldo disponível. Marketplace não tem contas de assinatura." />
   </Card>;
 }

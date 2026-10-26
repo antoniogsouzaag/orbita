@@ -43,7 +43,8 @@ async function DocumentedApps() {
 
 function PortfolioLoading() {
   return (
-    <div role="status" aria-label="Consultando o CRM" className="space-y-3">
+    <div role="status" aria-label="Consultando usuários dos aplicativos e o CRM" className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-3">{Array.from({ length: 3 }, (_, i) => <div key={i} className="card h-[104px] p-4"><div className="loading-shimmer h-3 w-1/2 rounded" /><div className="loading-shimmer mt-4 h-6 w-1/3 rounded" /></div>)}</div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <div key={i} className="card h-[104px] p-4"><div className="loading-shimmer h-3 w-1/2 rounded" /><div className="loading-shimmer mt-4 h-6 w-1/3 rounded" /></div>)}</div>
       <div className="grid gap-3 lg:grid-cols-2">{Array.from({ length: 2 }, (_, i) => <div key={i} className="card h-[300px] p-4"><div className="loading-shimmer h-3 w-1/3 rounded" /><div className="loading-shimmer mt-6 h-[200px] rounded-xl" /></div>)}</div>
     </div>
