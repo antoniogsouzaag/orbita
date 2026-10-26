@@ -1,6 +1,16 @@
 import { z } from "zod";
 
 const count = z.number().int().nonnegative().nullable();
+export const commerceFunnelSchema = z.object({
+  version: z.literal(1),
+  events: z.object({ pageViews: count, pricingViews: count, ctaClicks: count, checkoutClicks: count, checkoutCreated: count, checkoutFailures: count, successViews: count }),
+  observedFrom: z.iso.datetime().nullable(),
+  registeredPurchases: z.number().int().nonnegative(),
+  provisionedPurchases: z.number().int().nonnegative(),
+  registeredCheckoutAmountCents: count,
+  currency: z.literal("BRL"),
+  basis: z.literal("anonymous_event_counts_and_registered_live_checkout_records"),
+});
 /** Apenas agregados administrativos; nenhum cadastro, identidade ou segredo sai do app. */
 export const productMetricsSchema = z.object({
   version: z.literal(1),
@@ -16,6 +26,7 @@ export const productMetricsSchema = z.object({
     professional: z.number().int().nonnegative(), catalog: z.number().int().nonnegative(),
     readyForBooking: z.number().int().nonnegative(), firstAppointment: z.number().int().nonnegative(),
   }).optional(),
+  commerceFunnel: commerceFunnelSchema.optional(),
 });
 export type ProductMetrics = z.infer<typeof productMetricsSchema>;
 
@@ -28,5 +39,13 @@ export function validateProductMetrics(raw: unknown, product: string, now = Date
     const stages = [data.metrics.accounts, f.professional, f.catalog, f.readyForBooking, f.firstAppointment];
     if (product !== "barberias" || stages[0] == null || stages.some((value, index) => index > 0 && value! > stages[index - 1]!) || f.firstAppointment !== data.metrics.activatedAccounts) throw new Error("Funil inválido");
   }
+  if (product === "vibekit") {
+    const f = data.commerceFunnel;
+    if (!f || Object.values(data.metrics).some(value => value !== null) || Date.parse(data.window.to) > Date.parse(data.generatedAt)
+      || f.provisionedPurchases > f.registeredPurchases || (f.registeredPurchases === 0 && f.registeredCheckoutAmountCents !== 0)
+      || (f.observedFrom !== null && Date.parse(f.observedFrom) > Date.parse(data.window.to))) throw new Error("Funil comercial inválido");
+    const known = Object.values(f.events).filter(value => value !== null).length;
+    if ((known !== 0 && known !== Object.keys(f.events).length) || (known > 0 && f.observedFrom === null)) throw new Error("Cobertura comercial inválida");
+  } else if (data.commerceFunnel) throw new Error("Unidade comercial divergente");
   return data;
 }
