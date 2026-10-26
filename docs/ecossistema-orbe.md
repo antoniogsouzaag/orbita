@@ -17,7 +17,7 @@ Contrato implementado no consumidor: GET /api/integrations/orbita/metrics. Confi
 
 JSON v1: version=1; product; generatedAt; window={from,to}; metrics={users,accounts,activeAccounts,trialAccounts,payingAccounts,complimentaryAccounts,canceledAccounts,activatedAccounts}. Todas as métricas são contagens >=0 ou null quando não houver critério/coleta disponível. Datas em ISO UTC. Um snapshot com mais de 24h é marcado desatualizado. Resposta de outro produto, janela invertida ou data futura além da tolerância é rejeitada.
 
-A implementação do endpoint e sua credencial no Barberias ainda não estão configuradas nesta rodada. O painel mostra indisponível em vez de inferir usuários e assinantes a partir do CRM. Próxima validação exige confirmação dos critérios no app, endpoint autenticado e comparação com o superadmin.
+O produtor do Barberias e a credencial dedicada foram ativados em 25/10/2026 no fluxo Barberias → CRM → Órbita, com comparação contra o superadmin. Essa ativação não se estende aos outros apps. O painel deve continuar exibindo indisponível quando uma fonte não estiver configurada; contatos e pagamentos do CRM não substituem usuários e assinaturas da origem.
 
 ## E-mails e tarefas
 
@@ -48,7 +48,7 @@ A coleta administrativa deve seguir Barberias → CRM → Órbita. O CRM disponi
 
 Configurar `APP_METRICS_SOURCES` no servidor do CRM com o token dedicado já aceito pelo produtor. Não distribuir a credencial ao navegador ou ao modelo. A coleta agrega usuários/contas/ativação/assinaturas, sem mudar contatos, pagamentos, etapas ou campanhas. O endpoint isolado não sincroniza a jornada: eventos de conta continuam no contrato existente de ingestão de contas do CRM; pagamento vem do ledger, com identificadores explícitos.
 
-Ativação operacional ainda exige credencial nos dois ambientes e comparação contra o superadmin. Código e build não comprovam a conexão ao vivo.
+Barberias concluiu a ativação operacional em 25/10/2026. Cada produto adicional ainda exige credencial exclusiva nos ambientes envolvidos, critérios documentados e comparação contra o painel administrativo. Código e build não comprovam a conexão ao vivo.
 
 ## Visibilidade e retenção operacional
 
