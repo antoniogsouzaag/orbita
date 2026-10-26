@@ -8,6 +8,9 @@ import { n8nInstances, n8nOverview } from "./ops";
 import { liveOps } from "./ops-live";
 import { vaultConfig, vaultHealth } from "./vault";
 import { socialChannels } from "./social";
+import { BUSINESS_UNITS } from "@/lib/business-models";
+import { productMetrics, productMetricsConfigured } from "./product-metrics";
+import { hermesConfiguration } from "./hermes";
 import { openclawConfiguration } from "./openclaw";
 
 export type IntegrationHealthRow = {
@@ -18,6 +21,7 @@ export type IntegrationHealthRow = {
   env: string[];
   href?: string;
   checkedAt: string | null;
+  category?: "Coleta dos negócios" | "Conexões da central";
 };
 
 const has = (key: string) => Boolean(process.env[key]?.trim());
@@ -39,10 +43,12 @@ export function integrationConfiguration(): IntegrationHealthRow[] {
     row("brief", "Resumo diário · 7h", validToken("CRON_SECRET") && has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_CHAT_ID"), "Precisa do agendador da Vercel, CRON_SECRET e Telegram. Configuração não comprova execução do resumo.", ["CRON_SECRET"], "/agenda"),
     row("calendar", "Agenda · Assinaturas e feed", validToken("CALENDAR_FEED_TOKEN"), "Calendários externos são adicionados na Agenda. O feed da Órbita pode ser assinado no iPhone ou Google.", ["CALENDAR_FEED_TOKEN"], "/agenda"),
     row("context", "Agentes · Contexto e MCP", validToken("CONTEXT_TOKEN"), "GET /api/context usa CONTEXT_TOKEN. O MCP usa acessos individuais criados em Agentes, independente deste token.", ["CONTEXT_TOKEN"], "/agentes"),
-    row("openclaw", "OpenClaw · Pedidos ao Tom", Object.values(openclawConfiguration()).every(Boolean), "Saída para a rota /hooks/orbita do gateway do VPS-02. O diagnóstico não envia pedido; a primeira solicitação em Integrações confirma a comunicação.", ["OPENCLAW_DISPATCH_ENABLED", "OPENCLAW_HOOK_URL", "OPENCLAW_HOOK_TOKEN"], "/integracoes"),
+    row("openclaw", "OpenClaw · Pedidos ao Tom", Object.values(openclawConfiguration()).every(Boolean), "Saída para a rota /hooks/orbita do gateway do VPS-02. O diagnóstico não envia pedido; a solicitação em Agentes confirma a comunicação.", ["OPENCLAW_DISPATCH_ENABLED", "OPENCLAW_HOOK_URL", "OPENCLAW_HOOK_TOKEN"], "/agentes"),
+    row("hermes", "Hermes Oracle · Pedidos", Object.values(hermesConfiguration()).every(Boolean), "Receptor dedicado configurado. Este diagnóstico não envia comandos; acompanhe recebimento e execução em Agentes.", ["HERMES_DISPATCH_ENABLED", "HERMES_WEBHOOK_URL", "HERMES_WEBHOOK_SECRET"], "/agentes"),
     row("ai", "IA · Assistente", has("OPENAI_API_KEY") || has("ANTHROPIC_API_KEY"), "Assistente com ações em tarefas, agenda, finanças e CRM, além de consulta ao vault. Este botão verifica a configuração; converse na IA para usar o assistente.", ["OPENAI_API_KEY", "OPENAI_MODEL", "ANTHROPIC_API_KEY"], "/ia"),
     row("jev", "Jev · Decisões opcionais", has("OPENROUTER_API_KEY"), "Via OpenRouter. Seleciona uma próxima ação entre tarefas existentes, somente quando você pedir. Usa confiança mínima e preserva a ordem por regras quando houver dúvida. Não substitui o chat nem executa ações.", ["OPENROUTER_API_KEY", "OPENROUTER_JEV_MODEL"], "/"),
     row("postiz", "Postiz · Redes sociais", has("POSTIZ_API_URL") && has("POSTIZ_API_KEY"), "Canais e séries de métricas na página Redes sociais. A cobertura depende da versão instalada e das permissões de cada rede.", ["POSTIZ_API_URL", "POSTIZ_API_KEY"], "/redes"),
+    ...BUSINESS_UNITS.map(unit => ({ ...row(`produto:${unit.id}`, unit.name, productMetricsConfigured(unit.id), "Coleta administrativa do app → CRM → Órbita. Verifique a resposta e a data do snapshot; configuração não comprova cobertura dos indicadores.", [], `/empresa/negocios/${unit.id}`), category: "Coleta dos negócios" as const })),
     row("covers", "Unsplash · Capas", has("UNSPLASH_ACCESS_KEY"), "Busca opcional de fotografias. Capas sugeridas e URLs próprias continuam disponíveis.", ["UNSPLASH_ACCESS_KEY"], "/config"),
   ];
 }
@@ -66,6 +72,12 @@ export async function checkIntegrationHealth(): Promise<IntegrationHealthRow[]> 
     const checkedAt = new Date().toISOString();
     const result = (state: IntegrationHealthRow["state"], detail: string): IntegrationHealthRow => ({ ...row, state, detail, checkedAt });
     try {
+      if (row.id.startsWith("produto:")) {
+        const metrics = await productMetrics(row.id.slice("produto:".length));
+        const state = metrics.status === "ok" ? "verified" : metrics.status === "stale" ? "warning" : metrics.status === "not_configured" ? "missing" : "error";
+        const snapshot = metrics.data ? ` Snapshot gerado em ${metrics.data.generatedAt}; janela ${metrics.data.window.from} a ${metrics.data.window.to}. Contrato validado; isso não comprova todos os indicadores do negócio nem liquidação de receita.` : "";
+        return { ...result(state, metrics.message + snapshot), checkedAt: metrics.checkedAt };
+      }
       switch (row.id) {
         case "database": {
           const db = await getDb();
