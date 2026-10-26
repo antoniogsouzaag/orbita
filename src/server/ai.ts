@@ -5,7 +5,7 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import type { TaskScope } from "@/db/schema";
-import { ACTION_MARK, actionMarker, actionOrigins, modelText, sourceMarker, splitActions } from "@/lib/ai-stream";
+import { ACTION_MARK, actionMarker, actionOrigins, modelText, sourceMarker, splitActions, STREAM_END_MARK } from "@/lib/ai-stream";
 import type { ChatTurn } from "@/lib/orbe-chat";
 export type { ChatTurn } from "@/lib/orbe-chat";
 import { formatLong, localHour, localTime, shiftDate, today, zonedToUtc, localDate } from "@/lib/dates";
@@ -197,7 +197,7 @@ export async function askStream(history: ChatTurn[], opts: { tools?: boolean; sc
         if (!controller.signal.aborted) emit(`\n\n⚠️ ${errorText(e)}. Se uma ação já começou, confira o estado antes de repetir.`);
       } finally {
         opts.signal?.removeEventListener("abort", abort);
-        if (!canceled) out.close();
+        if (!canceled) { emit(STREAM_END_MARK); out.close(); }
       }
     },
     cancel() {

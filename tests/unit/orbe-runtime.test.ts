@@ -29,12 +29,12 @@ describe("ORBE execução confiável", () => {
   const message = (text: string) => ({type:"message",id:"answer",role:"assistant",status:"completed",content:[{type:"output_text",text,annotations:[]}]});
   it("recupera texto do terminal quando o provedor não entregou deltas", async () => {
     mock.create.mockResolvedValueOnce(events(completed([message("Análise confirmada")] )));
-    expect(await consume({readOnly:true})).toBe("Análise confirmada");
+    expect(splitActions(await consume({readOnly:true})).text).toBe("Análise confirmada");
     expect(mock.create).toHaveBeenCalledTimes(1);
   });
   it("não duplica o texto que já chegou em deltas", async () => {
     mock.create.mockResolvedValueOnce(events({type:"response.output_text.delta",delta:"Análise confirmada"},completed([message("Análise confirmada")])));
-    expect(await consume()).toBe("Análise confirmada");
+    expect(splitActions(await consume()).text).toBe("Análise confirmada");
     expect(mock.create).toHaveBeenCalledTimes(1);
   });
   it("sintetiza consultas sem texto numa rodada sem ferramentas", async () => {

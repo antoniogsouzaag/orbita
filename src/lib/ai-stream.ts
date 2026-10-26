@@ -2,6 +2,8 @@
 export type AiAction = { label: string; href: string };
 export type AiSource = { name: string; ok: boolean };
 export const ACTION_MARK = "\u001e";
+/** Only the server emits this after settling the provider and tool loop. */
+export const STREAM_END_MARK = ACTION_MARK + '{"kind":"end"}' + ACTION_MARK;
 
 export function actionOrigins(url: string | null): string[] {
   try { const parsed = new URL(url ?? ""); return parsed.protocol === "https:" && !parsed.username && !parsed.password ? [parsed.origin] : []; } catch { return []; }

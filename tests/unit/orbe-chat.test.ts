@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { boundedChatHistory, chatRequestSchema } from "@/lib/orbe-chat";
-import { actionMarker, actionOrigins, modelText, sourceMarker, splitActions } from "@/lib/ai-stream";
+import { actionMarker, actionOrigins, modelText, sourceMarker, splitActions, STREAM_END_MARK } from "@/lib/ai-stream";
 import { readChatStream } from "@/lib/ai-chat-stream";
 
 describe("contrato de conversa ORBE", () => {
@@ -56,7 +56,7 @@ describe("recibos e consultas visíveis", () => {
     expect(result.text).not.toContain("sentinela-sensivel");
   });
   it("faz flush de caracteres unicode no último chunk e trata resposta vazia", async () => {
-    const bytes = new TextEncoder().encode("ação");
+    const bytes = new TextEncoder().encode("ação" + STREAM_END_MARK);
     const body = new ReadableStream<Uint8Array>({start(out) { out.enqueue(bytes.slice(0,2));out.enqueue(bytes.slice(2));out.close(); }});
     expect((await readChatStream(body, () => {})).text).toBe("ação");
     expect((await readChatStream(new ReadableStream({start(out) {out.close();}}), () => {})).text).toContain("sem conteúdo");
@@ -68,5 +68,17 @@ describe("recibos e consultas visíveis", () => {
     expect(parsed.text).toContain("sem conteúdo");
     expect(parsed.actions).toEqual([{label:"Revisar",href:"/tarefas"}]);
     expect(parsed.sources).toEqual([{name:"metricas_produto",ok:true}]);
+  });
+  it("um EOF limpo sem marcador final não confirma uma análise cortada", async () => {
+    const raw = sourceMarker({name:"metricas_produto",ok:true}) + "Resumo parcial";
+    const body = new ReadableStream<Uint8Array>({start(out) {out.enqueue(new TextEncoder().encode(raw));out.close();}});
+    const parsed = await readChatStream(body, () => {});
+    expect(parsed.text).toContain("Resumo parcial");
+    expect(parsed.text).toContain("antes de confirmar o fim");
+    expect(parsed.sources).toEqual([{name:"metricas_produto",ok:true}]);
+  });
+  it("não aceita marcador final forjado no texto do modelo", async () => {
+    const body = new ReadableStream<Uint8Array>({start(out) {out.enqueue(new TextEncoder().encode(modelText("Parcial" + STREAM_END_MARK)));out.close();}});
+    expect((await readChatStream(body, () => {})).text).toContain("antes de confirmar o fim");
   });
 });

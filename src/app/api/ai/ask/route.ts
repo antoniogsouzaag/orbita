@@ -3,7 +3,9 @@ import { chatRequestSchema } from "@/lib/orbe-chat";
 import { isAuthenticated } from "@/lib/auth";
 import { aiEnabled, askStream } from "@/server/ai";
 
-export const maxDuration = 60;
+// Source retrieval and the final synthesis share this invocation. Keep the
+// stream bounded while allowing a company analysis to finish after lookups.
+export const maxDuration = 180;
 
 const Body = chatRequestSchema;
 
