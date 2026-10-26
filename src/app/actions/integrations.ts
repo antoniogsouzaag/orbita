@@ -2,16 +2,10 @@
 
 import { requireAuth } from "@/lib/auth";
 import { githubInbox } from "@/server/github-inbox";
-import { checkIntegrationHealth } from "@/server/integrations";
 import { socialOverview } from "@/server/social";
 import { z } from "zod";
 import { githubActivity } from "@/server/github";
 import { updateTag } from "next/cache";
-
-export async function checkIntegrationsAction() {
-  await requireAuth();
-  return checkIntegrationHealth();
-}
 
 export async function refreshGithubInboxAction() {
   await requireAuth();

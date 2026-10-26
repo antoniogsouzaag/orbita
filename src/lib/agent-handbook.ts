@@ -1,10 +1,11 @@
 /** Fonte única do manual: página, Markdown HTTP e resource/ferramenta MCP. */
-export const AGENT_MANUAL_VERSION = "2026-10-26.5";
+export const AGENT_MANUAL_VERSION = "2026-10-26.6";
 export const AGENT_MANUAL_URI = "orbita://manual";
 export const AGENT_MANUAL_PATH = "/documentacao";
 export const AGENT_MANUAL_API = "/api/docs/agentes";
 
 export const CORE_AGENT_TOOLS = [
+  { name: "diagnostico_integracoes", scope: "admin", description: "Diagnóstico interno de leitura das dependências e coleta dos negócios; sem painel de saúde" },
   { name: "documentacao", scope: "todos", description: "Manual de entrada, fontes, escopos e fluxo de trabalho" },
   { name: "contexto_operacional", scope: "contexto", description: "Inventário do vault; estado ao vivo quando solicitado" },
   { name: "buscar", scope: "contexto", description: "Busca geral por fonte: manual e vault; admin também tarefas, projetos e notas por espaço" },
@@ -35,7 +36,7 @@ export const SOURCE_OWNERS = [
 ] as const;
 
 export const AGENT_MANUAL_SECTIONS = [
-  { id: "diagnostico", title: "Saúde das conexões e coleta dos negócios", body: "Integrações reúne o diagnóstico sob demanda: banco, vault, CRM, n8n, monitores, redes e demais conexões; também verifica os seis produtos do catálogo pelo mesmo contrato app → CRM → Órbita usado nas páginas de negócio. Verificar integrações e GET /api/integrations/status são leituras autenticadas; não enviam mensagens, executam workflows, geram mídia nem despacham agentes. Cada produto mantém seu estado, data da consulta, geração e janela do snapshot. Não configurado, indisponível e desatualizado são distintos de zero. Verificado confirma a consulta e o contrato, não completude dos indicadores ou pagamento liquidado. Hermes e Tom exibem configuração; execução e resultado são conferidos em Agentes. Credenciais continuam no servidor." },
+  { id: "diagnostico", title: "Diagnóstico interno e configuração de integrações", body: "A página Integrações é reservada a conexões úteis que exigem configuração ou gerenciamento pelo proprietário, como os acessos MCP. Não colocar saúde das dependências, coleta dos negócios ou inventário técnico nessa página. Diagnosticar as dependências que fazem a Órbita funcionar é trabalho dos agentes: administradores usam diagnostico_integracoes no MCP ou a API autenticada /api/integrations/status. As sondagens são somente leitura, sem envio de mensagens, workflows, geração ou despacho. Configurado não comprova execução; os resultados preservam data, fonte e ausência sem transformá-la em zero. Métricas dos negócios permanecem nas respectivas páginas e ferramentas. Novas configurações no painel precisam oferecer uma ação útil ao proprietário." },
   { id: "busca", title: "Busca geral e nomes das ferramentas", body: "Use documentacao para consultar este manual e buscar({consulta, fonte?}) para localizar informação. A busca reúne documentação e vault; no MCP admin, inclui tarefas, projetos e notas do escopo escolhido (padrão pessoal). Na ORBE vale o espaço ativo. Contexto não concede acesso às bases internas. Cada fonte retorna seu estado; indisponível não significa vazio. Até 8 resultados por fonte; refine consulta ou fonte, sem presumir cobertura completa. Leia a nota pelo caminho e SHA antes de editar. CRM, conversas e status ao vivo mantêm ferramentas próprias para preservar identidade, permissões e atualidade. Os nomes antigos documentacao_canonica e buscar_no_vault foram substituídos: atualize clientes e redescubra tools/list após publicar. Não há orbita_buscar duplicado no MCP; use buscar. O catálogo abaixo inclui as ações administrativas, inclusive as condicionadas à conexão do CRM; tools/list informa as efetivamente disponíveis." },
   { id: "propostas-respostas", title: "Respostas do proprietário e continuidade", body: "Propostas e pedidos podem ser respondidos em /propostas. A resposta fica no histórico da tarefa empresarial, marcada resposta:antonio e atribuída ao agente escolhido. Consulte minhas_tarefas para ler o contexto e o retorno, execute dentro do escopo autorizado e use atualizar_minha_tarefa com id, registro_id UUID, estado doing/done e resumo/evidência. Reutilize registro_id ao repetir o mesmo envio. O acesso de tarefas só atualiza tarefas empresariais atribuídas ao próprio nome autenticado. Nova resposta reabre a continuidade; retry antigo não reabre uma conclusão. Responder na Órbita não fecha issue, não publica comentário no GitHub e não dispara o diretor. Reconcilie a origem ao executar e registre o resultado; conclusão registrada não é verificação independente de produção. Consulte docs/propostas-respostas.md no repositório." },
   { id: "proposito", title: "O papel da Órbita", body: "ORBE é a assistente da Órbita, com ferramentas limitadas ao espaço ativo. Cruza Vault, metas, projetos, tarefas e sinais comerciais para discutir crescimento, sugerir caminhos e organizar próximos passos. Operação sem incidentes não significa ausência de prioridades. Sugestões não se tornam metas ou tarefas sem pedido; listar_metas e criar_meta respeitam o espaço atual. Central de controle pessoal e empresarial de Antonio e da AG LABS. Conecta conhecimento, negócios, execução e revisão sem duplicar os sistemas de origem. A unidade de negócio relaciona produto, páginas, canais, tarefas internas, CRM e operação por identificadores explícitos. Barberias é a primeira visão detalhada; o catálogo permite ampliar aos demais produtos." },
@@ -62,7 +63,7 @@ export function toolCategory(name: string) {
   if (/agenda|evento$|lancamento/.test(key) && key !== "registrar_evento") return "Agenda e finanças";
   if (/tarefa|fila_empresa|meta|projeto/.test(key)) return "Tarefas, projetos e metas";
   if (/pedido|resultado|registrar_evento/.test(key)) return "Agentes e registros";
-  if (/status|github|automacoes|eventos_recentes/.test(key)) return "Operação e monitoramento";
+  if (/diagnostico|status|github|automacoes|eventos_recentes/.test(key)) return "Operação e monitoramento";
   return "Documentação e conhecimento";
 }
 export function toolGroups(tools: readonly CatalogTool[]) {

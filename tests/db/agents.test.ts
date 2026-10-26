@@ -84,6 +84,10 @@ describe("central dos agentes (MCP)", () => {
     expect(adminNames).toContain("buscar");
     expect(adminNames).not.toContain("orbita_buscar");
     expect(adminNames).toContain("orbita_listar_metas");
+    expect(adminNames).toContain("diagnostico_integracoes");
+    expect(names).not.toContain("diagnostico_integracoes");
+    const restricted = await rpc(token, "tools/call", { name: "diagnostico_integracoes", arguments: {} });
+    expect(JSON.stringify(restricted.body)).toMatch(/not found|error/i);
   });
 
   it("agente abre tarefa para Antonio e registra evento, tudo com log", async () => {
