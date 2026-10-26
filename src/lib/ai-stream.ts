@@ -19,6 +19,34 @@ export function modelText(text: string) { return text.replaceAll(ACTION_MARK, ""
 export function sourceMarker(source: AiSource) { return ACTION_MARK + JSON.stringify({ kind: "source", ...source }) + ACTION_MARK; }
 export function actionMarker(action: AiAction) { return ACTION_MARK + JSON.stringify({ kind: "action", ...action }) + ACTION_MARK; }
 
+/** Etapa de execução emitida pelo servidor: início e fim de cada ferramenta. */
+export type AiStepStatus = "running" | "done" | "failed";
+export type AiStep = { id: number; name: string; status: AiStepStatus; write: boolean };
+export type ChatPart = { type: "text"; text: string } | { type: "step"; step: AiStep };
+export function stepMarker(step: AiStep) { return ACTION_MARK + JSON.stringify({ kind: "step", ...step }) + ACTION_MARK; }
+
+/** Texto e etapas na ordem em que chegaram, para mostrar o status ao vivo. */
+export function chatParts(raw: string): ChatPart[] {
+  const parts: ChatPart[] = [];
+  const steps = new Map<number, AiStep>();
+  const chunks = raw.split(ACTION_MARK);
+  const pushText = (text: string) => { if (!text) return; const last = parts.at(-1); if (last?.type === "text") last.text += text; else parts.push({ type: "text", text }); };
+  for (let i = 0; i < chunks.length; i++) {
+    if (i % 2 === 0) { pushText(chunks[i]); continue; }
+    if (i === chunks.length - 1) continue;
+    try {
+      const v = JSON.parse(chunks[i]) as Record<string, unknown> | null;
+      if (!v || v.kind !== "step" || typeof v.id !== "number" || typeof v.name !== "string" || !/^[a-z][a-z0-9_]{0,79}$/.test(v.name) || !["running", "done", "failed"].includes(v.status as string)) continue;
+      const known = steps.get(v.id);
+      if (known) { known.status = v.status as AiStepStatus; continue; }
+      const step: AiStep = { id: v.id, name: v.name, status: v.status as AiStepStatus, write: v.write === true };
+      steps.set(v.id, step);
+      parts.push({ type: "step", step });
+    } catch { /* marcador inválido é ignorado */ }
+  }
+  return parts;
+}
+
 export function splitActions(raw: string, trustedOrigins: string[] = []): { text: string; actions: AiAction[]; sources: AiSource[] } {
   const actions: AiAction[] = [], sources: AiSource[] = [];
   const parts = raw.split(ACTION_MARK);

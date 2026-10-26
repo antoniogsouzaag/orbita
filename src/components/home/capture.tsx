@@ -4,12 +4,10 @@ import { ArrowUp, CheckSquare, ChevronsUpDown, FolderKanban, NotebookPen, Sparkl
 import { useRouter } from "next/navigation";
 import { Popover } from "radix-ui";
 import * as React from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { createNote, quickAddTask } from "@/app/actions/core";
 import { ParsePreview } from "@/components/tasks/parse-preview";
-import { splitActions } from "@/lib/ai-stream";
+import { pendingPromptKey } from "@/components/life/ai-chat";
 import { relativeDay } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { noteHref } from "@/lib/note-scope";
@@ -22,8 +20,6 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
   const [value, setValue] = React.useState("");
   const [projectId, setProjectId] = React.useState<string | null>(null);
   const [pending, start] = React.useTransition();
-  const [answer, setAnswer] = React.useState<string | null>(null);
-  const [asking, setAsking] = React.useState(false);
   const ref = React.useRef<HTMLTextAreaElement>(null);
 
   React.useEffect(() => {
@@ -35,44 +31,14 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
 
   const project = projects.find((p) => p.id === projectId);
 
-  const ask = async (question: string) => {
-    setAsking(true);
-    setAnswer("");
-    try {
-      const res = await fetch("/api/ai/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question, scope }) });
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({ error: "Falha ao consultar a IA" }));
-        setAnswer(`⚠️ ${err.error}`);
-        return;
-      }
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let acc = "";
-      let parsed = splitActions("");
-      for (;;) {
-        const { done, value: chunk } = await reader.read();
-        if (done) break;
-        acc += dec.decode(chunk, { stream: true });
-        parsed = splitActions(acc);
-        setAnswer(parsed.text);
-      }
-      if (parsed.actions.length) {
-        toast.success(parsed.actions.map((a) => a.label).join(" · "));
-        router.refresh();
-      }
-    } catch {
-      setAnswer("⚠️ Não foi possível falar com ORBE agora.");
-    } finally {
-      setAsking(false);
-    }
-  };
-
   const submit = () => {
     const text = value.trim();
     if (!text) return;
     if (tab === "ia") {
+      // A conversa acontece na tela da ORBE, com histórico e status de execução.
+      try { sessionStorage.setItem(pendingPromptKey(scope), text); } catch {}
       setValue("");
-      void ask(text);
+      router.push(scope === "empresa" ? "/ia?escopo=empresa" : "/ia");
       return;
     }
     start(async () => {
@@ -161,28 +127,17 @@ export function Capture({ projects, aiEnabled, scope = "pessoal" }: { projects: 
             </Popover.Root>
           )}
           <span className="hidden truncate text-[12px] text-faint sm:block">
-            {tab === "tarefa" ? "Use #tag, !alta, hoje/amanhã, 15h e @projeto" : tab === "ia" ? (aiEnabled ? "A IA responde com o contexto deste espaço" : "Configure a chave da IA em Integrações") : "Enter salva · Shift+Enter quebra linha"}
+            {tab === "tarefa" ? "Use #tag, !alta, hoje/amanhã, 15h e @projeto" : tab === "ia" ? (aiEnabled ? "Enter abre a conversa na ORBE" : "Configure a chave da IA em Integrações") : "Enter salva · Shift+Enter quebra linha"}
           </span>
           <button
             onClick={submit}
-            disabled={pending || asking || !value.trim()}
+            disabled={pending || !value.trim() || (tab === "ia" && !aiEnabled)}
             className="ml-auto grid size-9 place-items-center rounded-full bg-fg text-bg transition hover:opacity-90 disabled:bg-surface-3 disabled:text-faint"
             aria-label="Enviar"
           >
             <ArrowUp className="size-4" />
           </button>
         </div>
-        {answer !== null && (
-          <div className="border-t border-border bg-surface-2/50 px-5 py-4">
-            <div className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-muted">
-              <Sparkles className="size-3.5 text-accent" /> Resposta {asking && <span className="animate-pulse">…</span>}
-              <button onClick={() => setAnswer(null)} className="ml-auto text-faint hover:text-fg">Fechar</button>
-            </div>
-            <div className="prose-orbita text-[14px]">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer || "Pensando…"}</ReactMarkdown>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

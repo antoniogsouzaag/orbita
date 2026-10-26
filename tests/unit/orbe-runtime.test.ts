@@ -17,7 +17,7 @@ vi.mock("@/server/ops-live", () => ({liveOps: vi.fn(async () => ({status:[],moni
 vi.mock("@/server/vault", () => ({getVaultProvider: () => null,getVaultIndexSafe: vi.fn(async () => null),vaultHealth:vi.fn(async () => ({ok:false,error:"sentinela-sensivel"})),searchVault:vi.fn(async () => [])}));
 import { askStream } from "@/server/ai";
 import { ASSISTANT_TOOLS, assistantTools, runAssistantTool } from "@/server/assistant";
-import { splitActions } from "@/lib/ai-stream";
+import { chatParts, splitActions } from "@/lib/ai-stream";
 const call = (name = "criar_tarefa") => ({type:"function_call",id:"fc",call_id:"c",name,arguments:'{"titulo":"não criar"}',status:"completed"});
 const completed = (output: object[] = []) => ({type:"response.completed",response:{status:"completed",output}});
 const events = (...items: object[]) => (async function* () { for (const item of items) yield item; })();
@@ -42,9 +42,11 @@ describe("ORBE execução confiável", () => {
     mock.create.mockResolvedValueOnce(events(completed([call("listar_tarefas")])))
       .mockResolvedValueOnce(events(completed()))
       .mockResolvedValueOnce(events(completed([message("A consulta não retornou tarefas nesta amostra.")])));
-    const parsed = splitActions(await consume({readOnly:true}));
+    const raw = await consume({readOnly:true});
+    const parsed = splitActions(raw);
     expect(parsed.text).toBe("A consulta não retornou tarefas nesta amostra.");
     expect(parsed.sources).toEqual([{name:"listar_tarefas",ok:true}]);
+    expect(chatParts(raw).filter(p => p.type === "step")).toEqual([{type:"step",step:{id:1,name:"listar_tarefas",status:"done",write:false}}]);
     expect(read).toHaveBeenCalledOnce();
     expect(mock.create.mock.calls[2][0].tools).toBeUndefined();
     expect(mock.create.mock.calls[2][0].instructions).toContain("Não faça novas consultas nem ações");
