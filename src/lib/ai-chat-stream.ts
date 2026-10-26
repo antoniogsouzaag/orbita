@@ -17,7 +17,7 @@ export async function readChatStream(body: ReadableStream<Uint8Array>, onUpdate:
     }
     raw += decoder.decode();
     parsed = splitActions(raw, trustedOrigins);
-    if (!parsed.text.trim() && !parsed.actions.length) parsed.text = "⚠️ A resposta terminou sem conteúdo. Nenhuma conclusão foi confirmada.";
+    if (!parsed.text.trim()) parsed.text = "⚠️ A resposta terminou sem conteúdo. Consultas e recibos recebidos foram preservados; nenhuma conclusão adicional foi confirmada.";
   } catch {
     parsed = { ...parsed, text: parsed.text + "\n\n⚠️ Resposta interrompida. Recibos recebidos foram preservados; uma ação já iniciada pode concluir. Confira o estado antes de repetir." };
   } finally {

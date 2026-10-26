@@ -22,10 +22,59 @@ const call = (name = "criar_tarefa") => ({type:"function_call",id:"fc",call_id:"
 const completed = (output: object[] = []) => ({type:"response.completed",response:{status:"completed",output}});
 const events = (...items: object[]) => (async function* () { for (const item of items) yield item; })();
 const consume = async (options: Parameters<typeof askStream>[1] = {}) => new Response(await askStream([{role:"user",content:"teste"}],options)).text();
-beforeEach(() => {vi.stubEnv("OPENAI_API_KEY","fixture");vi.stubEnv("AI_PROVIDER","openai");mock.create.mockReset();mock.db.mockReset();});
-afterEach(() => {vi.restoreAllMocks();vi.unstubAllEnvs();});
+beforeEach(() => {vi.stubEnv("OPENAI_API_KEY","fixture");vi.stubEnv("AI_PROVIDER","openai");mock.create.mockReset();mock.db.mockReset();vi.stubGlobal("fetch",vi.fn(async () => {throw new Error("Unexpected network in isolated unit test");}));});
+afterEach(() => {vi.restoreAllMocks();vi.unstubAllEnvs();vi.unstubAllGlobals();});
 
 describe("ORBE execução confiável", () => {
+  const message = (text: string) => ({type:"message",id:"answer",role:"assistant",status:"completed",content:[{type:"output_text",text,annotations:[]}]});
+  it("recupera texto do terminal quando o provedor não entregou deltas", async () => {
+    mock.create.mockResolvedValueOnce(events(completed([message("Análise confirmada")] )));
+    expect(await consume({readOnly:true})).toBe("Análise confirmada");
+    expect(mock.create).toHaveBeenCalledTimes(1);
+  });
+  it("não duplica o texto que já chegou em deltas", async () => {
+    mock.create.mockResolvedValueOnce(events({type:"response.output_text.delta",delta:"Análise confirmada"},completed([message("Análise confirmada")])));
+    expect(await consume()).toBe("Análise confirmada");
+    expect(mock.create).toHaveBeenCalledTimes(1);
+  });
+  it("sintetiza consultas sem texto numa rodada sem ferramentas", async () => {
+    const read = vi.spyOn(ASSISTANT_TOOLS.find(t => t.name === "listar_tarefas")!,"run").mockResolvedValue({text:"Nenhuma tarefa na amostra"});
+    mock.create.mockResolvedValueOnce(events(completed([call("listar_tarefas")])))
+      .mockResolvedValueOnce(events(completed()))
+      .mockResolvedValueOnce(events(completed([message("A consulta não retornou tarefas nesta amostra.")])));
+    const parsed = splitActions(await consume({readOnly:true}));
+    expect(parsed.text).toBe("A consulta não retornou tarefas nesta amostra.");
+    expect(parsed.sources).toEqual([{name:"listar_tarefas",ok:true}]);
+    expect(read).toHaveBeenCalledOnce();
+    expect(mock.create.mock.calls[2][0].tools).toBeUndefined();
+    expect(mock.create.mock.calls[2][0].instructions).toContain("Não faça novas consultas nem ações");
+    expect(mock.create.mock.calls[2][0].input).toEqual(expect.arrayContaining([
+      expect.objectContaining({type:"function_call_output",call_id:"c",output:"Nenhuma tarefa na amostra"}),
+    ]));
+  });
+  it("reserva a última rodada para síntese e limita as consultas", async () => {
+    const read = vi.spyOn(ASSISTANT_TOOLS.find(t => t.name === "listar_tarefas")!,"run").mockResolvedValue({text:"amostra"});
+    for (let i=0;i<6;i++) mock.create.mockResolvedValueOnce(events(completed([{...call("listar_tarefas"),id:`fc${i}`,call_id:`c${i}`}])));
+    mock.create.mockResolvedValueOnce(events(completed([message("Resumo com limites explícitos")])));
+    expect(splitActions(await consume({readOnly:true})).text).toBe("Resumo com limites explícitos");
+    expect(read).toHaveBeenCalledTimes(6);
+    expect(mock.create).toHaveBeenCalledTimes(7);
+    expect(mock.create.mock.calls[6][0].tools).toBeUndefined();
+  });
+  it("não executa ferramenta que o provedor invente na rodada de síntese", async () => {
+    const write = vi.spyOn(ASSISTANT_TOOLS.find(t => t.name === "criar_tarefa")!,"run");
+    mock.create.mockResolvedValueOnce(events(completed())).mockResolvedValueOnce(events(completed([call()])));
+    expect(await consume()).toContain("⚠️");
+    expect(write).not.toHaveBeenCalled();
+    expect(mock.db).not.toHaveBeenCalled();
+    expect(mock.create).toHaveBeenCalledTimes(2);
+  });
+  it("duas respostas vazias terminam com limite explícito, sem loop ou nova escrita", async () => {
+    mock.create.mockResolvedValueOnce(events(completed())).mockResolvedValueOnce(events(completed()));
+    expect(await consume()).toContain("Não foi possível concluir a análise");
+    expect(mock.create).toHaveBeenCalledTimes(2);
+    expect(mock.db).not.toHaveBeenCalled();
+  });
   it("modo leitura remove escritas do catálogo e bloqueia chamada forçada sem banco", async () => {
     expect(assistantTools("empresa",{readOnly:true}).every(t => t.readOnly)).toBe(true);
     expect(assistantTools("empresa",{readOnly:true}).some(t => t.name === "criar_tarefa")).toBe(false);

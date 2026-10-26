@@ -223,17 +223,21 @@ async function runOpenAI({ instructions, turns, useTools, scope, readOnly, emit,
   const tools: OpenAI.Responses.Tool[] = useTools ? assistantTools(scope, { readOnly }).map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
   let input: OpenAI.Responses.ResponseInput = turns.map((t) => ({ role: t.role, content: t.content }));
   let reasoning = true; // alguns modelos não aceitam o parâmetro: cai para a chamada simples
+  let synthesize = false;
 
-  for (let round = 0; round < MAX_ROUNDS; round++) {
+  // Reserve one bounded round to explain the collected results without more
+  // tool calls. A completed tool sequence is not itself a user-facing answer.
+  for (let round = 0; round <= MAX_ROUNDS; round++) {
     signal.throwIfAborted();
+    const finalRound = synthesize || round === MAX_ROUNDS;
     const body = {
       model: aiModel(),
-      instructions,
+      instructions: finalRound ? `${instructions}\nConclua agora em texto com os resultados já consultados, suas fontes e limitações. Não faça novas consultas nem ações. Não afirme execução sem recibo confirmado.` : instructions,
       input,
       stream: true as const,
       store: false,
       prompt_cache_key: "orbita-ask",
-      ...(tools.length ? { tools, parallel_tool_calls: true } : {}),
+      ...(tools.length && !finalRound ? { tools, parallel_tool_calls: true } : {}),
       ...(reasoning ? { reasoning: { effort: scope === "empresa" ? "medium" as const : "low" as const }, include: ["reasoning.encrypted_content" as const] } : {}),
     };
     let stream;
@@ -248,18 +252,35 @@ async function runOpenAI({ instructions, turns, useTools, scope, readOnly, emit,
       throw e;
     }
     let final: OpenAI.Responses.Response | null = null;
+    let roundText = "";
     for await (const ev of stream) {
       signal.throwIfAborted();
-      if (ev.type === "response.output_text.delta") emit(modelText(ev.delta));
-      else if (ev.type === "response.refusal.delta") emit(modelText(ev.delta));
+      if (ev.type === "response.output_text.delta" || ev.type === "response.refusal.delta") {
+        roundText += ev.delta;
+        emit(modelText(ev.delta));
+      }
       else if (ev.type === "response.completed") final = ev.response;
       else if (ev.type === "response.incomplete" || ev.type === "response.failed" || ev.type === "error") throw new Error("Resposta não concluída");
     }
     signal.throwIfAborted();
     if (!final || final.status !== "completed") throw new Error("Resposta sem conclusão confirmada");
+    // The completed response is authoritative when the stream has no text
+    // deltas. Never repeat text already delivered by the stream.
+    if (!roundText.trim()) {
+      roundText = final.output.flatMap(item => item.type === "message" ? item.content.map(part =>
+        part.type === "output_text" ? part.text : part.type === "refusal" ? part.refusal : "") : []).join("");
+      if (roundText.trim()) emit(modelText(roundText));
+    }
     const calls = final.output.filter((o): o is OpenAI.Responses.ResponseFunctionToolCall => o.type === "function_call");
-    if (!calls.length || !final) return;
     input = [...input, ...(final.output as OpenAI.Responses.ResponseInputItem[])];
+    if (!calls.length) {
+      if (roundText.trim()) return;
+      if (!finalRound) { synthesize = true; continue; }
+      emit("\n\n⚠️ Não foi possível concluir a análise. As consultas e os recibos recebidos foram preservados; confira-os antes de repetir qualquer ação.");
+      return;
+    }
+    // A provider must not turn the synthesis-only round into another action.
+    if (finalRound) throw new Error("Resposta não concluída");
     for (const c of calls) {
       signal.throwIfAborted();
       const r = await runAssistantTool(c.name, c.arguments, { scope, readOnly, signal });
