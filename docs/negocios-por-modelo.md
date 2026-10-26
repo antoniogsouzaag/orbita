@@ -40,3 +40,5 @@ Esses zeros são valores dos relatórios, não comprovam ausência de movimenta�
 ## Operação assistida
 
 O [desenho de diagnóstico e operação assistida do Barberias](./barberias-diagnostico-operacao-assistida.md) define a primeira fatia somente leitura, reutilização dos serviços do painel, isolamento por tenant e os gates de uma fase futura de comandos. A entrega é de planejamento; não ativa MCP nem concede acesso a clientes.
+
+A [preparação do MCP Members](./members-mcp-catalogo-rascunhos.md) define catálogo/ofertas por criador, resumo por papel/período, link com prontidão explícita e uma fase posterior de rascunhos idempotentes. A oferta de rascunho deve nascer inativa atomicamente; a criação atual de oferta ativa não pode ser exposta diretamente como comando de rascunho. Identidade delegada, implementação e homologação permanecem etapas próprias.
