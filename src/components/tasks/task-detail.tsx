@@ -12,6 +12,7 @@ import { CheckButton, Segmented } from "@/components/ui/misc";
 import type { Task } from "@/db/schema";
 import { cn } from "@/lib/utils";
 import { OWNER_NAME, assigneeLabel } from "@/lib/task-assignee";
+import { AssigneeBadge } from "./assignee-badge";
 import { taskHref } from "@/lib/task-scope";
 import type { TaskRow } from "@/server/tasks";
 
@@ -137,7 +138,10 @@ export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose }
                 {task.children.map((c) => (
                   <div key={c.id} className="group flex items-center gap-2.5 rounded-lg px-1 py-1 hover:bg-surface-2">
                     <CheckButton size="sm" checked={c.status === "done"} label="Concluir subtarefa" onToggle={() => start(() => toggleTask(c.id))} />
-                    <span className={cn("flex-1 text-[13.5px]", c.status === "done" && "text-faint line-through")}>{c.title}</span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className={cn("text-[13.5px]", c.status === "done" && "text-faint line-through")}>{c.title}</span>
+                      {c.assignee && <AssigneeBadge task={c} className="mt-0.5 self-start" />}
+                    </span>
                     <button onClick={() => start(() => deleteTask(c.id))} className="invisible rounded p-1 text-faint hover:text-danger group-hover:visible" aria-label="Remover"><X className="size-3.5" /></button>
                   </div>
                 ))}

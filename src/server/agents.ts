@@ -16,7 +16,7 @@ import { TARGET_LABEL, isSilent, listDispatches, reportDispatchResult, resultInp
 import { DISPATCH_TARGETS } from "@/db/schema";
 import { AGENT_MANUAL_URI, AGENT_MANUAL_VERSION, agentManualMarkdown } from "@/lib/agent-handbook";
 import { assigneeLabel, isStale } from "@/lib/task-assignee";
-import { claimMessage, claimTask, companyQueue, releaseTask } from "./task-claim";
+import { claimMessage, claimTask, companyQueue, releaseTask, splitInput, splitTask } from "./task-claim";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -244,7 +244,7 @@ export function buildMcpServer(agent: AgentIdentity) {
     );
     server.registerTool(
       "atualizar_minha_tarefa",
-      { title: "Registrar andamento da minha tarefa", description: "Inicia ou conclui tarefa empresarial atribuída a este agente, com resumo/evidência. Reutilize registro_id (UUID) ao repetir o mesmo envio. Não altera tarefas pessoais ou de outro agente.", inputSchema: { id: z.uuid(), registro_id: z.uuid(), estado: z.enum(["doing", "done"]), resumo: z.string().trim().min(3).max(2000).refine(v => !v.includes("<!-- orbita-")) } },
+      { title: "Registrar andamento da minha tarefa", description: "Inicia ou conclui tarefa empresarial atribuída a este agente, com resumo/evidência. No resumo, descreva o estado concreto: o que já existe, o que você fez nesta etapa (com evidência) e o que falta. Reutilize registro_id (UUID) ao repetir o mesmo envio. Não altera tarefas pessoais ou de outro agente.", inputSchema: { id: z.uuid(), registro_id: z.uuid(), estado: z.enum(["doing", "done"]), resumo: z.string().trim().min(3).max(2000).refine(v => !v.includes("<!-- orbita-")) } },
       async ({ id, registro_id, estado, resumo }) => run("atualizar_minha_tarefa", `registrou andamento ${estado}`, async () => {
         const db = await getDb();
         const marker = `<!-- orbita-progress:${registro_id} -->`;
@@ -253,7 +253,14 @@ export function buildMcpServer(agent: AgentIdentity) {
         const own = and(eq(tasks.id, id), eq(tasks.scope, "empresa"), sql`((${`agente:${slug(agent.name)}`} = any(${tasks.tags}) and (${tasks.assignee} is null or ${tasks.assignee} = ${agent.name})) or ${tasks.assignee} = ${agent.name})`);
         const [updated] = await db.update(tasks).set({ status: estado, completedAt: estado === "done" ? new Date() : null, assignee: agent.name, claimedAt: sql`case when ${tasks.assignee} = ${agent.name} then coalesce(${tasks.claimedAt}, now()) else now() end`, notes: sql`coalesce(${tasks.notes}, '') || ${block}` })
           .where(and(own, sql`position(${marker} in coalesce(${tasks.notes}, '')) = 0`, sql`length(coalesce(${tasks.notes}, '')) + length(${block}) <= 64000`)).returning({ id: tasks.id });
-        if (updated) return text(`Tarefa ${updated.id} atualizada para ${estado}. Resultado registrado na Órbita.`);
+        if (updated) {
+          const [part] = estado === "done" ? await db.select({ parentId: tasks.parentId }).from(tasks).where(eq(tasks.id, updated.id)) : [];
+          if (part?.parentId) {
+            const [left] = await db.select({ open: sql<number>`count(*) filter (where ${tasks.status} <> 'done')::int`, title: sql<string>`(select title from ${tasks} p where p.id = ${part.parentId})` }).from(tasks).where(eq(tasks.parentId, part.parentId));
+            if (left && left.open === 0) return text(`Parte ${updated.id} concluída. Todas as partes de “${left.title}” estão concluídas: assuma a tarefa principal (${part.parentId}) e registre o fechamento com a evidência consolidada.`);
+          }
+          return text(`Tarefa ${updated.id} atualizada para ${estado}. Resultado registrado na Órbita.`);
+        }
         const [existing] = await db.select({ notes: tasks.notes }).from(tasks).where(own);
         return text(existing?.notes?.includes(marker) ? "Este registro de andamento já foi salvo." : "Tarefa indisponível para este agente ou histórico no limite.");
       }),
@@ -263,15 +270,15 @@ export function buildMcpServer(agent: AgentIdentity) {
       { title: "Fila de execução da Empresa", description: "Lista as tarefas internas abertas da Empresa com responsável e status: primeiro as livres (por prioridade), depois as já assumidas. Use antes de assumir_tarefa para escolher trabalho sem colidir com outro agente.", inputSchema: { somente_livres: z.boolean().optional().describe("true mostra apenas tarefas sem responsável") }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
       async ({ somente_livres }) =>
         run("fila_empresa", "consultou a fila da Empresa", async () => {
-          const rows = (await companyQueue()).filter((t) => !somente_livres || !t.assignee);
+          const rows = (await companyQueue()).filter((t) => !somente_livres || (!t.assignee && t.parts.total === 0));
           if (!rows.length) return text(somente_livres ? "Nenhuma tarefa livre na fila da Empresa." : "Fila da Empresa vazia.");
           const prio = ["", "baixa", "média", "alta"];
-          return text(rows.map((t) => `- ${t.title} (${t.id}) · ${t.assignee ? assigneeLabel(t) : "livre"}${isStale(t) ? " · sem atualização de responsável há mais de 48 h" : ""}${t.priority ? ` · prioridade ${prio[t.priority]}` : ""}${t.dueDate ? ` · prazo ${t.dueDate}` : ""}${t.tags.length ? ` · #${t.tags.join(" #")}` : ""}${t.notes ? `\n  ${t.notes.replace(/\s+/g, " ").slice(0, 280)}` : ""}`).join("\n"));
+          return text(rows.map((t) => `- ${t.parentTitle ? `[parte de “${t.parentTitle}”] ` : ""}${t.title} (${t.id}) · ${t.assignee ? assigneeLabel(t) : t.parts.total ? `dividida: ${t.parts.done}/${t.parts.total} partes concluídas` : "livre"}${isStale(t) ? " · sem atualização de responsável há mais de 48 h" : ""}${t.priority ? ` · prioridade ${prio[t.priority]}` : ""}${t.dueDate ? ` · prazo ${t.dueDate}` : ""}${t.tags.length ? ` · #${t.tags.join(" #")}` : ""}${t.notes ? `\n  ${t.notes.replace(/\s+/g, " ").slice(0, 280)}` : ""}`).join("\n"));
         }),
     );
     server.registerTool(
       "assumir_tarefa",
-      { title: "Assumir tarefa da Empresa", description: "Reserva uma tarefa interna da Empresa para este agente e a coloca em andamento. Falha se outro responsável já a assumiu; repetir com o mesmo agente é seguro. Assuma uma tarefa por vez e só o que vai executar agora.", inputSchema: { id: z.uuid(), plano: z.string().trim().min(3).max(1000).refine(v => !v.includes("<!-- orbita-")).optional().describe("Primeiro passo ou abordagem, registrado no histórico") }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+      { title: "Assumir tarefa da Empresa", description: "Reserva uma tarefa interna da Empresa (ou uma parte de tarefa dividida) para este agente e a coloca em andamento. Falha se outro responsável já a assumiu; repetir com o mesmo agente é seguro. Quem assume continua até concluir; assuma uma por vez. Se for grande demais para concluir nesta sessão, use dividir_tarefa em vez de assumir.", inputSchema: { id: z.uuid(), plano: z.string().trim().min(3).max(1000).refine(v => !v.includes("<!-- orbita-")).optional().describe("Primeiro passo ou abordagem, registrado no histórico") }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
       async ({ id, plano }) =>
         run("assumir_tarefa", `assumiu a tarefa ${id}`, async () => {
           const r = await claimTask(id, agent.name, plano);
@@ -280,11 +287,22 @@ export function buildMcpServer(agent: AgentIdentity) {
     );
     server.registerTool(
       "liberar_tarefa",
-      { title: "Liberar tarefa assumida", description: "Devolve à fila (a fazer, sem responsável) uma tarefa que este agente assumiu e não vai concluir agora — bloqueio, falta de acesso ou troca de prioridade. Explique o motivo e o ponto em que parou.", inputSchema: { id: z.uuid(), motivo: z.string().trim().min(3).max(2000).refine(v => !v.includes("<!-- orbita-")) }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } },
+      { title: "Liberar tarefa assumida", description: "Exceção, não rotina: devolve à fila (a fazer, sem responsável) uma tarefa assumida que travou por erro, bloqueio externo ou falta de acesso, ou cuja prioridade Antonio mudou. Explique o motivo e o ponto exato em que parou. Tarefa grande demais se divide com dividir_tarefa, não se libera.", inputSchema: { id: z.uuid(), motivo: z.string().trim().min(3).max(2000).refine(v => !v.includes("<!-- orbita-")) }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } },
       async ({ id, motivo }) =>
         run("liberar_tarefa", `liberou a tarefa ${id}`, async () => {
           const r = await releaseTask(id, agent.name, motivo);
           return text(claimMessage(r, "liberar"), !r.ok);
+        }),
+    );
+    server.registerTool(
+      "dividir_tarefa",
+      { title: "Dividir tarefa grande em partes", description: "Quebra uma tarefa principal da Empresa grande demais para uma sessão em 2 a 12 partes específicas, que cada agente assume e conclui separadamente. Cada parte precisa de um título de ação concreta (verbo + objeto, ex.: “Members: ativar métricas no CRM e comparar com o admin”) e de pronto_quando verificável. Evite partes genéricas como “inventário”, “melhorias” ou “revisar”. A principal fica livre e acompanha o progresso. Reutilize registro_id ao repetir.", inputSchema: { id: z.uuid(), registro_id: z.uuid(), motivo: splitInput.shape.motivo, partes: splitInput.shape.partes }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+      async ({ id, registro_id, motivo, partes }) =>
+        run("dividir_tarefa", `dividiu a tarefa ${id} em ${partes.length} partes`, async () => {
+          const r = await splitTask(id, agent.name, registro_id, { motivo, partes });
+          if (!r.ok) return text(r.message, true);
+          const list = r.parts.map((p) => `- ${p.title} (${p.id})`).join("\n");
+          return text(`${r.repeated ? "Divisão já registrada" : `Tarefa dividida em ${r.parts.length} partes`}:\n${list}\nAssuma uma parte com assumir_tarefa e leve-a até o fim.`);
         }),
     );
   }

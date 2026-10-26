@@ -177,7 +177,7 @@ export function TasksView({
                   task={t}
                   showDate={g.key === "all" || g.key === "0-atrasadas" || g.key.startsWith("a:")}
                   showScope={false}
-                  onOpen={() => router.push(href({ task: t.id }), { scroll: false })}
+                  onOpen={() => router.push(href({ task: t.parentId ?? t.id }), { scroll: false })}
                   onToggle={() =>
                     start(async () => {
                       toggle(t.id);

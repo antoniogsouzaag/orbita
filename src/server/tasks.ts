@@ -6,12 +6,14 @@ import { shiftDate, today } from "@/lib/dates";
 
 export type TaskRow = Task & {
   project: { id: string; name: string; color: string } | null;
+  /** Título da tarefa principal quando a linha é uma parte (subtarefa). */
+  parentTitle?: string | null;
   subtasks: { total: number; done: number };
 };
 
 export type TaskView = "hoje" | "proximos" | "atrasadas" | "semdata" | "andamento" | "todas" | "concluidas";
 
-async function withMeta(rows: { task: Task; project: { id: string; name: string; color: string } | null }[]): Promise<TaskRow[]> {
+async function withMeta(rows: { task: Task; project: { id: string; name: string; color: string } | null; parentTitle?: string | null }[]): Promise<TaskRow[]> {
   const db = await getDb();
   const ids = rows.map((r) => r.task.id);
   const counts = ids.length
@@ -26,7 +28,7 @@ async function withMeta(rows: { task: Task; project: { id: string; name: string;
         .groupBy(tasks.parentId)
     : [];
   const map = new Map(counts.map((c) => [c.parentId, { total: c.total, done: c.done }]));
-  return rows.map((r) => ({ ...r.task, project: r.project?.id ? r.project : null, subtasks: map.get(r.task.id) ?? { total: 0, done: 0 } }));
+  return rows.map((r) => ({ ...r.task, project: r.project?.id ? r.project : null, parentTitle: r.parentTitle ?? null, subtasks: map.get(r.task.id) ?? { total: 0, done: 0 } }));
 }
 
 const projectCols = { id: projects.id, name: projects.name, color: projects.color };
@@ -35,8 +37,9 @@ export async function listTasks(opts: { view?: TaskView; projectId?: string; tag
   if (opts.projectId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(opts.projectId)) return [];
   const db = await getDb();
   const t = today();
-  const where = [isNull(tasks.parentId)];
   const view = opts.view ?? "todas";
+  // Em andamento mostra também as partes de tarefas divididas, para ver quem está com o quê.
+  const where = view === "andamento" ? [] : [isNull(tasks.parentId)];
   if (view === "concluidas") where.push(eq(tasks.status, "done"));
   else where.push(ne(tasks.status, "done"));
   if (view === "hoje") where.push(lte(tasks.dueDate, t));
@@ -56,7 +59,7 @@ export async function listTasks(opts: { view?: TaskView; projectId?: string; tag
       : [sql`${tasks.dueDate} asc nulls last`, desc(tasks.priority), asc(tasks.sort), desc(tasks.createdAt)];
 
   const rows = await db
-    .select({ task: tasks, project: projectCols })
+    .select({ task: tasks, project: projectCols, parentTitle: sql<string | null>`(select principal.title from ${tasks} principal where principal.id = ${tasks.parentId})` })
     .from(tasks)
     .leftJoin(projects, eq(tasks.projectId, projects.id))
     .where(and(...where))
