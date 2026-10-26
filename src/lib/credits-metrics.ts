@@ -9,7 +9,7 @@ export const creditsMetricsSchema = z.object({
   users: z.object({ total: count, active30d: count, generating: count }),
   sales: z.object({ count, payingUsers: count, revenueCents: count }),
   subscriptions: z.object({
-    active: count, trialing: count, mrrCents: count,
+    active: count, trialing: count, mrrCents: count.nullable(),
     byPlan: z.array(z.object({ plan: z.enum(["basic", "advanced", "premium"]), active: count })).max(3),
   }).nullable(),
   credits: z.object({ sold: count, purchased: count, bonus: count.nullable(), consumed: count, refunded: count }).nullable(),

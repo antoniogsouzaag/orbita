@@ -62,6 +62,7 @@ export function validateProductMetrics(raw: unknown, product: string, now = Date
     if (Object.entries(data.metrics).some(([key, value]) => key !== "users" && value !== null)) throw new Error("Unidade de créditos inválida");
     if (data.credits) {
       if (Date.parse(data.window.to) > Date.parse(data.generatedAt)) throw new Error("Geração de créditos inválida");
+      if (Date.parse(data.window.to) - Date.parse(data.window.from) !== 30 * 86_400_000 || Date.parse(data.window.to) !== Date.parse(data.generatedAt)) throw new Error("Janela de créditos inválida");
       validateCreditsMetrics(data.credits, data.metrics.users);
     }
   } else if (data.credits) throw new Error("Produto de créditos divergente");

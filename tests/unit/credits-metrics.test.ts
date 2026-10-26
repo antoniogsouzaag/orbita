@@ -15,6 +15,13 @@ const raw = { version: 1, product: "aglabs-app", generatedAt: at, window: { from
 const now = Date.parse(at);
 
 describe("modelo de créditos (AG LABS App)", () => {
+  it("preserva MRR indisponível quando falta preço e recusa janela incompatível", () => {
+    const source={...raw,credits:{...credits,subscriptions:{...credits.subscriptions,mrrCents:null}}};
+    const data=validateProductMetrics(source,"aglabs-app",now);
+    expect(data.credits?.subscriptions?.mrrCents).toBeNull();
+    expect(data.credits?.subscriptions?.active).toBe(18);
+    expect(()=>validateProductMetrics({...source,window:{...raw.window,from:"2026-01-01T00:00:00.000Z"}},"aglabs-app",now)).toThrow();
+  });
   it("preserva o bloco e descarta campos extras", () => {
     const data = validateProductMetrics({ ...raw, credits: { ...credits, topConsumers: [{ email: "private@example.invalid" }] } }, "aglabs-app", now);
     expect(data.credits?.sales.revenueCents).toBe(123456);

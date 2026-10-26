@@ -71,7 +71,7 @@ function CreditsMetrics({ data, result }: { data: ProductMetrics; result: Produc
     <Header title="Créditos: compras, assinaturas e consumo em 30 dias" result={result} />
     <Tiles items={[
       { label: "Receita registrada", value: brl(c.sales.revenueCents), hint: `${num(c.sales.count)} compras · ${num(c.sales.payingUsers)} compradores` },
-      { label: "Assinaturas ativas", value: num(sub?.active), hint: sub ? `MRR ${brl(sub.mrrCents)} · ${num(sub.trialing)} em teste` : "seção indisponível no admin" },
+      { label: "Assinaturas ativas", value: num(sub?.active), hint: sub ? `MRR estimado ${brl(sub.mrrCents)} · ${num(sub.trialing)} em teste` : "seção indisponível no admin" },
       { label: "Usuários ativos", value: num(c.users.active30d), hint: `de ${num(c.users.total)} · ${num(c.users.generating)} geraram` },
       { label: "Créditos consumidos", value: num(cr?.consumed), hint: cr ? `vendidos ${num(cr.sold)} · bônus ${num(cr.bonus)}` : "seção indisponível no admin" },
     ]} />
