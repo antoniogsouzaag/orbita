@@ -49,3 +49,11 @@ Registre: data/commit, escopo, pergunta, ferramentas consultadas, fontes e horá
 ## Gates
 
 Testes determinísticos cobrem contratos, cancelamento, terminais de stream, exceções e recibos. Eles não certificam qualidade de linguagem ou acerto factual do modelo. CI precisa instalação limpa/typecheck/suíte/build verdes; UI deve ser conferida na produção publicada. Registrar casos supervisionados executados e falhas remanescentes, sem declarar24/24 só por existir a matriz.
+
+## Continuidade em 26/10/2026
+
+As PRs 36/37 corrigiram respostas sem síntese e o timeout HTTP de 60 segundos. O servidor reserva uma rodada final sem ferramentas, recupera texto do terminal concluído quando faltam deltas e emite um marcador terminal próprio. O cliente avisa sobre EOF sem esse marcador. maxDuration de 180 segundos foi validado pelo deployment; não é orçamento de tokens nem garantia de conclusão de qualquer pergunta.
+
+No commit integrado 4237df6, 313 testes, tipos/build e CI passaram. Uma análise real no espaço Empresa terminou com fontes e horário, distinguiu contas, ativação, assinatura e pagamento e encerrou sem escrita ou despacho. Isso comprova o cenário observado, não toda a matriz. Custo por análise e os demais casos supervisionados continuam pendentes.
+
+O [desenho de memória por escopo](./orbe-memoria-escopo.md) define separação de conversa, fatos aprovados e fontes. Não implementa persistência nem muda o escopo atual. A autenticação é de instalação; o desenho não presume isolamento multiusuário que ainda não existe.
