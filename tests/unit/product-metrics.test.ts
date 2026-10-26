@@ -50,7 +50,7 @@ describe("modelos de negócio no contrato", () => {
   });
   it("preserva o funil de compra única do VibeKit", () => {
     const events = { pageViews: 10, pricingViews: 6, ctaClicks: 4, checkoutClicks: 3, checkoutCreated: 2, checkoutFailures: 0, successViews: 1 };
-    const raw = { ...members, product: "vibekit", metrics: { users: null, ...nulls }, marketplace: undefined, commerceFunnel: { version: 1, events, observedFrom: "2026-10-20T00:00:00Z", registeredPurchases: 1, provisionedPurchases: 1, registeredCheckoutAmountCents: 4990, currency: "BRL", basis: "x" } };
+    const raw = { ...members, product: "vibekit", metrics: { users: null, ...nulls }, marketplace: undefined, commerceFunnel: { version: 1, events, observedFrom: "2026-10-20T00:00:00Z", registeredPurchases: 1, provisionedPurchases: 1, registeredCheckoutAmountCents: 4990, currency: "BRL", basis: "anonymous_event_counts_and_registered_live_checkout_records" } };
     const data = validateProductMetrics(raw, "vibekit", Date.parse(members.generatedAt));
     expect(data.commerceFunnel?.events.checkoutClicks).toBe(3);
     expect(() => validateProductMetrics({ ...raw, commerceFunnel: { ...raw.commerceFunnel, provisionedPurchases: 2 } }, "vibekit", Date.parse(members.generatedAt))).toThrow();
