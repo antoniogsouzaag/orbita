@@ -1,8 +1,17 @@
 # Retenção e exclusão de contas
 
-## Desenho recomendado — prazos sujeitos à validação contábil
+## Política adotada — 26/10/2026
 
-Antonio informou em 25/10/2026 que a empresa ainda não possui prazo próprio definido para retenção financeira. A orientação técnica é separar o encerramento da conta da guarda de documentos obrigatórios. Este texto é uma proposta de implementação e revisão; não declara uma política jurídica já aprovada nem habilita uma purga.
+Antonio confirmou em 26/10/2026 que o prazo já estava definido e pediu a implementação. Regra aplicada nos dois produtos:
+
+- **Comprovantes financeiros** (pagamentos, reembolsos, ledger): guardados sem nome nem e-mail até **1º de janeiro do 6º ano após o último fato**, ou seja, 5 exercícios completos (CTN arts. 173, I e 174; CC art. 206, §5º, I; LGPD art. 16, I). Ex.: compra em 2026 → apagar em 2032-01-01. Depois disso, uma rotina apaga automaticamente.
+- **Disputa ou mediação aberta**: `legal_hold` suspende só esses registros até a resolução.
+- **Perfil, conteúdo, arquivos e publicações**: apagados no encerramento.
+- **Hash do e-mail**: 12 meses, só para negar um segundo bônus ou teste grátis (LGPD art. 7º, IX).
+
+Implementação: AG LABS em [aglabs-core/aglabs#128](https://github.com/aglabs-core/aglabs/pull/128) (`docs/exclusao-de-conta.md`) e MeCard em [aglabs-core/mecard#62](https://github.com/aglabs-core/mecard/pull/62) (`docs/conta-senha-exclusao.md`). A matriz abaixo continua valendo como fundamento.
+
+## Desenho de referência
 
 | Categoria | Tratamento no encerramento | Regra de retenção |
 |---|---|---|
