@@ -74,15 +74,17 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
     next: "Ativar o token e definir no app os indicadores de páginas publicadas e Pro pagante.",
   },
   {
-    id: "aglabs", name: "AG LABS App", domain: "aglabs.app.br", tag: "aglabs", model: "creditos",
+    // No CRM a chave "aglabs" é o AG LABS institucional; as métricas do app usam "aglabs-app".
+    id: "aglabs-app", name: "AG LABS App", domain: "aglabs.app.br", tag: "aglabs", model: "creditos",
     summary: "Geração de mídia com IA. Créditos por assinatura mensal ou pacote avulso; contas novas ganham bônus.",
     indicators: [
-      { label: "Usuários e contas ativas", source: "app", available: false },
-      { label: "Assinaturas por plano e pacotes avulsos vendidos", source: "app", available: false },
-      { label: "Créditos vendidos, bônus e consumidos", source: "app", available: false },
-      { label: "Gerações concluídas e com falha", source: "app", available: false },
+      { label: "Usuários, ativos em 30 dias e que geraram", source: "app", available: true },
+      { label: "Compras, compradores e receita registrada em 30 dias", source: "app", available: true },
+      { label: "Assinaturas ativas, em teste, MRR e por plano", source: "app", available: true },
+      { label: "Créditos vendidos, bônus, consumidos e reembolsados", source: "app", available: true },
+      { label: "Gerações com falha e custo por geração", source: "app", available: false },
     ],
-    next: "Criar o endpoint de métricas de créditos no app.",
+    next: "Publicar o endpoint no Render, ativar o token aglabs-app e conferir com a aba de 30 dias do admin.",
   },
   {
     id: "viajeki", name: "Viajeki", domain: "viajeki.com.br", tag: "viajeki", model: "freemium_assinatura",

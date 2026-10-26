@@ -14,7 +14,7 @@ O contrato v1 é comum a todos: `product`, `generatedAt`, `window` e os campos d
 | Members | Marketplace | Produtor | `marketplace` (bruto, receita da plataforma e vendas do mês atual/anterior; produtores; usuários) | members#51 e crm-dash#51 integrados; falta publicação/conferência do app e confirmar configuração do token |
 | VibeKit | Compra única | Compra | `commerceFunnel` (eventos anônimos, compras, acessos, valor em checkout) | código do Codex; falta publicar e ativar |
 | MeCard | Freemium + assinatura Pro | Usuário | só `users` hoje | código pronto; falta token e indicadores de Pro |
-| AG LABS App | Créditos | Usuário | a definir (créditos vendidos/consumidos, assinaturas, pacotes, gerações) | sem coleta |
+| AG LABS App (`aglabs-app`) | Créditos | Usuário | `credits` (usuários, compras e receita registrada, assinaturas e MRR por plano, créditos vendidos/bônus/consumidos/reembolsados, gerações; janela de 30 dias do admin) | código no app, CRM e Órbita; falta publicar no Render e ativar o token |
 | Viajeki | Freemium + Pro anual e roteiro avulso | Usuário | a definir | sem coleta |
 
 O catálogo (modelo, unidade, receita, indicadores que importam e lacunas) está em `src/lib/business-models.ts`. O status de conexão não é fixo no código: a página consulta o CRM ao vivo e mostra coleta ativa, pendente ou indisponível.
