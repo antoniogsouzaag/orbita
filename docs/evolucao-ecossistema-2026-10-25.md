@@ -65,3 +65,7 @@ O maior risco de velocidade é mudar vários fluxos financeiros enquanto o CI n�
 As cinco issues funcionais acima permanecem abertas enquanto sua implementação e validação não forem concluídas. Encerrar os antigos índices de revisão significa consolidar a fila e preservar o histórico, não declarar essas funcionalidades prontas. Nenhuma campanha, nova automação ou ampliação de acesso foi ativada pelo plano.
 
 O desenho de exclusão e a distinção dos prazos estão em [retenção e exclusão de contas](./retencao-e-exclusao-contas.md). Não havia prazo empresarial definido; a proposta separa a exclusão operacional da guarda financeira mínima e exige validação contábil antes da purga de comprovantes. O primeiro Lighthouse desta rodada terminou em `NO_FCP`, sem nota ou métricas válidas; não foi usado como evidência de melhora ou regressão nem justificou encerrar a issue de desempenho.
+
+## Continuidade
+
+A execução, as medições e os critérios restantes foram conciliados em [26/10/2026](./evolucao-ecossistema-2026-10-26.md). O registro desta página descreve a rodada de 25/10, não o estado final da fila.
