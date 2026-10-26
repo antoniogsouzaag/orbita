@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Building2, BookOpen } from "lucide-react";
 import { Card, PageHeader } from "@/components/ui/card";
 import { BARBERIAS } from "@/lib/business";
+import { BUSINESS_UNITS, MODEL_INFO } from "@/lib/business-models";
 import { barberiasSummary } from "@/server/business";
 import { appRegistry } from "@/server/ops";
 
@@ -44,6 +45,25 @@ export default async function Page() {
           </div>
         </div>
       </Card>
+
+      <section className="space-y-3" aria-labelledby="modelos-negocio">
+        <div>
+          <h2 id="modelos-negocio" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">Negócios por modelo</h2>
+          <p className="mt-1.5 text-[12px] text-muted">Cada produto é acompanhado pelos indicadores do seu modelo, sem forçar o mesmo formato em todos.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {BUSINESS_UNITS.filter((unit) => unit.id !== BARBERIAS.id).map((unit) => {
+            const missing = unit.indicators.filter((item) => !item.available).length;
+            return (
+              <Link key={unit.id} href={`/empresa/negocios/${unit.id}`} className="card group flex min-w-0 flex-col gap-1.5 p-4 transition hover:border-border-strong">
+                <span className="flex items-center justify-between gap-2"><span className="font-semibold">{unit.name}</span><span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10.5px] text-muted">{MODEL_INFO[unit.model].label}</span></span>
+                <span className="line-clamp-2 text-[12px] text-muted">{unit.summary}</span>
+                <span className="mt-auto pt-1 text-[11px] text-faint">{`${unit.indicators.length - missing} de ${unit.indicators.length} indicadores definidos na coleta do app`}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <Suspense fallback={<PortfolioLoading />}><ProductPortfolio /></Suspense>
 
