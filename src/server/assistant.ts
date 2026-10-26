@@ -41,8 +41,8 @@ async function projectByName(name: string | null | undefined) {
   return m ? (all.find((x) => x.id === m.id) ?? null) : null;
 }
 
-function fmtTask(t: { id: string; scope?: string; title: string; dueDate: string | null; dueTime: string | null; priority: number; status: string; project?: { name: string } | null; tags?: string[] }) {
-  return `- [${t.status === "done" ? "x" : " "}] ${t.title} (id ${t.id})${t.scope === "empresa" ? " · empresa" : ""}${t.dueDate ? ` · prazo ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ""}` : ""}${t.priority ? ` · prioridade ${PRIO_NOME[t.priority]}` : ""}${t.project ? ` · projeto ${t.project.name}` : ""}${t.tags?.length ? ` · #${t.tags.join(" #")}` : ""}`;
+function fmtTask(t: { id: string; scope?: string; title: string; dueDate: string | null; dueTime: string | null; priority: number; status: string; assignee?: string | null; project?: { name: string } | null; tags?: string[] }) {
+  return `- [${t.status === "done" ? "x" : " "}] ${t.title} (id ${t.id})${t.scope === "empresa" ? " · empresa" : ""}${t.status === "doing" ? " · em andamento" : ""}${t.assignee ? ` · responsável ${t.assignee}` : ""}${t.dueDate ? ` · prazo ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ""}` : ""}${t.priority ? ` · prioridade ${PRIO_NOME[t.priority]}` : ""}${t.project ? ` · projeto ${t.project.name}` : ""}${t.tags?.length ? ` · #${t.tags.join(" #")}` : ""}`;
 }
 
 /* ───────────── Ações ───────────── */
@@ -105,6 +105,7 @@ const atualizarTarefaSchema = z.object({
     projeto: z.string().max(100).nullish(),
     notas: z.string().max(5000).nullish(),
     escopo: z.enum(["pessoal", "empresa"]).nullish().describe("Apenas para mover explicitamente a tarefa entre espaços; as subtarefas acompanham."),
+    responsavel: z.string().trim().max(80).nullish().describe("Quem assume a execução (ex.: Antonio, Tom, Claude Code). Texto vazio remove o responsável."),
   });
 export const atualizarTarefa = {
   schema: atualizarTarefaSchema,
@@ -125,6 +126,7 @@ export const atualizarTarefa = {
     if (p) patch.projectId = p.id;
     if (v.escopo) patch.scope = v.escopo;
     if (v.notas != null) patch.notes = v.notas;
+    if (v.responsavel != null) patch.assignee = v.responsavel;
     if (!Object.keys(patch).length) return { text: "Nada para alterar." };
     await patchTask(v.id, patch);
     const what = v.status === "done" ? "concluída" : "atualizada";

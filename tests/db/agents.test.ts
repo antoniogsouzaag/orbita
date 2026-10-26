@@ -74,7 +74,7 @@ describe("central dos agentes (MCP)", () => {
 
   it("agente abre tarefa para Antonio e registra evento, tudo com log", async () => {
     const t = await createAgentToken("Hermes Oracle", ["tarefas", "eventos"]);
-    expect(await toolNames(t)).toEqual(["atualizar_minha_tarefa", "criar_tarefa_para_antonio", "documentacao_canonica", "minhas_tarefas", "pedidos_recebidos", "registrar_evento", "registrar_resultado"]);
+    expect(await toolNames(t)).toEqual(["assumir_tarefa", "atualizar_minha_tarefa", "criar_tarefa_para_antonio", "documentacao_canonica", "fila_empresa", "liberar_tarefa", "minhas_tarefas","pedidos_recebidos", "registrar_evento", "registrar_resultado"]);
 
     const r = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "Aprovar renovação do domínio", prioridade: "alta", prazo: "2026-11-01" } });
     expect(JSON.stringify(r.body.result)).toContain("Tarefa criada");

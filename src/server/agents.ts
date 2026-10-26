@@ -15,6 +15,8 @@ import { assistantTools, runAssistantTool } from "./assistant";
 import { TARGET_LABEL, isSilent, listDispatches, reportDispatchResult, resultInput } from "./dispatch";
 import { DISPATCH_TARGETS } from "@/db/schema";
 import { AGENT_MANUAL_URI, AGENT_MANUAL_VERSION, agentManualMarkdown } from "@/lib/agent-handbook";
+import { assigneeLabel, isStale } from "@/lib/task-assignee";
+import { claimMessage, claimTask, companyQueue, releaseTask } from "./task-claim";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -92,7 +94,7 @@ export async function agentActivityByDay(days = 14) {
 /** Tarefas que os agentes abriram para Antonio (tag "agente:<nome>"). */
 export async function agentTasks(agent?: string) {
   const db = await getDb();
-  const cond = agent ? sql`${`agente:${slug(agent)}`} = any(${tasks.tags})` : sql`exists (select 1 from unnest(${tasks.tags}) t where t like 'agente:%')`;
+  const cond = agent ? sql`(${`agente:${slug(agent)}`} = any(${tasks.tags}) or ${tasks.assignee} = ${agent})` : sql`exists (select 1 from unnest(${tasks.tags}) t where t like 'agente:%')`;
   return db.select().from(tasks).where(and(eq(tasks.scope, "empresa"), cond)).orderBy(sql`case when ${tasks.status} = 'done' then 1 else 0 end`, sql`case when 'resposta:antonio' = any(${tasks.tags}) then 0 else 1 end`, desc(tasks.createdAt)).limit(100);
 }
 
@@ -237,7 +239,7 @@ export function buildMcpServer(agent: AgentIdentity) {
       async () =>
         run("minhas_tarefas", "consultou suas tarefas", async () => {
           const list = await agentTasks(agent.name);
-          return text(list.length ? list.map((t) => `- [${t.status === "done" ? "x" : " "}] ${t.title} (${t.id}) · ${t.status}${t.dueDate ? ` · prazo ${t.dueDate}` : ""}${t.notes ? `\n${t.notes.slice(-6000)}` : ""}`).join("\n\n") : "Nenhuma tarefa vinculada a você.");
+          return text(list.length ? list.map((t) => `- [${t.status === "done" ? "x" : " "}] ${t.title} (${t.id}) · ${t.status}${t.assignee ? ` · responsável ${t.assignee}` : ""}${t.dueDate ? ` · prazo ${t.dueDate}` : ""}${t.notes ? `\n${t.notes.slice(-6000)}` : ""}`).join("\n\n") : "Nenhuma tarefa vinculada a você.");
         }),
     );
     server.registerTool(
@@ -247,13 +249,43 @@ export function buildMcpServer(agent: AgentIdentity) {
         const db = await getDb();
         const marker = `<!-- orbita-progress:${registro_id} -->`;
         const block = `\n\n---\n${agent.name} · ${new Date().toISOString()} · ${estado}\n${resumo}\n${marker}`;
-        const own = and(eq(tasks.id, id), eq(tasks.scope, "empresa"), sql`${`agente:${slug(agent.name)}`} = any(${tasks.tags})`);
-        const [updated] = await db.update(tasks).set({ status: estado, completedAt: estado === "done" ? new Date() : null, notes: sql`coalesce(${tasks.notes}, '') || ${block}` })
+        // Atribuída ao agente pela tag do pedido ou assumida por ele; nunca a tarefa que outro responsável assumiu.
+        const own = and(eq(tasks.id, id), eq(tasks.scope, "empresa"), sql`((${`agente:${slug(agent.name)}`} = any(${tasks.tags}) and (${tasks.assignee} is null or ${tasks.assignee} = ${agent.name})) or ${tasks.assignee} = ${agent.name})`);
+        const [updated] = await db.update(tasks).set({ status: estado, completedAt: estado === "done" ? new Date() : null, assignee: agent.name, claimedAt: sql`case when ${tasks.assignee} = ${agent.name} then coalesce(${tasks.claimedAt}, now()) else now() end`, notes: sql`coalesce(${tasks.notes}, '') || ${block}` })
           .where(and(own, sql`position(${marker} in coalesce(${tasks.notes}, '')) = 0`, sql`length(coalesce(${tasks.notes}, '')) + length(${block}) <= 64000`)).returning({ id: tasks.id });
         if (updated) return text(`Tarefa ${updated.id} atualizada para ${estado}. Resultado registrado na Órbita.`);
         const [existing] = await db.select({ notes: tasks.notes }).from(tasks).where(own);
         return text(existing?.notes?.includes(marker) ? "Este registro de andamento já foi salvo." : "Tarefa indisponível para este agente ou histórico no limite.");
       }),
+    );
+    server.registerTool(
+      "fila_empresa",
+      { title: "Fila de execução da Empresa", description: "Lista as tarefas internas abertas da Empresa com responsável e status: primeiro as livres (por prioridade), depois as já assumidas. Use antes de assumir_tarefa para escolher trabalho sem colidir com outro agente.", inputSchema: { somente_livres: z.boolean().optional().describe("true mostra apenas tarefas sem responsável") }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+      async ({ somente_livres }) =>
+        run("fila_empresa", "consultou a fila da Empresa", async () => {
+          const rows = (await companyQueue()).filter((t) => !somente_livres || !t.assignee);
+          if (!rows.length) return text(somente_livres ? "Nenhuma tarefa livre na fila da Empresa." : "Fila da Empresa vazia.");
+          const prio = ["", "baixa", "média", "alta"];
+          return text(rows.map((t) => `- ${t.title} (${t.id}) · ${t.assignee ? assigneeLabel(t) : "livre"}${isStale(t) ? " · sem atualização de responsável há mais de 48 h" : ""}${t.priority ? ` · prioridade ${prio[t.priority]}` : ""}${t.dueDate ? ` · prazo ${t.dueDate}` : ""}${t.tags.length ? ` · #${t.tags.join(" #")}` : ""}${t.notes ? `\n  ${t.notes.replace(/\s+/g, " ").slice(0, 280)}` : ""}`).join("\n"));
+        }),
+    );
+    server.registerTool(
+      "assumir_tarefa",
+      { title: "Assumir tarefa da Empresa", description: "Reserva uma tarefa interna da Empresa para este agente e a coloca em andamento. Falha se outro responsável já a assumiu; repetir com o mesmo agente é seguro. Assuma uma tarefa por vez e só o que vai executar agora.", inputSchema: { id: z.uuid(), plano: z.string().trim().min(3).max(1000).refine(v => !v.includes("<!-- orbita-")).optional().describe("Primeiro passo ou abordagem, registrado no histórico") }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+      async ({ id, plano }) =>
+        run("assumir_tarefa", `assumiu a tarefa ${id}`, async () => {
+          const r = await claimTask(id, agent.name, plano);
+          return text(claimMessage(r, "assumir"), !r.ok);
+        }),
+    );
+    server.registerTool(
+      "liberar_tarefa",
+      { title: "Liberar tarefa assumida", description: "Devolve à fila (a fazer, sem responsável) uma tarefa que este agente assumiu e não vai concluir agora — bloqueio, falta de acesso ou troca de prioridade. Explique o motivo e o ponto em que parou.", inputSchema: { id: z.uuid(), motivo: z.string().trim().min(3).max(2000).refine(v => !v.includes("<!-- orbita-")) }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } },
+      async ({ id, motivo }) =>
+        run("liberar_tarefa", `liberou a tarefa ${id}`, async () => {
+          const r = await releaseTask(id, agent.name, motivo);
+          return text(claimMessage(r, "liberar"), !r.ok);
+        }),
     );
   }
 

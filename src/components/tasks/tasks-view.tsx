@@ -21,12 +21,23 @@ const VIEWS: { id: TaskView; label: string }[] = [
   { id: "proximos", label: "Próximos" },
   { id: "atrasadas", label: "Atrasadas" },
   { id: "semdata", label: "Sem data" },
+  { id: "andamento", label: "Em andamento" },
   { id: "todas", label: "Todas" },
   { id: "concluidas", label: "Concluídas" },
 ];
 
 function groupByDate(tasks: TaskRow[], view: TaskView) {
   if (view === "concluidas" || view === "semdata") return [{ key: "all", label: "", items: tasks }];
+  if (view === "andamento") {
+    // Um grupo por responsável, para ver quem está com o quê.
+    const byOwner = new Map<string, { key: string; label: string; items: TaskRow[] }>();
+    for (const task of tasks) {
+      const key = task.assignee ?? "";
+      if (!byOwner.has(key)) byOwner.set(key, { key: `a:${key}`, label: task.assignee ?? "Sem responsável", items: [] });
+      byOwner.get(key)!.items.push(task);
+    }
+    return [...byOwner.values()];
+  }
   const t = today();
   const groups = new Map<string, { key: string; label: string; items: TaskRow[] }>();
   for (const task of tasks) {
@@ -53,6 +64,7 @@ export function TasksView({
   detail,
   hideViews,
   scope,
+  assignees,
 }: {
   tasks: TaskRow[];
   view: TaskView;
@@ -64,6 +76,7 @@ export function TasksView({
   detail: TaskDetailData | null;
   hideViews?: boolean;
   scope?: TaskScope;
+  assignees?: string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -162,7 +175,7 @@ export function TasksView({
                 <TaskItem
                   key={t.id}
                   task={t}
-                  showDate={g.key === "all" || g.key === "0-atrasadas"}
+                  showDate={g.key === "all" || g.key === "0-atrasadas" || g.key.startsWith("a:")}
                   showScope={false}
                   onOpen={() => router.push(href({ task: t.id }), { scroll: false })}
                   onToggle={() =>
@@ -179,7 +192,7 @@ export function TasksView({
         )}
       </div>
 
-      {detail && <TaskDetail key={detail.id} task={detail} projects={projects} onClose={() => router.push(href({ task: null }), { scroll: false })} />}
+      {detail && <TaskDetail key={detail.id} task={detail} projects={projects} assignees={assignees} onClose={() => router.push(href({ task: null }), { scroll: false })} />}
     </div>
   );
 }

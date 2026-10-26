@@ -9,7 +9,7 @@ const responseSchema = z.object({ total: z.number().int().nonnegative(), tarefas
 })).max(50) });
 
 export async function CommercialTaskList({ view, product }: { view: TaskView; product?: string }) {
-  if (!crmConfigured() || view === "concluidas") return null;
+  if (!crmConfigured() || view === "concluidas" || view === "andamento") return null;
   let result: z.infer<typeof responseSchema> | null = null;
   try {
     result = responseSchema.parse(await crmCall<{total:number;tarefas:CrmTask[]}>("crm_tarefas", {responsavel:"antonio",situacao:view === "atrasadas" ? "vencidas" : "todas",limite:50,...(product && /^[a-z0-9_-]{2,60}$/.test(product) ? {produto:product} : {})}));

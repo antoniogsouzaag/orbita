@@ -11,16 +11,19 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { CheckButton, Segmented } from "@/components/ui/misc";
 import type { Task } from "@/db/schema";
 import { cn } from "@/lib/utils";
+import { OWNER_NAME, assigneeLabel } from "@/lib/task-assignee";
 import { taskHref } from "@/lib/task-scope";
 import type { TaskRow } from "@/server/tasks";
 
 export type TaskDetailData = TaskRow & { children: Task[] };
 
-export function TaskDetail({ task, projects, onClose }: { task: TaskDetailData; projects: { id: string; name: string; color: string }[]; onClose: () => void }) {
+export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose }: { task: TaskDetailData; projects: { id: string; name: string; color: string }[]; assignees?: string[]; onClose: () => void }) {
   const router = useRouter();
   const [title, setTitle] = React.useState(task.title);
   const [notes, setNotes] = React.useState(task.notes ?? "");
   const [tags, setTags] = React.useState(task.tags.join(", "));
+  const [assignee, setAssignee] = React.useState(task.assignee ?? "");
+  const listId = React.useId();
   const [sub, setSub] = React.useState("");
   const [, start] = React.useTransition();
 
@@ -36,7 +39,7 @@ export function TaskDetail({ task, projects, onClose }: { task: TaskDetailData; 
         <D.Content className="fixed inset-y-0 right-0 z-[61] flex w-full max-w-lg flex-col border-l border-border-strong bg-surface shadow-soft animate-in focus:outline-none">
           <div className="flex items-center gap-3 border-b border-border px-5 py-3">
             <CheckButton checked={task.status === "done"} label="Concluir" onToggle={() => start(() => toggleTask(task.id))} />
-            <D.Title className="text-[13px] text-muted">{task.status === "done" ? "Concluída" : task.status === "doing" ? "Em andamento" : "A fazer"}</D.Title>
+            <D.Title className="truncate text-[13px] text-muted">{assigneeLabel(task) ?? (task.status === "done" ? "Concluída" : task.status === "doing" ? "Em andamento" : "A fazer")}</D.Title>
             <D.Description className="sr-only">Detalhes da tarefa</D.Description>
             <button
               onClick={() =>
@@ -96,6 +99,25 @@ export function TaskDetail({ task, projects, onClose }: { task: TaskDetailData; 
                 options={[{ value: "pessoal", label: "Pessoal" }, { value: "empresa", label: "Empresa" }]}
               />
             </Field>
+            {!task.parentId && (
+              <Field label="Responsável">
+                <div className="flex gap-2">
+                  <Input
+                    list={listId}
+                    value={assignee}
+                    onChange={(e) => setAssignee(e.target.value)}
+                    onBlur={() => assignee.trim() !== (task.assignee ?? "") && patch({ assignee: assignee.trim() || null })}
+                    onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                    placeholder="Ninguém assumiu — escolha ou digite um nome"
+                  />
+                  {!task.assignee && task.status !== "done" && (
+                    <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => { setAssignee(OWNER_NAME); patch({ assignee: OWNER_NAME, status: "doing" }); }}>Assumir</Button>
+                  )}
+                </div>
+                <datalist id={listId}>{assignees.map((name) => <option key={name} value={name} />)}</datalist>
+                {task.claimedAt && task.assignee && <p className="mt-1 text-[11px] text-faint">Assumida em {new Date(task.claimedAt).toLocaleString("pt-BR")}</p>}
+              </Field>
+            )}
             <Field label="Prioridade">
               <Segmented
                 value={String(task.priority)}

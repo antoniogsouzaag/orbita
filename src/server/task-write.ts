@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { TASK_SCOPES, TASK_STATUS, projects, tasks, type TaskScope } from "@/db/schema";
+import { normalizeAssignee } from "@/lib/task-assignee";
 import { projectScope } from "@/lib/task-scope";
 
 const uuid = z.string().uuid();
@@ -17,6 +18,8 @@ export const taskSchema = z.object({
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   dueTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  /** Responsável pela execução; null libera. */
+  assignee: z.string().trim().max(80).nullable().transform(normalizeAssignee).optional(),
 });
 
 async function checkedProject(projectId: string | null | undefined, scope: TaskScope) {
@@ -42,7 +45,7 @@ export async function insertTask(data: z.input<typeof taskSchema>) {
     projectId = parent.projectId;
   }
   await checkedProject(projectId, scope);
-  const [row] = await db.insert(tasks).values({ ...v, scope, projectId, completedAt: v.status === "done" ? new Date() : null }).returning({ id: tasks.id });
+  const [row] = await db.insert(tasks).values({ ...v, scope, projectId, claimedAt: v.assignee ? new Date() : null, completedAt: v.status === "done" ? new Date() : null }).returning({ id: tasks.id });
   return row.id;
 }
 
@@ -71,7 +74,7 @@ export async function patchTask(id: string, patch: Partial<z.input<typeof taskSc
   // Um registro legado com vínculo inconsistente continua editável. Só validamos
   // um novo vínculo ou uma mudança explícita de espaço/parentesco.
   if ("projectId" in v || "scope" in v || "parentId" in v) await checkedProject(projectId, scope);
-  const changes = { ...v, ...(scope !== current.scope ? { scope } : {}), ...(projectId !== current.projectId ? { projectId } : {}), ...(v.status ? { completedAt: v.status === "done" ? new Date() : null } : {}) };
+  const changes = { ...v, ...(scope !== current.scope ? { scope } : {}), ...(projectId !== current.projectId ? { projectId } : {}), ...(v.status ? { completedAt: v.status === "done" ? new Date() : null } : {}), ...(v.assignee !== undefined && v.assignee !== current.assignee ? { claimedAt: v.assignee ? new Date() : null } : {}) };
   const update = db.update(tasks).set(changes).where(eq(tasks.id, taskId)).returning({ id: tasks.id });
   if (scope !== current.scope || projectId !== current.projectId) {
     // Uma única instrução é atômica também no driver HTTP do Neon. Apenas a
