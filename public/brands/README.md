@@ -13,13 +13,20 @@ Outras marcas copiadas sem modificação em 2026-10-26:
 | Arquivo local | Fonte oficial no repositório |
 | --- | --- |
 | `members.png` | `aglabs-core/members`, `public/logo brand.png` (símbolo usado no rodapé oficial) |
-| `vibekit.png` | `aglabs-core/LP-VibeKit-Templates`, `artifacts/vibekit-landing/public/logo.png` (marca AG usada no cabeçalho do VibeKit) |
-| `aglabs-app.webp` | `aglabs-core/aglabs`, `client/src/assets/ag-logo-dark.webp` (variante branca do componente Logo) |
-| `mecard.svg` | `aglabs-core/mecard`, `public/brand/mark.svg` |
+| `vibekit-purple.png` | Imagem roxa completa fornecida por Antonio em 26/10: `Desktop/logos/ChatGPT Image 30 de jun. de 2026, 20_35_53.png` |
+| `aglabs-app-purple.png` | Imagem roxa sem fundo fornecida por Antonio em 26/10: `Desktop/logos/AGENTES(1).png` (transparência preservada) |
+| `mecard.png` | `aglabs-core/mecard`, `public/brand/favicon.png`, usado por `src/components/brand.tsx` em modo `markOnly` |
 | `viajeki.png` | `aglabs-core/viajeki`, `public/apple-touch-icon.png` (símbolo oficial sem o nome) |
 
-Os blobs de Members (`a1af6e8`), MeCard (`864fb70`) e Viajeki (`baf2118`)
+Os blobs de Members (`a1af6e8`), MeCard (`4e3ebb8`) e Viajeki (`baf2118`)
 foram conferidos contra a branch padrão do GitHub. A navegação usa as artes
 originais em fundo escuro, sem inverter, recortar ou redesenhar as marcas.
 Os nomes dos apps acompanham as imagens; os atributos alt ficam vazios para
 evitar repetir o mesmo nome na leitura assistida.
+
+**MeCard:** a marca atual é o símbolo azul/ciano com cartão de contato. Os
+SVGs antigos `public/brand/mark.svg` e `public/brand/logo.svg` representam a
+primeira identidade e não devem ser usados como fonte, mesmo quando ainda
+aparecem em histórico ou documentação antiga. A cópia antiga `mecard.svg`
+foi removida da Órbita. Para assinatura completa, usar `logo-light.png` ou
+`logo-dark.png` do MeCard; para o símbolo, `favicon.png`/`icon-192.png`.
