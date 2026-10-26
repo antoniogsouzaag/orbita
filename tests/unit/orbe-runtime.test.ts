@@ -15,6 +15,8 @@ vi.mock("@/server/settings", () => ({getSettings: vi.fn(async () => ({name:"Fixt
 vi.mock("@/server/tasks", () => ({listTasks: vi.fn(async () => []),taskCounts:vi.fn(async () => ({open:0,today:0,overdue:0}))}));
 vi.mock("@/server/ops-live", () => ({liveOps: vi.fn(async () => ({status:[],monitors:[]}))}));
 vi.mock("@/server/vault", () => ({getVaultProvider: () => null,getVaultIndexSafe: vi.fn(async () => null),vaultHealth:vi.fn(async () => ({ok:false,error:"sentinela-sensivel"})),searchVault:vi.fn(async () => [])}));
+// A leitura da memória é coberta em tests/db/orbe-memory; aqui o banco deve ficar intocado.
+vi.mock("@/server/orbe-memory", async (importOriginal) => ({...(await importOriginal<typeof import("@/server/orbe-memory")>()),memoryContext: vi.fn(async () => "<memoria>(vazio)</memoria>")}));
 import { askStream } from "@/server/ai";
 import { ASSISTANT_TOOLS, assistantTools, runAssistantTool } from "@/server/assistant";
 import { chatParts, splitActions } from "@/lib/ai-stream";

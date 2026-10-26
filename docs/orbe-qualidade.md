@@ -13,7 +13,7 @@
 
 ## Não implementado / não prometer
 
-Memória permanente entre abas/dispositivos, transação entre ferramentas, idempotência persistida de todas as escritas, orçamento de tokens/custo por rodada, cancelamento de query SQL ou tarefa já em execução, despacho autônomo, operação nos apps, geração de mídia, confirmação comercial ou auditoria durável completa de cada conversa. Histórico permanece sessionStorage separado por escopo. Nenhuma nova automação foi habilitada.
+Transação entre ferramentas, idempotência persistida de todas as escritas, orçamento de tokens/custo por rodada, cancelamento de query SQL ou tarefa já em execução, despacho autônomo, operação nos apps, geração de mídia, confirmação comercial ou auditoria durável completa de cada conversa. Conversas e memória curta passaram a ser guardadas no servidor em 26/10 (ver [memória por escopo](./orbe-memoria-escopo.md)); a consolidação diária só altera a memória da ORBE. Nenhuma outra automação foi habilitada.
 
 ## Avaliação supervisionada (usar Somente leitura)
 

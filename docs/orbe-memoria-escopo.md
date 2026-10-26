@@ -1,59 +1,65 @@
-# Memória da ORBE por escopo — decisão de arquitetura
+# Memória da ORBE por escopo
 
-Estado: desenho preparado em 26/10/2026; persistência nova não implementada nem ativada. Complementa [qualidade da ORBE](./orbe-qualidade.md). Não amplia ferramentas ou permissões.
+Estado: implementado em 26/10/2026 (PR desta rodada). Substitui o desenho anterior desta página, que previa aprovação versionada fato a fato. Antonio escolheu um modelo mais leve, inspirado no Hermes: memória curta com limite, sempre presente, curada pela própria ORBE e visível para ele.
 
-## Decisão
+## Por que este modelo
 
-Separar conversa, fatos aprovados e fontes operacionais. A conversa ajuda a manter o raciocínio, mas não transforma uma conclusão do modelo em fato da empresa. O Vault continua sendo conhecimento canônico durável; não receberá histórico de chat, recibos de ferramentas, snapshots de métricas ou fila transitória.
+O ecossistema já tem lugar para quase tudo:
 
-| Camada | Fonte e uso | Persistência e invalidação |
+| Onde | O que guarda |
+| --- | --- |
+| Vault | Conhecimento canônico da AG LABS: identidade, produtos, agentes, processos, decisões aprovadas |
+| Manual da Órbita (`src/lib/agent-handbook.ts`) | Como o sistema funciona: fontes, escopos, ferramentas, contratos |
+| Órbita, CRM e apps | Estado ao vivo: tarefas, metas, métricas, status, incidentes |
+| MCP | Ferramentas, que funcionam quase como skills dos agentes |
+
+Faltava só o que nenhuma dessas fontes guarda: **como trabalhar bem com Antonio** e **o que se aprende nas conversas** antes de virar decisão no Vault. Por isso a memória é pequena de propósito. Um limite de caracteres obriga a escolher o que importa, como no Hermes (`MEMORY.md`/`USER.md` com teto fixo), em vez de acumular um diário que vira ruído no contexto.
+
+## Camadas
+
+| Camada | Persistência | Uso |
 | --- | --- | --- |
-| Conversa recente | Mensagens do usuário e respostas; não prova de execução | Hoje: sessionStorage por espaço, mesma aba, com limites de caracteres e turnos. Não há continuidade garantida entre dispositivos |
-| Fato aprovado | Preferência ou decisão estável confirmada pelo proprietário, com origem identificada | Proposta: registro versionado na Órbita; revisão e remoção explícitas; jamais aprender silenciosamente de uma resposta |
-| Conhecimento da empresa | Notas canônicas existentes no Vault | Consultar a versão atual; editar apenas quando solicitado, mantendo caminho/SHA e histórico da origem |
-| Estado de app ou CRM | Consulta autoritativa com produto, janela, horário e cobertura | Buscar novamente quando a pergunta exigir estado atual; histórico não atualiza snapshots nem comprova receita |
-| Evidência de ação | Recibo da operação e identificador da origem | Separada do conteúdo conversacional; recebido não equivale a concluído; ação incerta exige reconciliação antes de repetir |
+| Conversa atual | Servidor (`orbe_conversations`), por espaço | Continua em outro aparelho; Histórico na tela da ORBE |
+| Conversas anteriores | 60 dias, até 50 por espaço | `buscar_conversas` quando Antonio se refere a algo já conversado |
+| Memória curta | `orbe_memories`, sem expiração | Sempre nas instruções: blocos geral + espaço atual |
+| Vault, manual, fontes ao vivo | Origem própria | Consultados como antes; a memória não substitui |
 
-## Fronteira de acesso
+## Memória curta
 
-A autenticação atual da Órbita usa um principal de instalação e versão de sessão, não um cadastro multiusuário com tenant por conversa. Portanto, não basta acrescentar um owner_id enviado pelo cliente para prometer isolamento por proprietário.
+- **Blocos e limites:** `geral` (como trabalhar com Antonio, vale nos dois espaços) 1.400 caracteres; `pessoal` 2.200; `empresa` 2.200. Cada anotação tem até 400 caracteres.
+- **Ferramenta `memoria`:** `adicionar`, `substituir` (por trecho único) e `remover`. Bloco cheio recusa a adição e pede para juntar ou trocar. Trecho ambíguo não altera nada.
+- **Quando a ORBE guarda sozinha:** ao ser corrigida ou ao ouvir uma preferência durável, sempre mostrando o recibo "Memória: guardou…". O resto só quando Antonio pede.
+- **O que nunca entra:** segredos (barrados também no servidor), dados de clientes, saúde, finanças detalhadas, resumos de conversa, métricas, status, tarefas e o que já está no Vault ou no manual.
+- **Escopo:** a conversa Pessoal vê `geral` + `pessoal`; a Empresa vê `geral` + `empresa`. A ferramenta recusa escrever no bloco do outro espaço.
+- **Somente leitura:** a ferramenta de memória fica fora do catálogo nesse modo.
+- **Antonio no controle:** ORBE → Memória mostra os blocos com o uso de cada um; dá para editar, apagar e adicionar à mão.
+- **Não é autorização:** memória é contexto. Instruções e permissões continuam vindo de Antonio e dos contratos do sistema.
+- **MCP:** `memoria`, `buscar_conversas`, `pedir_a_agente` e `status_agentes` são exclusivas da ORBE e não viram `orbita_*` para os agentes.
 
-Uma implementação futura deve derivar o principal autenticado no servidor, exigir escopo em todas as leituras e escritas e preservar namespaces separados pessoal/empresa. Mudança de espaço aborta o stream local e não copia histórico, fatos ou resultados. Se a Órbita passar a ter vários usuários, a autorização por proprietário/organização deve existir no banco e no serviço antes de habilitar memória compartilhada. IDs de conversa e filtros de interface não são controles de acesso.
+## Consolidação antes de apagar
 
-Não disponibilizar finanças, agenda ou notas pessoais no contexto Empresa. CRM comercial e tarefas internas da empresa permanecem no espaço Empresa. Conhecimento empresarial comum do Vault não autoriza levar dados pessoais de volta para a empresa. Tokens dos conectores não recebem permissões adicionais por causa da memória.
+Como o OpenClaw faz com a "dreaming" noturna, uma rotina diária (`/api/cron/orbe`, 06:00 UTC) revisa as conversas paradas há pelo menos 1 hora que mudaram desde a última passada:
 
-## Contrato proposto para fatos
+1. Para cada conversa, o modelo recebe o texto (sem recibos nem marcadores) e a memória atual, com **apenas** a ferramenta `memoria` disponível e instruções para guardar só aprendizados duráveis. "Nada a guardar" é um resultado válido.
+2. A conversa é marcada como consolidada somente se a revisão terminar. Falha volta na próxima rodada.
+3. Conversas com mais de 60 dias, ou além das 50 mais recentes do espaço, são apagadas **apenas se já consolidadas** depois da última mudança.
 
-Cada fato precisa de identificador, principal derivado no servidor, escopo, texto conciso, categoria, origem e versão da origem, versão do registro, estado (proposto/aprovado/superado/revogado), aprovador e horário de aprovação. Campos de validade e revisão são explícitos quando a natureza do fato os exige. A aprovação deve registrar a versão revisada; edição concorrente exige recarregar, não sobrescrever silenciosamente.
+### Custo da rotina
 
-Guardar apenas preferências ou decisões úteis, sem segredos, dados de clientes, extratos, saúde ou conteúdo pessoal sensível por inferência. Um trecho de ferramenta ou nota pode sugerir uma revisão, mas não pode aprovar a si mesmo. Instruções recuperadas são dados, não autorização para escrever, enviar mensagens ou despachar agentes. Um fato revogado deixa de compor o contexto na próxima consulta; sua eventual auditoria obedece à política de retenção definida para essa finalidade.
+Só conversas novas ou alteradas entram, no máximo 20 por noite. Para gastar pouco:
 
-Métricas e fatos operacionais mutáveis exigem nova consulta. Mudança do SHA da nota, indisponibilidade da fonte, versão incompatível do contrato ou expiração invalida o uso como estado atual. Conflito entre memória e origem deve ser apresentado e reconciliado; nunca resolver inventando um valor intermediário.
+- **Conversas curtas** (menos de 2 mensagens de Antonio) são marcadas como consolidadas sem chamar IA.
+- **`ORBE_CONSOLIDATION_MODEL`**: modelo mais barato do mesmo provedor só para escrever a memória, com raciocínio mínimo. Vazio usa o modelo da conversa, também com raciocínio mínimo.
+- **`ORBE_CONSOLIDATION_GATE=jev`** (opcional): o Jev, via OpenRouter, decide antes se há algo a guardar. Só um "nada" com confiança ≥ 0,8 pula o modelo que escreve; dúvida ou falha seguem o caminho normal. Isso envia o texto da conversa (até 12 mil caracteres) ao OpenRouter, por isso fica desligado por padrão.
+- **`ORBE_CONSOLIDATION_ENABLED=false`** pausa a rotina inteira, inclusive a expiração das conversas.
 
-## Fluxo de aprovação e esquecimento
+A resposta da rotina informa quantas conversas foram revisadas, quantas foram puladas sem modelo e quantas mudanças de memória houve.
 
-1. Usuário solicita guardar uma preferência ou decisão; ORBE apresenta texto, escopo, origem e validade proposta.
-2. Serviço valida autenticação/escopo, limites e versão. Somente confirmação explícita transforma proposta em fato aprovado.
-3. Próxima consulta seleciona fatos aprovados e válidos apenas do escopo atual, com orçamento de contexto e referência de origem.
-4. Usuário pode revisar, revogar, exportar e solicitar exclusão. Limpar a conversa não deve ser apresentado como exclusão dos fatos aprovados, nem o inverso.
+Apagar uma conversa pelo Histórico é imediato e não passa pela consolidação: é uma escolha explícita de Antonio.
 
-Não definir automaticamente um prazo universal de guarda de conversas ou auditoria. A política precisa indicar finalidade, responsável, acesso, retenção, backups e tratamento de pedidos de exclusão antes de persistir novas conversas. A opção store:false usada na API não é garantia universal sobre políticas de retenção do provedor, logs ou backups.
+## Limites conhecidos
 
-## Observabilidade mínima antes da expansão
-
-Registrar métricas técnicas sem texto de pergunta/resposta, argumentos de ferramentas, resultados, IDs de clientes, tokens de acesso ou conteúdo do Vault: duração, provedor/modelo retornado, rodadas, chamadas de ferramenta, tokens de entrada/saída/cache quando informados, cancelamento e conclusão/falha. Ausência de usage não equivale a zero tokens. Custo só pode ser estimado com tabela de preços atual identificada por versão/data, incluindo todas as rodadas e distinção entre cache e saída; sem esse cálculo validado, mostrar custo desconhecido.
-
-Hoje não há orçamento monetário por conversa nem medição persistida desse contrato. O limite de histórico em caracteres, o teto de rodadas e o maxDuration HTTP controlam aspectos diferentes e não substituem um orçamento financeiro. Uma resposta encerrada normalmente deve terminar com o marcador terminal do servidor; timeout/EOF sem marcador mostra aviso e preserva as fontes já recebidas.
-
-## Critérios para implementar e habilitar
-
-- Testes de acesso e troca de escopo, inclusive tentativa de fornecer owner/escopo de outro usuário; contexto Empresa sem conteúdo pessoal.
-- Aprovação explícita, revogação, edição concorrente e fonte alterada; ausência de aprendizado automático.
-- Recuperação após reload/dispositivo sem duplicar ação; falha entre ferramenta e recibo exige consulta à origem.
-- Retenção e exclusão demonstráveis, incluindo a distinção de backup, conversa e fato aprovado.
-- Execução supervisionada da matriz de 24 cenários com fontes, janelas, latência e custo quando conhecido. Testes determinísticos e uma boa análise real não comprovam 24/24.
-- Gates locais e CI executado; publicação observada e inspeção autenticada. Piloto começa em leitura, sem despacho ou novas permissões.
-
-## Evidência atual
-
-Em 26/10, PRs [36](https://github.com/antoniogsouzaag/orbita/pull/36) e [37](https://github.com/antoniogsouzaag/orbita/pull/37) corrigiram ausência de síntese final e interrupção aos 60 segundos. O último commit integrado, 4237df6, teve 313 testes, tipos/build e CI aprovados, produção READY e uma análise real completa com fontes/horário, separação entre contas, ativação e pagamentos, propostas identificadas e nenhuma escrita. O conjunto completo da matriz, custo e memória persistida continuam pendentes.
+- A Órbita tem um único usuário autenticado. Se passar a ter vários, conversas e memória precisam de dono derivado no servidor antes de qualquer compartilhamento.
+- O texto das conversas fica no banco da Órbita por até 60 dias e segue a política de backup do provedor do banco. Apagar no Histórico remove da base ativa, não de backups antigos.
+- A consolidação usa o mesmo provedor e modelo da ORBE, com uma chamada por conversa alterada. Não há medição de custo por conversa ainda.
+- A matriz supervisionada de qualidade ([orbe-qualidade.md](./orbe-qualidade.md)) continua pendente; testes automatizados não certificam a qualidade do que o modelo decide guardar.

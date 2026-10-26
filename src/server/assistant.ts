@@ -19,6 +19,7 @@ import { productMetrics } from "./product-metrics";
 import { listTasks, type TaskView } from "./tasks";
 import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
 import { editVault, editVaultSchema } from "./vault-edit";
+import { buscarConversas, memoria, pedirAgente, statusAgentes, ToolRefusal } from "./orbe-tools";
 
 /**
  * Ações que a IA da Órbita (e o atalho do iPhone) podem executar em nome de Antonio.
@@ -45,6 +46,42 @@ async function projectByName(name: string | null | undefined) {
 function fmtTask(t: { id: string; scope?: string; title: string; dueDate: string | null; dueTime: string | null; priority: number; status: string; assignee?: string | null; project?: { name: string } | null; tags?: string[] }) {
   return `- [${t.status === "done" ? "x" : " "}] ${t.title} (id ${t.id})${t.scope === "empresa" ? " · empresa" : ""}${t.status === "doing" ? " · em andamento" : ""}${t.assignee ? ` · responsável ${t.assignee}` : ""}${t.dueDate ? ` · prazo ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ""}` : ""}${t.priority ? ` · prioridade ${PRIO_NOME[t.priority]}` : ""}${t.project ? ` · projeto ${t.project.name}` : ""}${t.tags?.length ? ` · #${t.tags.join(" #")}` : ""}`;
 }
+
+/* ───────────── Projetos ───────────── */
+
+const escopoProjeto = z.enum(["pessoal", "empresa"]).nullish().describe("Espaço do projeto; padrão pessoal");
+
+export const listarProjetos = {
+  schema: z.object({ escopo: escopoProjeto }),
+  async run(v: { escopo?: "pessoal" | "empresa" | null }): Promise<ActionResult> {
+    const scope = v.escopo ?? "pessoal";
+    const db = await getDb();
+    const rows = await db.select().from(projects).where(eq(projects.archived, false));
+    const list = rows.filter((p) => projectScope(p.area) === scope);
+    return { text: list.length ? list.map((p) => `- ${p.name} (id ${p.id})${p.description ? ` — ${p.description.slice(0, 200)}` : ""}`).join("\n") : `Nenhum projeto ativo em ${scope}.` };
+  },
+};
+
+const criarProjetoSchema = z.object({
+  nome: z.string().trim().min(2).max(80).describe("Nome curto do projeto"),
+  descricao: z.string().trim().max(2000).nullish().describe("Objetivo, escopo e critério de pronto combinados com Antonio"),
+  cor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullish(),
+  escopo: escopoProjeto,
+});
+
+/** Cria projeto somente a pedido; mesmo nome no mesmo espaço devolve o existente. */
+export const criarProjeto = {
+  schema: criarProjetoSchema,
+  async run(v: z.infer<typeof criarProjetoSchema>): Promise<ActionResult> {
+    const scope = v.escopo ?? "pessoal";
+    const db = await getDb();
+    const rows = await db.select().from(projects).where(eq(projects.archived, false));
+    const existing = rows.find((p) => projectScope(p.area) === scope && p.name.trim().toLowerCase() === v.nome.toLowerCase());
+    if (existing) return { text: `Projeto já existe em ${scope} (id ${existing.id}): ${existing.name}.`, action: { label: `Projeto: ${existing.name}`, href: `/projetos/${existing.id}` } };
+    const [row] = await db.insert(projects).values({ name: v.nome, description: v.descricao ?? null, color: v.cor ?? (scope === "empresa" ? "#8b5cf6" : "#3b82f6"), area: scope }).returning({ id: projects.id });
+    return { text: `Projeto criado em ${scope} (id ${row.id}): ${v.nome}. Tarefas podem usar projeto "${v.nome}".`, action: { label: `Projeto: ${v.nome}`, href: `/projetos/${row.id}` } };
+  },
+};
 
 /* ───────────── Ações ───────────── */
 
@@ -394,7 +431,7 @@ export const metricasProduto = {
   },
 };
 
-type Tool = { name: string; description: string; schema: z.ZodObject; run: (v: never) => Promise<ActionResult>; requires?: () => boolean; readOnly?: boolean };
+type Tool = { name: string; description: string; schema: z.ZodObject; run: (v: never) => Promise<ActionResult>; requires?: () => boolean; readOnly?: boolean; /** Só na conversa da ORBE; não vira orbita_* no MCP. */ orbeOnly?: boolean };
 
 export const crmPrioridades = {
   schema: z.object({ produto: crmProductSchema.optional() }),
@@ -410,6 +447,8 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "listar_metas", readOnly: true, description: "Consulta metas e objetivos do espaço atual com progresso, prazo e contexto. Use para discutir prioridades e evolução.", ...listarMetas },
   { name: "criar_meta", description: "Registra uma meta somente quando Antonio pedir para criar ou salvar, com título, indicador, alvo e prazo acordados. Sugestão de meta não autoriza gravação. Não invente linha de base ou progresso.", ...criarMeta },
   { name: "salvar_nota_vault", description: "Cria ou atualiza nota canônica do vault com controle de versão. Leia antes e forneça o SHA. Só registre mudanças de política, produto ou responsabilidade explicitamente aprovadas por Antonio; nunca salve segredos ou dados de clientes.", schema: editVaultSchema, run: editVault, requires: () => Boolean(getVaultProvider()) },
+  { name: "listar_projetos", readOnly: true, description: "Lista os projetos ativos do espaço atual com id e descrição.", ...listarProjetos },
+  { name: "criar_projeto", description: "Cria um projeto no espaço atual somente quando Antonio pedir, com nome e objetivo combinados. Use para agrupar tarefas de uma iniciativa nova; depois crie as tarefas com projeto igual ao nome.", ...criarProjeto },
   { name: "criar_tarefa", description: "Cria uma tarefa para Antonio. Use datas absolutas (AAAA-MM-DD) calculadas a partir de hoje.", ...criarTarefa },
   { name: "listar_tarefas", readOnly: true, description: "Lista tarefas com id, prazo, prioridade e projeto. Use antes de atualizar ou concluir.", ...listarTarefas },
   { name: "atualizar_tarefa", description: "Altera ou conclui uma tarefa existente (status done = concluir). Para reorganizar, mude prazo e prioridade.", ...atualizarTarefa },
@@ -428,6 +467,10 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "crm_contato", readOnly: true, description: "Ficha de um contato do CRM: etapa, produto, últimas interações, tarefas e receita.", requires: crmConfigured, ...crmContato },
   { name: "crm_criar_tarefa", description: "Cria tarefa no CRM com responsável. Para enviar e-mail a um contato, crie para leo com o contato e o conteúdo.", requires: crmConfigured, ...crmCriarTarefa },
   { name: "crm_concluir_tarefa", description: "Conclui tarefa do CRM com o motivo (também para cancelada ou substituída).", requires: crmConfigured, ...crmConcluirTarefa },
+  { name: "memoria", orbeOnly: true, description: "Mantém suas anotações curtas e duráveis (bloco <memoria>): adicionar, substituir ou remover. Siga as regras de memória; o limite de caracteres obriga a juntar e priorizar.", ...memoria },
+  { name: "buscar_conversas", orbeOnly: true, readOnly: true, description: "Busca em conversas anteriores com Antonio neste espaço, quando ele se referir a algo já conversado. Conversas expiram após algumas semanas.", ...buscarConversas },
+  { name: "pedir_a_agente", orbeOnly: true, description: "Envia um pedido a um agente da AG LABS (Tom, Hermes Oracle, Linus…): cria a tarefa na fila da Empresa já atribuída a ele; Tom também é avisado pelo canal direto. Antes de chamar, mostre agente, pedido e detalhe e espere Antonio confirmar, salvo se ele já ditou o pedido completo. Sempre vai para a fila da Empresa, mesmo pedido no espaço Pessoal.", ...pedirAgente },
+  { name: "status_agentes", orbeOnly: true, readOnly: true, description: "O que os agentes estão fazendo: tarefas atribuídas e em andamento, fila livre, pedidos diretos ao Tom/Hermes com retorno e atividade recente no MCP.", ...statusAgentes },
   { name: "crm_registrar_atividade", description: "Registra na ficha do contato uma interação que já aconteceu. Não muda a etapa do funil.", requires: crmConfigured, ...crmRegistrarAtividade },
 ] as Tool[];
 
@@ -468,7 +511,12 @@ export async function runAssistantTool(name: string, rawArgs: string | Record<st
         }
       } else args = { ...input, escopo: context.scope };
     }
-    if (context && ["listar_metas", "criar_meta", "criar_nota", "buscar_notas"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
+    if (context && name === "buscar_conversas" && args && typeof args === "object" && !Array.isArray(args)) args = { ...(args as Record<string, unknown>), escopo: context.scope };
+    if (context && name === "memoria" && args && typeof args === "object" && !Array.isArray(args)) {
+      const input = args as Record<string, unknown>;
+      if (input.espaco !== "geral" && input.espaco !== context.scope) return { ok: false, text: `Use espaco "geral" ou o espaço atual (${context.scope}).` };
+    }
+    if (context && ["listar_metas", "criar_meta", "criar_nota", "buscar_notas", "listar_projetos", "criar_projeto"].includes(name) && args && typeof args === "object" && !Array.isArray(args)) {
       const input = args as Record<string,unknown>;
       if (input.escopo && input.escopo !== context.scope) return { ok:false, text:"Consulte ou registre dados no espaço atual." };
       args = { ...input, escopo: context.scope };
@@ -477,7 +525,9 @@ export async function runAssistantTool(name: string, rawArgs: string | Record<st
     if (!parsed.success) return { ok: false, text: `Argumentos inválidos: ${parsed.error.issues.map((i) => `${i.path.join(".") || "entrada"}: ${i.message}`).join("; ")}` };
     context?.signal?.throwIfAborted();
     return { ok: true, ...(await tool.run(parsed.data as never)) };
-  } catch {
+  } catch (e) {
+    if (e instanceof ToolRefusal) return { ok: false, text: e.message };
+    if (e instanceof z.ZodError) return { ok: false, text: e.issues.map((i) => i.message).join("; ") };
     return { ok: false, text: context?.signal?.aborted ? "Consulta interrompida. Ações já iniciadas podem concluir; confira o estado antes de repetir." : "Não foi possível executar a ferramenta nesta consulta. Confira o estado antes de repetir uma escrita." };
   }
 }
