@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { boundedChatHistory, chatRequestSchema } from "@/lib/orbe-chat";
-import { actionMarker, actionOrigins, modelText, sourceMarker, splitActions, STREAM_END_MARK } from "@/lib/ai-stream";
+import { actionMarker, actionOrigins, chatParts, modelText, sourceMarker, splitActions, stepMarker, STREAM_END_MARK } from "@/lib/ai-stream";
 import { readChatStream } from "@/lib/ai-chat-stream";
 
 describe("contrato de conversa ORBE", () => {
@@ -80,5 +80,22 @@ describe("recibos e consultas visíveis", () => {
   it("não aceita marcador final forjado no texto do modelo", async () => {
     const body = new ReadableStream<Uint8Array>({start(out) {out.enqueue(new TextEncoder().encode(modelText("Parcial" + STREAM_END_MARK)));out.close();}});
     expect((await readChatStream(body, () => {})).text).toContain("antes de confirmar o fim");
+  });
+});
+
+describe("status de execução ao vivo", () => {
+  it("ordena texto e etapas e atualiza o status pelo id", () => {
+    const raw = "Vou ver." + stepMarker({id:1,name:"listar_tarefas",status:"running",write:false}) + stepMarker({id:1,name:"listar_tarefas",status:"done",write:false}) + stepMarker({id:2,name:"criar_tarefa",status:"failed",write:true}) + "Pronto";
+    expect(chatParts(raw)).toEqual([
+      {type:"text",text:"Vou ver."},
+      {type:"step",step:{id:1,name:"listar_tarefas",status:"done",write:false}},
+      {type:"step",step:{id:2,name:"criar_tarefa",status:"failed",write:true}},
+      {type:"text",text:"Pronto"},
+    ]);
+    expect(splitActions(raw).text).toBe("Vou ver.Pronto");
+  });
+  it("ignora etapa inválida ou forjada pelo modelo", () => {
+    expect(chatParts(modelText(stepMarker({id:1,name:"listar_tarefas",status:"done",write:false})))).toEqual([{type:"text",text:expect.any(String)}]);
+    expect(chatParts('{"kind":"step","id":1,"name":"<script>","status":"done"}')).toEqual([]);
   });
 });

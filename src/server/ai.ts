@@ -5,7 +5,7 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import type { TaskScope } from "@/db/schema";
-import { ACTION_MARK, actionMarker, actionOrigins, modelText, sourceMarker, splitActions, STREAM_END_MARK } from "@/lib/ai-stream";
+import { ACTION_MARK, actionMarker, actionOrigins, modelText, sourceMarker, splitActions, stepMarker, STREAM_END_MARK } from "@/lib/ai-stream";
 import type { ChatTurn } from "@/lib/orbe-chat";
 export type { ChatTurn } from "@/lib/orbe-chat";
 import { formatLong, localHour, localTime, shiftDate, today, zonedToUtc, localDate } from "@/lib/dates";
@@ -216,9 +216,13 @@ export async function askOnce(text: string): Promise<{ answer: string; actions: 
   return { answer: parsed.text.trim(), actions: parsed.actions };
 }
 
+/** Nome inventado pelo provedor não vira rótulo arbitrário na interface. */
+const safeStepName = (name: string) => (/^[a-z][a-z0-9_]{0,79}$/.test(name) ? name : "ferramenta");
+
 type RunArgs = { instructions: string; turns: ChatTurn[]; useTools: boolean; scope: TaskScope; readOnly: boolean; emit: (t: string) => void; signal: AbortSignal };
 
 async function runOpenAI({ instructions, turns, useTools, scope, readOnly, emit, signal }: RunArgs) {
+  let stepSeq = 0;
   const client = openaiClient();
   const tools: OpenAI.Responses.Tool[] = useTools ? assistantTools(scope, { readOnly }).map((t) => ({ type: "function", name: t.name, description: t.description, parameters: toolJsonSchema(t), strict: false })) : [];
   let input: OpenAI.Responses.ResponseInput = turns.map((t) => ({ role: t.role, content: t.content }));
@@ -283,8 +287,12 @@ async function runOpenAI({ instructions, turns, useTools, scope, readOnly, emit,
     if (finalRound) throw new Error("Resposta não concluída");
     for (const c of calls) {
       signal.throwIfAborted();
+      const isRead = Boolean(assistantTools(scope).find(t => t.name === c.name)?.readOnly);
+      const step = { id: ++stepSeq, name: safeStepName(c.name), write: !isRead };
+      emit(stepMarker({ ...step, status: "running" }));
       const r = await runAssistantTool(c.name, c.arguments, { scope, readOnly, signal });
-      if (assistantTools(scope).find(t => t.name === c.name)?.readOnly) emit(sourceMarker({ name: c.name, ok: r.ok }));
+      emit(stepMarker({ ...step, status: r.ok ? "done" : "failed" }));
+      if (isRead) emit(sourceMarker({ name: c.name, ok: r.ok }));
       if (r.action) emit(actionMarker(r.action));
       input.push({ type: "function_call_output", call_id: c.call_id, output: r.text });
     }
@@ -293,6 +301,7 @@ async function runOpenAI({ instructions, turns, useTools, scope, readOnly, emit,
 }
 
 async function runAnthropic({ instructions, turns, useTools, scope, readOnly, emit, signal }: RunArgs) {
+  let stepSeq = 0;
   const tools = useTools ? assistantTools(scope, { readOnly }).map((t) => ({ name: t.name, description: t.description, input_schema: toolJsonSchema(t) as Anthropic.Beta.BetaTool.InputSchema })) : undefined;
   const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role, content: t.content }));
   for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -315,8 +324,12 @@ async function runAnthropic({ instructions, turns, useTools, scope, readOnly, em
     for (const b of final.content) {
       if (b.type !== "tool_use") continue;
       signal.throwIfAborted();
+      const isRead = Boolean(assistantTools(scope).find(t => t.name === b.name)?.readOnly);
+      const step = { id: ++stepSeq, name: safeStepName(b.name), write: !isRead };
+      emit(stepMarker({ ...step, status: "running" }));
       const r = await runAssistantTool(b.name, b.input as Record<string, unknown>, { scope, readOnly, signal });
-      if (assistantTools(scope).find(t => t.name === b.name)?.readOnly) emit(sourceMarker({ name: b.name, ok: r.ok }));
+      emit(stepMarker({ ...step, status: r.ok ? "done" : "failed" }));
+      if (isRead) emit(sourceMarker({ name: b.name, ok: r.ok }));
       if (r.action) emit(actionMarker(r.action));
       results.push({ type: "tool_result", tool_use_id: b.id, content: r.text, ...(r.ok ? {} : { is_error: true }) });
     }
