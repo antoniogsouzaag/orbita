@@ -19,6 +19,8 @@ export type BusinessUnit = {
   id: string;
   name: string;
   domain: string;
+  /** Marca oficial local; os arquivos e suas origens estão em public/brands/README.md. */
+  logo: string;
   /** Tag das tarefas internas da Empresa ligadas ao produto. */
   tag: string;
   model: BusinessModel;
@@ -30,7 +32,7 @@ export type BusinessUnit = {
 
 export const BUSINESS_UNITS: BusinessUnit[] = [
   {
-    id: "barberias", name: "Barberias", domain: "barberias.com.br", tag: "barberias", model: "saas_b2b",
+    id: "barberias", name: "Barberias", domain: "barberias.com.br", logo: "/brands/barberias.png", tag: "barberias", model: "saas_b2b",
     summary: "Gestão e agendamento para barbearias. A barbearia testa, ativa a agenda e assina.",
     indicators: [
       { label: "Contas, em teste e com assinatura", source: "app", available: true },
@@ -41,7 +43,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
     next: "Medir pagamentos confirmados e a perda de ativação entre agenda pronta e primeira reserva.",
   },
   {
-    id: "members", name: "Members", domain: "members.ia.br", tag: "members", model: "marketplace",
+    id: "members", name: "Members", domain: "members.ia.br", logo: "/brands/members.png", tag: "members", model: "marketplace",
     summary: "Plataforma de vendas e área de membros. Produtores vendem; a plataforma ganha comissão e vende produtos próprios.",
     indicators: [
       { label: "Faturamento bruto e vendas no mês", source: "app", available: true },
@@ -53,7 +55,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
     next: "Medir produtores com venda e compradores únicos no período, separando cadastro aprovado de venda realizada.",
   },
   {
-    id: "vibekit", name: "VibeKit", domain: "templates.aglabs.ia.br", tag: "vibekit", model: "compra_unica",
+    id: "vibekit", name: "VibeKit", domain: "templates.aglabs.ia.br", logo: "/brands/vibekit.png", tag: "vibekit", model: "compra_unica",
     summary: "Templates vendidos por compra única; o acesso é provisionado após a compra.",
     indicators: [
       { label: "Visitas, preço, cliques e checkouts (eventos anônimos)", source: "app", available: true },
@@ -63,7 +65,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
     next: "Publicar a coleta, ativar o token e comparar uma navegação controlada.",
   },
   {
-    id: "mecard", name: "MeCard", domain: "mecard.com.br", tag: "mecard", model: "freemium_assinatura",
+    id: "mecard", name: "MeCard", domain: "mecard.com.br", logo: "/brands/mecard.svg", tag: "mecard", model: "freemium_assinatura",
     summary: "Cartão de visita digital. Plano grátis e Pro mensal ou anual pelo Mercado Pago.",
     indicators: [
       { label: "Usuários cadastrados", source: "app", available: true },
@@ -75,7 +77,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
   },
   {
     // No CRM a chave "aglabs" é o AG LABS institucional; as métricas do app usam "aglabs-app".
-    id: "aglabs-app", name: "AG LABS App", domain: "aglabs.app.br", tag: "aglabs", model: "creditos",
+    id: "aglabs-app", name: "AG LABS App", domain: "aglabs.app.br", logo: "/brands/aglabs-app.webp", tag: "aglabs", model: "creditos",
     summary: "Geração de mídia com IA. Créditos por assinatura mensal ou pacote avulso; contas novas ganham bônus.",
     indicators: [
       { label: "Usuários, ativos em 30 dias e que geraram", source: "app", available: true },
@@ -87,7 +89,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
     next: "Medir falhas e custo por geração; validar privacidade e limite de créditos antes do MCP de mídia.",
   },
   {
-    id: "viajeki", name: "Viajeki", domain: "viajeki.com.br", tag: "viajeki", model: "freemium_assinatura",
+    id: "viajeki", name: "Viajeki", domain: "viajeki.com.br", logo: "/brands/viajeki.png", tag: "viajeki", model: "freemium_assinatura",
     summary: "Roteiros de viagem com IA. Plano Essencial grátis, Pro anual e compra de roteiro.",
     indicators: [
       { label: "Usuários e roteiros criados", source: "app", available: false },
