@@ -1,3 +1,4 @@
+import { fullAgentManualMarkdown } from "@/server/agent-catalog";
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -10,11 +11,12 @@ import { liveOps } from "./ops-live";
 import { githubInbox } from "./github-inbox";
 import { stageLabel } from "@/lib/github-triage";
 import { n8nOverview } from "./ops";
-import { getVaultIndexSafe, getVaultProvider, searchVault, vaultHealth } from "./vault";
+import { getVaultIndexSafe, vaultHealth } from "./vault";
 import { assistantTools, runAssistantTool } from "./assistant";
 import { TARGET_LABEL, isSilent, listDispatches, reportDispatchResult, resultInput } from "./dispatch";
 import { DISPATCH_TARGETS } from "@/db/schema";
-import { AGENT_MANUAL_URI, AGENT_MANUAL_VERSION, agentManualMarkdown } from "@/lib/agent-handbook";
+import { AGENT_MANUAL_URI, AGENT_MANUAL_VERSION } from "@/lib/agent-handbook";
+import { searchKnowledge } from "./tool-search";
 import { assigneeLabel, isStale } from "@/lib/task-assignee";
 import { claimMessage, claimTask, companyQueue, releaseTask, splitInput, splitTask } from "./task-claim";
 
@@ -117,7 +119,7 @@ const text = (t: string, isError = false): ToolResult => ({ content: [{ type: "t
 
 /** Monta um servidor MCP com as ferramentas permitidas pelos escopos do agente. */
 export function buildMcpServer(agent: AgentIdentity) {
-  const server = new McpServer({ name: "orbita", version: "2.0.0" }, { instructions: `Órbita: central pessoal e empresarial. Comece por documentacao_canonica ou pelo resource ${AGENT_MANUAL_URI} (versão ${AGENT_MANUAL_VERSION}); depois contexto_operacional com ao_vivo:false e as fichas relevantes do vault. Pessoal e Empresa permanecem separados; tarefas comerciais pertencem ao CRM. Administradores acessam também dados pessoais e escrita; demais perfis usam apenas seus escopos. Conexão MCP não despacha execuções aos runtimes. Registre resultado verificável e fonte, sem confundir configuração com execução.` });
+  const server = new McpServer({ name: "orbita", version: "2.0.0" }, { instructions: `Órbita: central pessoal e empresarial. Comece por documentacao ou pelo resource ${AGENT_MANUAL_URI} (versão ${AGENT_MANUAL_VERSION}); depois contexto_operacional com ao_vivo:false e as fichas relevantes do vault. Pessoal e Empresa permanecem separados; tarefas comerciais pertencem ao CRM. Administradores acessam também dados pessoais e escrita; demais perfis usam apenas seus escopos. Conexão MCP não despacha execuções aos runtimes. Registre resultado verificável e fonte, sem confundir configuração com execução.` });
   const can = (s: AgentScope) => agent.scopes.includes("admin") || agent.scopes.includes(s);
   const run = async (tool: string, summary: string, fn: () => Promise<ToolResult>) => {
     try {
@@ -131,9 +133,9 @@ export function buildMcpServer(agent: AgentIdentity) {
   };
 
   // O contrato de uso não contém dados do proprietário e pode ser lido por todo token válido.
-  server.registerResource("manual-orbita", AGENT_MANUAL_URI, { title: "Manual canônico da Órbita", description: "Fontes, escopos, integração e continuidade do ecossistema", mimeType: "text/markdown" }, async () => ({ contents: [{ uri: AGENT_MANUAL_URI, mimeType: "text/markdown", text: agentManualMarkdown() }] }));
-  server.registerTool("documentacao_canonica", { title: "Manual canônico", description: "Leia primeiro: contrato atual da central, fontes, Pessoal/Empresa, escopos e roteiro do agente.", inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } }, async () => run("documentacao_canonica", "leu o manual canônico", async () => text(agentManualMarkdown())));
-  server.registerPrompt("iniciar_operacao", { title: "Entrar na Órbita", description: "Roteiro para situar o agente antes de consultar ou executar" }, async () => ({ messages: [{ role: "user", content: { type: "text", text: `${agentManualMarkdown()}\n\nConsulte tools/list para suas permissões e contexto_operacional com ao_vivo:false se disponível. Leia as fichas relevantes e prossiga dentro da tarefa autorizada pelo proprietário.` } }] }));
+  server.registerResource("manual-orbita", AGENT_MANUAL_URI, { title: "Manual canônico da Órbita", description: "Fontes, escopos, integração e continuidade do ecossistema", mimeType: "text/markdown" }, async () => ({ contents: [{ uri: AGENT_MANUAL_URI, mimeType: "text/markdown", text: fullAgentManualMarkdown() }] }));
+  server.registerTool("documentacao", { title: "Manual canônico", description: "Leia primeiro: contrato atual da central, fontes, Pessoal/Empresa, escopos e roteiro do agente.", inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } }, async () => run("documentacao", "leu o manual canônico", async () => text(fullAgentManualMarkdown())));
+  server.registerPrompt("iniciar_operacao", { title: "Entrar na Órbita", description: "Roteiro para situar o agente antes de consultar ou executar" }, async () => ({ messages: [{ role: "user", content: { type: "text", text: `${fullAgentManualMarkdown()}\n\nConsulte tools/list para suas permissões e contexto_operacional com ao_vivo:false se disponível. Leia as fichas relevantes e prossiga dentro da tarefa autorizada pelo proprietário.` } }] }));
 
   if (can("contexto")) {
     server.registerTool(
@@ -142,14 +144,9 @@ export function buildMcpServer(agent: AgentIdentity) {
       async ({ ao_vivo }) => run("contexto_operacional", "leu o contexto operacional", async () => text(contextToMarkdown(await buildContext({ live: ao_vivo ?? false })))),
     );
     server.registerTool(
-      "buscar_no_vault",
-      { title: "Buscar no vault", description: "Busca por palavras-chave nas notas do vault da AG LABS. Retorna caminho, título e trecho.", inputSchema: { consulta: z.string().min(2).max(200) } },
-      async ({ consulta }) =>
-        run("buscar_no_vault", `buscou “${consulta}”`, async () => {
-          if (!getVaultProvider()) return text("Vault não configurado na Órbita.", true);
-          const hits = await searchVault(consulta, 10);
-          return text(hits.length ? hits.map((h) => `- ${h.title} — \`${h.path}\`\n  ${h.snippet}`).join("\n") : "Nada encontrado.");
-        }),
+      "buscar",
+      { title: "Buscar", description: "Busca no manual e vault; administradores também consultam tarefas, projetos e notas do espaço escolhido. Até 8 resultados por fonte; CRM e estado ao vivo têm consultas próprias.", inputSchema: { consulta: z.string().trim().min(2).max(200), fonte: (can("admin") ? z.enum(["todos", "documentacao", "vault", "tarefas", "projetos", "notas"]) : z.enum(["todos", "documentacao", "vault"])).optional(), ...(can("admin") ? { escopo: z.enum(["pessoal", "empresa"]).optional() } : {}) }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } },
+      async ({ consulta, fonte, escopo }) => run("buscar", "consultou a busca", async () => text(JSON.stringify(await searchKnowledge(consulta, { internal: can("admin"), scope: escopo, source: fonte })))),
     );
     server.registerTool(
       "ler_nota_do_vault",
@@ -344,7 +341,7 @@ export function buildMcpServer(agent: AgentIdentity) {
       const { personalContext } = await import("./ai");
       return text(await personalContext());
     }));
-    for (const tool of assistantTools().filter((t) => !t.orbeOnly)) {
+    for (const tool of assistantTools().filter((t) => !t.orbeOnly && t.name !== "buscar")) {
       server.registerTool(`orbita_${tool.name}`, {
         title: tool.name,
         description: `Administrador: ${tool.description}`,

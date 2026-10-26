@@ -1,6 +1,6 @@
 # Integração dos gestores
 
-Entrada canônica da central: `/documentacao` (mesmo contrato de `orbita://manual` e `documentacao_canonica` no MCP). Este guia complementa o manual com a configuração específica dos runtimes.
+Entrada canônica da central: `/documentacao` (mesmo contrato de `orbita://manual` e `documentacao` no MCP). Este guia complementa o manual com a configuração específica dos runtimes.
 
 Este guia documenta os contratos de conexão e os critérios de validação por gestor. O estado de cada acesso e sua comunicação funcional devem ser conferidos no ambiente correspondente; a configuração descrita aqui não comprova uma execução.
 

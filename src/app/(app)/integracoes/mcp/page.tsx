@@ -4,7 +4,8 @@ import { AgentTokens, type TokenRow } from "@/components/agents/agent-tokens";
 import { CopyButton } from "@/components/ops/copy-button";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
 import { listAgentTokens } from "@/server/agents";
-import { CORE_AGENT_TOOLS } from "@/lib/agent-handbook";
+import { agentToolCatalog } from "@/server/agent-catalog";
+import { ToolCatalog } from "@/components/agents/tool-catalog";
 export const metadata = { title: "Acessos MCP" };
 export default async function Page() {
  const [tokens, h] = await Promise.all([listAgentTokens(), headers()]);
@@ -23,9 +24,7 @@ export default async function Page() {
    <AgentTokens tokens={rows} mcpUrl={mcpUrl} />
    <details className="rounded-xl border border-border bg-surface/70 px-5 py-4">
      <summary className="cursor-pointer text-sm font-medium">Ferramentas e escopos disponíveis</summary>
-     <ul className="mt-4 grid gap-3 md:grid-cols-2">
-       {CORE_AGENT_TOOLS.map(({ name, scope, description }) => <li key={name} className="min-w-0 rounded-lg bg-surface-2/60 p-3"><div className="flex flex-wrap items-center gap-2"><code className="break-all text-xs">{name}</code><span className="rounded bg-surface-3 px-1.5 text-[11px] text-muted">{scope}</span></div><p className="mt-1 text-xs leading-relaxed text-muted">{description}</p></li>)}
-     </ul>
+     <ToolCatalog tools={agentToolCatalog()} />
      <p className="mt-4 text-xs text-muted">O token define o acesso. Administradores podem usar todas as ações da IA, inclusive dados pessoais, agenda, finanças e CRM. Consulte tools/list para o catálogo efetivo.</p>
    </details>
  </div>;

@@ -65,10 +65,11 @@ http_headers = { Authorization = "Bearer orb_..." }
 
 | Escopo | Ferramentas |
 | --- | --- |
-| `contexto` | `contexto_operacional`, `buscar_no_vault`, `ler_nota_do_vault` |
+| todos | `documentacao` (manual) |
+| `contexto` | `contexto_operacional`, `buscar`, `ler_nota_do_vault` |
 | `status` | `status_ao_vivo`, `pendencias_github`, `automacoes_operacionais` |
-| `tarefas` | `criar_tarefa_para_antonio`, `minhas_tarefas` |
-| `eventos` | `registrar_evento` |
+| `tarefas` | Criar, consultar, assumir, dividir, atualizar e liberar tarefas empresariais |
+| `eventos` | `registrar_evento`, `pedidos_recebidos`, `registrar_resultado` |
 | `admin` | Todos os escopos anteriores, `contexto_pessoal` e o catálogo da IA com prefixo `orbita_`, inclusive escrita versionada no vault |
 
 Para Hermes, validação de conexão e o caminho inverso (Órbita → agente), veja [Integração dos gestores](docs/integracao-gestores.md). Criar o token não configura o runtime nem comprova uma conexão ativa.
@@ -148,7 +149,7 @@ O chat (página **IA** e “Perguntar à IA” no Início) usa o modelo de `OPEN
 | `criar_evento`, `ver_agenda` | Marca compromissos e lê a agenda, inclusive calendários assinados |
 | `registrar_lancamento` | Registra despesa ou receita em Finanças |
 | `criar_nota`, `buscar_notas` | Notas pessoais |
-| `buscar_no_vault`, `ler_nota_do_vault` | Consulta do vault |
+| `buscar`, `ler_nota_do_vault` | Consulta do vault |
 | `salvar_nota_vault` | Cria/atualiza nota canônica com SHA; políticas, produtos e responsabilidades exigem aprovação explícita de Antonio |
 | `status_operacao` | Sites fora do ar, incidentes, falhas, monitores e domínios |
 | `crm_resumo`, `crm_tarefas`, `crm_buscar_contatos`, `crm_contato` | Funil, receita, tarefas do time e fichas do CRM (com o CRM conectado) |
