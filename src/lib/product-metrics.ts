@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { marketplaceMetricsSchema, validateMarketplaceMetrics } from "./marketplace-metrics";
 
 const count = z.number().int().nonnegative().nullable();
 export const commerceFunnelSchema = z.object({
@@ -27,6 +28,7 @@ export const productMetricsSchema = z.object({
     readyForBooking: z.number().int().nonnegative(), firstAppointment: z.number().int().nonnegative(),
   }).optional(),
   commerceFunnel: commerceFunnelSchema.optional(),
+  marketplace: marketplaceMetricsSchema.optional(),
 });
 export type ProductMetrics = z.infer<typeof productMetricsSchema>;
 
@@ -47,5 +49,12 @@ export function validateProductMetrics(raw: unknown, product: string, now = Date
     const known = Object.values(f.events).filter(value => value !== null).length;
     if ((known !== 0 && known !== Object.keys(f.events).length) || (known > 0 && f.observedFrom === null)) throw new Error("Cobertura comercial inválida");
   } else if (data.commerceFunnel) throw new Error("Unidade comercial divergente");
+  if (product === "members") {
+    if (Object.entries(data.metrics).some(([key, value]) => key !== "users" && value !== null)) throw new Error("Unidade de marketplace inválida");
+    if (data.marketplace) {
+      if (Date.parse(data.window.to) > Date.parse(data.generatedAt)) throw new Error("Geração de marketplace inválida");
+      validateMarketplaceMetrics(data.marketplace, data.window, data.metrics.users);
+    }
+  } else if (data.marketplace) throw new Error("Produto de marketplace divergente");
   return data;
 }
