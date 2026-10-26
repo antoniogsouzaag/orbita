@@ -1,6 +1,7 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { askStream, aiProvider, planDay } from "@/server/ai";
+import { splitActions, STREAM_END_MARK } from "@/lib/ai-stream";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // Servidor falso que imita a API de Responses da OpenAI (sem chamar a internet).
@@ -46,7 +47,8 @@ describe("IA via OpenAI", () => {
     expect(aiProvider()).toBe("openai");
     const stream = await askStream([{ role: "user", content: "O que faço hoje?" }]);
     const text = await new Response(stream).text();
-    expect(text).toBe("Olá, Antonio!");
+    expect(splitActions(text).text).toBe("Olá, Antonio!");
+    expect(text.endsWith(STREAM_END_MARK)).toBe(true);
     const req = requests.at(-1) as { model: string; instructions: string; input: { role: string; content: string }[]; store: boolean };
     expect(req.model).toBe("gpt-6-luna");
     expect(req.store).toBe(false);
