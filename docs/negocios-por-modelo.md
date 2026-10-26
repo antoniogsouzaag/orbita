@@ -36,3 +36,7 @@ Members e AG LABS receberam tokens exclusivos nos seus servidores. O Secret orig
 Os dois endpoints retornaram 401 sem token e 200 autenticados, com `Cache-Control: no-store`. Os cartões da Órbita receberam os mesmos agregados pelo CRM. Members: mês corrente no fuso de São Paulo, zero vendas, bruto e receita da plataforma; dez usuários, três novos em 30 dias e zero produtores com cadastro iniciado/aprovado. O financeiro foi conferido com `/plataforma`. AG LABS: admin 30d com 24 usuários, 11 ativos, cinco geradores, seis gerações, 92 créditos consumidos e zero compras, receita, assinaturas e trials; conferência nas abas Visão geral, Assinaturas e Créditos. Barberias continuou respondendo pela configuração original (28 contas), sem regressão da fonte.
 
 Esses zeros são valores dos relatórios, não comprovam ausência de movimentação nos provedores. Nenhum pagamento, geração paga, mensagem ou alteração de acesso foi usado em teste. Homologação de chargebacks e estornos permanece uma entrega separada. As orientações do catálogo passam às lacunas seguintes: compradores/produtores vendedores no Members e falhas/custo por geração no AG LABS; não pedem repetir a ativação já conferida.
+
+## Operação assistida
+
+O [desenho de diagnóstico e operação assistida do Barberias](./barberias-diagnostico-operacao-assistida.md) define a primeira fatia somente leitura, reutilização dos serviços do painel, isolamento por tenant e os gates de uma fase futura de comandos. A entrega é de planejamento; não ativa MCP nem concede acesso a clientes.
