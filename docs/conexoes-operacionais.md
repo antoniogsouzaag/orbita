@@ -5,7 +5,7 @@
 - ORBE Empresa usa metricas_produto({produto}); MCP Admin usa orbita_metricas_produto. Ambos chamam productMetrics, a mesma função do painel. O estado pode ser ok, stale, not_configured ou unavailable. Cadastros não são copiados.
 - Métricas: GET /api/integrations/orbita/metrics, contrato v1, segredo de leitura exclusivo em APP_METRICS_SOURCES. O único destino habilitado no código é Barberias, HTTPS/porta padrão/caminho fixos, sem redirects, timeout 10s, resposta até32KiB, versão/produto/janela validados. A URL nunca vem de prompt ou navegador.
 - CRM permanece a fonte de contatos, funil, tarefas comerciais e mensagens. A conta do produto é outra entidade. Contratos de métricas não incluem e-mail, nome, telefone, tokens nem dados de agenda.
-- O produtor do Barberias é uma implantação separada: não declarar conexão funcional só por existir consumidor ou PR. Ativar token em ambos ambientes e excluir barber-ag (demonstração) antes da prova contra o superadmin.
+- O produtor do Barberias foi ativado e conferido contra o superadmin em 25/10/2026, com token dedicado no app e no CRM. A coleta empresarial segue Barberias → CRM → Órbita. Para outro app, repetir a ativação e a comparação; consumidor ou PR isolado não comprova conexão funcional.
 - Ferramentas de leitura novas no catálogo compartilhado declaram readOnlyHint/destructiveHint/idempotentHint. Hints ajudam o cliente; a autorização continua no servidor. Downgrade/revogação removem o acesso nas próximas chamadas.
 
 ## Proposta de evolução: não é um MCP de superadmin irrestrito
