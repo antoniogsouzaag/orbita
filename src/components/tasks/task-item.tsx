@@ -24,9 +24,10 @@ export function TaskItem({ task, onToggle, onOpen, compact, showDate = true, sho
       <CheckButton checked={done} onToggle={onToggle} label={done ? "Reabrir tarefa" : "Concluir tarefa"} />
       <div className="min-w-0 flex-1">
         <div className={cn("truncate text-[14px]", done && "text-faint line-through")}>{task.title}</div>
-        {!compact && (task.assignee || task.tags.length > 0) && (
+        {!compact && (task.assignee || task.tags.length > 0 || task.parentTitle) && (
           <div className="mt-0.5 flex min-w-0 items-center gap-2">
             <AssigneeBadge task={task} className="shrink-0" />
+            {task.parentTitle && <span className="truncate text-[11.5px] text-faint">parte de {task.parentTitle}</span>}
             {task.tags.length > 0 && <span className="truncate text-[11.5px] text-faint">{task.tags.map((x) => `#${x}`).join(" ")}</span>}
           </div>
         )}
