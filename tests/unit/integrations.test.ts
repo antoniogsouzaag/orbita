@@ -8,14 +8,53 @@ vi.mock("@/server/ops", () => ({ n8nInstances: vi.fn(() => []), n8nOverview: vi.
 vi.mock("@/server/ops-live", () => ({ liveOps: vi.fn(async () => ({ monitors: [] })) }));
 vi.mock("@/server/vault", () => ({ vaultConfig: vi.fn(() => ({ configured: false, local: null, repo: "aglabs-core/ag-labs-knowledge", branch: "main" })), vaultHealth: vi.fn() }));
 
+vi.mock("@/server/product-metrics", () => ({ productMetricsConfigured: vi.fn(() => false), productMetrics: vi.fn() }));
+import { productMetrics, productMetricsConfigured } from "@/server/product-metrics";
 import { checkIntegrationHealth, integrationConfiguration } from "@/server/integrations";
 
 beforeEach(() => {
-  for (const key of ["OPENROUTER_API_KEY", "POSTIZ_API_URL", "POSTIZ_API_KEY", "DATABASE_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "CRON_SECRET", "N8N_INSTANCES", "OPS_TOKEN", "CALENDAR_FEED_TOKEN", "CONTEXT_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "UNSPLASH_ACCESS_KEY"]) vi.stubEnv(key, "");
+  vi.mocked(productMetricsConfigured).mockReturnValue(false);
+  vi.mocked(productMetrics).mockReset();
+  for (const key of ["OPENROUTER_API_KEY", "POSTIZ_API_URL", "POSTIZ_API_KEY", "DATABASE_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "CRON_SECRET", "N8N_INSTANCES", "OPS_TOKEN", "CALENDAR_FEED_TOKEN", "CONTEXT_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "UNSPLASH_ACCESS_KEY", "HERMES_DISPATCH_ENABLED", "HERMES_WEBHOOK_URL", "HERMES_WEBHOOK_SECRET"]) vi.stubEnv(key, "");
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 describe("diagnóstico das integrações", () => {
+  it("consulta os seis negócios independentemente e preserva ausência, falha e snapshot antigo", async () => {
+    vi.mocked(productMetricsConfigured).mockReturnValue(true);
+    const checkedAt = "2026-10-26T20:00:00.000Z";
+    const data = { generatedAt: "2026-10-26T19:00:00.000Z", window: { from: "2026-09-26T19:00:00.000Z", to: "2026-10-26T19:00:00.000Z" } };
+    vi.mocked(productMetrics).mockImplementation(async product => {
+      if (product === "viajeki") throw new Error("private-url-with-secret");
+      const status = product === "mecard" ? "not_configured" : product === "vibekit" ? "unavailable" : product === "members" ? "stale" : "ok";
+      return { status, checkedAt, data: status === "ok" || status === "stale" ? data : null, message: "Resultado da origem" } as Awaited<ReturnType<typeof productMetrics>>;
+    });
+    const rows = await checkIntegrationHealth();
+    const products = rows.filter(row => row.category === "Coleta dos negócios");
+    expect(products).toHaveLength(6);
+    expect(products.find(row => row.id === "produto:barberias")).toMatchObject({ state: "verified", checkedAt });
+    expect(products.find(row => row.id === "produto:members")).toMatchObject({ state: "warning" });
+    expect(products.find(row => row.id === "produto:mecard")).toMatchObject({ state: "missing" });
+    expect(products.find(row => row.id === "produto:vibekit")).toMatchObject({ state: "error" });
+    expect(products.find(row => row.id === "produto:viajeki")).toMatchObject({ state: "error" });
+    expect(products.find(row => row.id === "produto:aglabs-app")).toMatchObject({ state: "verified" });
+    expect(products[0].detail).toContain(data.generatedAt);
+    expect(rows.find(row => row.id === "database")).toMatchObject({ state: "warning" });
+    expect(JSON.stringify(rows)).not.toContain("private-url-with-secret");
+  });
+  it("declara Hermes configurado sem despachar comandos nem alegar execução", async () => {
+    vi.stubEnv("HERMES_DISPATCH_ENABLED", "true");
+    vi.stubEnv("HERMES_WEBHOOK_URL", "https://private.example/webhooks/orbita-hermes");
+    vi.stubEnv("HERMES_WEBHOOK_SECRET", "never-expose-hermes-secret");
+    const request = vi.fn();
+    vi.stubGlobal("fetch", request);
+    const rows = await checkIntegrationHealth();
+    expect(rows.find(row => row.id === "hermes")).toMatchObject({ state: "configured", checkedAt: null, href: "/agentes" });
+    expect(request).not.toHaveBeenCalled();
+    expect(JSON.stringify(rows)).not.toContain("never-expose-hermes-secret");
+    expect(JSON.stringify(rows)).not.toContain("private.example");
+  });
+
   it("autentica OpenRouter sem gerar conteúdo e sem expor a credencial", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "secret-openrouter-key");
     const request = vi.fn(async () => Response.json({ data: { limit_remaining: 2, is_disabled: false } }));

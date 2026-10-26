@@ -28,6 +28,10 @@ function sources(): Source[] {
     return Array.isArray(rows) ? rows.filter((row): row is Source => row && typeof row.product === "string" && typeof row.url === "string" && typeof row.token === "string" && row.token.length >= 32) : [];
   } catch { return []; }
 }
+/** Presença de configuração; a autenticação e o contrato só são verificados na consulta. */
+export function productMetricsConfigured(product: string) {
+  return crmConfigured() || sources().some(source => source.product === product);
+}
 export type ProductMetricsResult = { status: "ok" | "stale" | "not_configured" | "unavailable"; checkedAt: string; data: ProductMetrics | null; message: string };
 
 export async function productMetrics(product: string): Promise<ProductMetricsResult> {
