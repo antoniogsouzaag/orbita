@@ -6,6 +6,7 @@ const PUBLIC = [/^\/api\/docs\/agentes$/, /^\/login/, /^\/api\/calendar\/(feed|s
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  if (/^\/\.well-known\/oauth-(?:authorization-server|protected-resource(?:\/api\/mcp)?)$/.test(pathname) || /^\/api\/oauth\/(?:register|token|revoke)$/.test(pathname) || pathname === "/oauth/authorize") return NextResponse.next();
   if (PUBLIC.some((r) => r.test(pathname))) return NextResponse.next();
 
   const ok = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);

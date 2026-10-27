@@ -42,7 +42,7 @@ const root = path.resolve(import.meta.dirname, "../../src/app");
 
 describe("auditoria de autenticação", () => {
   it("toda Server Action exportada chama requireAuth (exceto login/logout)", () => {
-    const files = walk(path.join(root, "actions")).filter((f) => f.endsWith(".ts"));
+    const files = [...walk(path.join(root, "actions")).filter((f) => f.endsWith(".ts")), path.join(root, "oauth/authorize/actions.ts")];
     const missing: string[] = [];
     for (const f of files) {
       const src = readFileSync(f, "utf8");
@@ -56,7 +56,18 @@ describe("auditoria de autenticação", () => {
   });
   it("toda rota de API checa sessão ou token", () => {
     const routes = walk(path.join(root, "api")).filter((f) => f.endsWith("route.ts"));
-    const open = routes.filter((f) => !/isAuthenticated\(\)|tokenMatches\(|verifyAgentToken\(|verifyCaptureToken\(/.test(readFileSync(f, "utf8")) && !f.includes(`${path.sep}health${path.sep}`));
+    // OAuth não usa sessão de navegador: DCR público restrito, PKCE na troca e
+    // client/token na revogação. Exceções exatas, com testes de protocolo próprios.
+    const oauthRoutes: Record<string, RegExp> = {
+      "oauth/register/route.ts": /await registerOAuthClient\(input\)/,
+      "oauth/token/route.ts": /await exchangeOAuthToken\(await readOAuthForm\(req\)\)/,
+      "oauth/revoke/route.ts": /await revokeOAuthToken\(await readOAuthForm\(req\)\)/,
+    };
+    const open = routes.filter((f) => {
+      const src = readFileSync(f, "utf8");
+      const relative = path.relative(path.join(root, "api"), f).split(path.sep).join("/");
+      return !/isAuthenticated\(\)|tokenMatches\(|verifyAgentToken\(|verifyCaptureToken\(/.test(src) && relative !== "health/route.ts" && !oauthRoutes[relative]?.test(src);
+    });
     expect(open.map((f) => path.relative(root, f))).toEqual([]);
   });
 });

@@ -50,6 +50,10 @@ export type AgentIdentity = { id: string; name: string; scopes: AgentScope[] };
 
 /** Valida o Bearer de um agente (tokens revogados não passam). */
 export async function verifyAgentToken(bearer: string | null | undefined): Promise<AgentIdentity | null> {
+  if (bearer?.startsWith("orb_oauth_")) {
+    const { verifyOAuthAccess } = await import("./mcp-oauth");
+    return verifyOAuthAccess(bearer);
+  }
   if (!bearer || !bearer.startsWith("orb_") || bearer.length < 20) return null;
   const db = await getDb();
   const [row] = await db.select().from(agentTokens).where(and(eq(agentTokens.tokenHash, sha(bearer)), eq(agentTokens.revoked, false)));

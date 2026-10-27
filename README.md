@@ -50,6 +50,8 @@ O chat tem modo **Somente leitura**, consultas explícitas visíveis e interrup�
 
 ### Conectar um agente
 
+Para o plugin no ChatGPT web, use OAuth com login e consentimento na Órbita. O pacote em `plugins/orbita/`, os requisitos de publicação e o roteiro de instalação estão em [Plugin Órbita](docs/plugin-orbita.md). A conexão web é instalada na conta; configurar um MCP local não a instala automaticamente.
+
 Em **Agentes → Criar acesso**, escolha o nome e as permissões. O token aparece uma única vez, com os comandos prontos:
 
 ```bash

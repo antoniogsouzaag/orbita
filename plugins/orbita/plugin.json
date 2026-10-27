@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "orbita",
+  "version": "0.1.0",
+  "description": "Consulte e administre sua central Órbita: tarefas, projetos, vault e operação, conforme as permissões autorizadas na conexão.",
+  "author": { "name": "AG LABS" },
+  "homepage": "https://orb.aglabs.api.br",
+  "keywords": ["tarefas", "projetos", "operacao", "aglabs"]
+}
