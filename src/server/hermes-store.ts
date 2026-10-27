@@ -5,16 +5,16 @@ import { dispatches, settings } from "@/db/schema";
 import type { HermesOperation } from "./hermes";
 
 function operation(row: typeof dispatches.$inferSelect): HermesOperation {
-  return { id: row.id, action: row.action as HermesOperation["action"], status: row.status as HermesOperation["status"], createdAt: row.createdAt.toISOString(), checkedAt: row.updatedAt.toISOString(), detail: row.detail };
+  return { id: row.id, action: row.action as HermesOperation["action"], status: row.status as HermesOperation["status"], createdAt: row.createdAt.toISOString(), checkedAt: row.updatedAt.toISOString(), detail: row.detail, ...(row.action === "agent.analyze" ? { text: typeof row.params.text === "string" ? row.params.text : undefined, ...(row.summary !== null && row.reportedBy === "hermes:agent-execution" ? { responseText: row.summary, agentExecution: true as const } : {}) } : {}) };
 }
 
 /** Novos pedidos no registro comum; estados finais nunca regridem após consulta concorrente. */
 export async function saveHermesOperation(value: HermesOperation, params: Record<string, unknown> = {}) {
   const db = await getDb();
   const final = ["completed", "failed", "interrupted", "due"].includes(value.status);
-  const values = { id: value.id, target: "hermes" as const, action: value.action, status: value.status, params, detail: value.detail, createdAt: new Date(value.createdAt), updatedAt: new Date(value.checkedAt), finishedAt: final ? new Date(value.checkedAt) : null };
+  const values = { id: value.id, target: "hermes" as const, action: value.action, status: value.status, params, summary: value.responseText ?? null, reportedBy: value.agentExecution ? "hermes:agent-execution" : null, detail: value.detail, createdAt: new Date(value.createdAt), updatedAt: new Date(value.checkedAt), finishedAt: final ? new Date(value.checkedAt) : null };
   await db.insert(dispatches).values(values).onConflictDoUpdate({ target: dispatches.id,
-    set: { status: value.status, detail: value.detail, updatedAt: values.updatedAt, finishedAt: values.finishedAt },
+    set: { status: value.status, summary: values.summary, reportedBy: values.reportedBy, detail: value.detail, updatedAt: values.updatedAt, finishedAt: values.finishedAt },
     setWhere: and(eq(dispatches.target, "hermes"), notInArray(dispatches.status, ["completed", "failed", "interrupted", "due"])),
   });
   const [row] = await db.select().from(dispatches).where(and(eq(dispatches.id, value.id), eq(dispatches.target, "hermes")));

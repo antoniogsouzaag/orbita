@@ -1,0 +1,33 @@
+// @vitest-environment jsdom
+import * as React from "react";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { HermesIntegration } from "@/components/agents/hermes-integration";
+import { checkHermes, sendHermes } from "@/app/actions/hermes";
+import type { HermesOperation } from "@/server/hermes";
+vi.mock("@/app/actions/hermes",()=>({sendHermes:vi.fn(),checkHermes:vi.fn()}));
+vi.mock("sonner",()=>({toast:Object.assign(vi.fn(),{error:vi.fn()})}));
+let host:HTMLDivElement;let mounted:Root;
+const config={enabled:true,endpointConfigured:true,secretConfigured:true};
+const operation:HermesOperation={id:"analysis",action:"agent.analyze",text:"Analisar",status:"accepted",detail:"Recebido",createdAt:new Date().toISOString(),checkedAt:new Date().toISOString()};
+beforeEach(()=>{Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});vi.useFakeTimers();vi.clearAllMocks();host=document.createElement("div");document.body.append(host);mounted=createRoot(host);});
+afterEach(async()=>{await act(async()=>mounted.unmount());host.remove();vi.useRealTimers();});
+const tick=async()=>{await act(async()=>{await vi.advanceTimersByTimeAsync(5000);});};
+it("consulta apenas análises ativas e para ao concluir sem reenviar",async()=>{
+ vi.mocked(checkHermes).mockResolvedValueOnce({...operation,status:"running"}).mockResolvedValueOnce({...operation,status:"completed",responseText:"Pronta",agentExecution:true});
+ await act(async()=>mounted.render(React.createElement(HermesIntegration,{config,initial:[operation,{...operation,id:"legacy",action:"reminder.internal"}]})));
+ await tick();expect(checkHermes).toHaveBeenCalledExactlyOnceWith("analysis");await tick();expect(host.textContent).toContain("Pronta");await tick();expect(checkHermes).toHaveBeenCalledTimes(2);expect(sendHermes).not.toHaveBeenCalled();
+});
+it("limita a doze consultas por análise durante a montagem e deixa consulta manual disponível",async()=>{
+ vi.mocked(checkHermes).mockResolvedValue({...operation,status:"running"});
+ await act(async()=>mounted.render(React.createElement(HermesIntegration,{config,initial:[operation]})));
+ for(let i=0;i<15;i++)await tick();expect(checkHermes).toHaveBeenCalledTimes(12);expect(host.textContent).toContain("Consultar resultado");
+});
+it("para após erro sem reenviar e não consulta quando despacho desabilitado",async()=>{
+ vi.mocked(checkHermes).mockRejectedValue(new Error("offline"));
+ await act(async()=>mounted.render(React.createElement(HermesIntegration,{config,initial:[operation]})));
+ await tick();await tick();expect(checkHermes).toHaveBeenCalledTimes(1);expect(sendHermes).not.toHaveBeenCalled();
+ await act(async()=>mounted.render(React.createElement(HermesIntegration,{config:{...config,enabled:false},initial:[operation]})));
+ await tick();expect(checkHermes).toHaveBeenCalledTimes(1);
+});

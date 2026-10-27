@@ -18,6 +18,7 @@ export type DirectorRequest = {
 
 const ACTIONS: Record<string, string> = {
   "request.tom": "Pedido ao Tom",
+  "agent.analyze": "Análise Hermes",
   "diagnostics.read": "Diagnóstico",
   "incident.diagnose": "Diagnóstico de incidente",
   "reminder.internal": "Pedido na caixa interna",
@@ -47,9 +48,9 @@ export function directorRequests(tom: DispatchView[], oracle: HermesOperation[])
     })),
     ...oracle.map((row): DirectorRequest => ({
       key: `oracle:${row.id}`, id: row.id, agent: "Hermes Oracle",
-      title: ACTIONS[row.action] ?? row.action, status: LABELS[row.status] ?? row.status,
+      title: row.action === "agent.analyze" && row.text ? row.text : ACTIONS[row.action] ?? row.action, status: LABELS[row.status] ?? row.status,
       group: group(row.status, false), createdAt: new Date(row.createdAt).toISOString(), updatedAt: new Date(row.checkedAt).toISOString(),
-      detail: row.detail, silent: false,
+      detail: row.action === "agent.analyze" && row.agentExecution && row.responseText ? row.responseText : row.detail, silent: false,
     })),
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

@@ -6,6 +6,18 @@ import { reportDispatchResult } from "@/server/dispatch";
 import type { HermesOperation } from "@/server/hermes";
 
 describe("persistência comum Hermes", () => {
+  it("guarda pedido e resposta da análise no mesmo registro, sem perder texto nem regredir estado final", async () => {
+    const value: HermesOperation = { id: crypto.randomUUID(), action: "agent.analyze", status: "sending", text: "Analisar operação", createdAt: new Date().toISOString(), checkedAt: new Date().toISOString(), detail: "Enviando" };
+    expect(await saveHermesOperation(value, {text:value.text})).toMatchObject({text:value.text});
+    await saveHermesOperation({...value,status:"accepted"});
+    const done = await saveHermesOperation({...value,status:"completed",responseText:"Análise pronta",agentExecution:true});
+    expect(done).toMatchObject({id:value.id,text:value.text,responseText:"Análise pronta",agentExecution:true});
+    expect(await saveHermesOperation({...value,status:"running"})).toEqual(done);
+    expect(await storedHermesOperation(value.id)).toEqual(done);
+    expect((await storedHermesHistory()).find(row=>row.id===value.id)).toEqual(done);
+    expect(await reportDispatchResult("Hermes Oracle", {pedido_id:value.id,estado:"falhou",resumo:"Legado"})).toMatchObject({ok:false});
+    expect(await storedHermesOperation(value.id)).toEqual(done);
+  });
   it("preserva legado, migra na consulta e não regride conclusão", async () => {
     const db = await getDb();
     const legacy: HermesOperation = { id: crypto.randomUUID(), action: "diagnostics.read", status: "accepted", createdAt: "2026-10-24T10:00:00.000Z", checkedAt: "2026-10-24T10:00:00.000Z", detail: "Legado" };
