@@ -8,6 +8,24 @@ const configure = (target = url) => vi.stubEnv("APP_METRICS_SOURCES", JSON.strin
 beforeEach(() => { configure(); vi.stubGlobal("fetch", vi.fn(async () => Response.json(raw()))); });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("origem administrativa e ORBE", () => {
+  it.each(["mecard", "viajeki", "produto-desconhecido"])("não atribui equipe ou Stripe ao produto %s", async produto => {
+    vi.stubEnv("APP_METRICS_SOURCES", "[]");
+    const result = await runAssistantTool("metricas_produto", { produto }, { scope: "empresa", readOnly: true });
+    const body = JSON.parse(result.text);
+    expect(body).toMatchObject({ product: produto, status: "not_configured", data: null });
+    expect(body.coverage).not.toMatch(/equipe com login|assinatura Stripe|activationFunnel/);
+    expect(fetch).not.toHaveBeenCalled();
+    if (produto !== "produto-desconhecido") {
+      expect(body.businessModel).toMatchObject({ unit: "Usuário" });
+      expect(body.coverage).toContain("não se aplicam");
+    }
+  });
+  it("preserva o significado de equipe e vigência do Barberias", async () => {
+    const result = await runAssistantTool("metricas_produto", { produto: "barberias" }, { scope: "empresa", readOnly: true });
+    const body = JSON.parse(result.text);
+    expect(body.coverage).toContain("users é equipe com login");
+    expect(body.coverage).toContain("não comprovante de recebimento");
+  });
   it("usa fonte fixa HTTPS e não permite redirect nem cache", async () => {
     expect(await productMetrics("barberias")).toMatchObject({ status: "ok", data: { metrics: { users: 8 } } });
     expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ redirect: "error", cache: "no-store", signal: expect.any(AbortSignal) }));
