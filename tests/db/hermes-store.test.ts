@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { getDb } from "@/db";
 import { settings } from "@/db/schema";
 import { saveHermesOperation, storedHermesHistory, storedHermesOperation } from "@/server/hermes-store";
@@ -6,6 +7,13 @@ import { reportDispatchResult } from "@/server/dispatch";
 import type { HermesOperation } from "@/server/hermes";
 
 describe("persistência comum Hermes", () => {
+  it("preserva manutenção e somente conclusão com evidência verificada", async()=>{
+   const taskId=crypto.randomUUID(); const value:HermesOperation={id:crypto.randomUUID(),action:"maintenance.execute",status:"sending",createdAt:new Date().toISOString(),checkedAt:new Date().toISOString(),detail:"Enviando",taskId,maintenanceOperation:"maia.recover"};
+   expect(await saveHermesOperation(value,{task_id:taskId,operation:"maia.recover"})).toMatchObject({taskId,maintenanceOperation:"maia.recover"});
+   const done=await saveHermesOperation({...value,status:"completed",responseText:"Verificado",maintenanceExecution:true,verified:true,changed:false});
+   expect(done).toMatchObject({taskId,maintenanceExecution:true,verified:true,changed:false,responseText:"Verificado"});
+   expect(await storedHermesOperation(value.id)).toEqual(done);
+  });
   it("guarda pedido e resposta da análise no mesmo registro, sem perder texto nem regredir estado final", async () => {
     const value: HermesOperation = { id: crypto.randomUUID(), action: "agent.analyze", status: "sending", text: "Analisar operação", createdAt: new Date().toISOString(), checkedAt: new Date().toISOString(), detail: "Enviando" };
     expect(await saveHermesOperation(value, {text:value.text})).toMatchObject({text:value.text});
