@@ -20,7 +20,7 @@ Viajeki e MeCard foram movidos a P1 no vault; Loja Labs, hub de links, a P3. Com
 
 Barberias: npm run verify aprovado (inclui auditoria de segurança e build), 14 testes do endpoint. MeCard: npm run check (564 testes) e npm run test:sql completos aprovados, incluindo o relatório SQL novo. CRM: npm run check completo aprovado: lint, TypeScript, 145 testes de biblioteca, 44 de interface e build. Rede foi usada somente para as fontes oficiais do Next.js.
 
-A revisão automática de permissões bloqueou publicar branches/PRs nos quatro repositórios, inclusive depois de Antonio pedir para evitar confirmações repetidas. Não houve merge, deploy ou aplicação remota da migration MeCard. O conector Supabase desta sessão expõe somente outro projeto inativo, sem o projeto MeCard. A correção de preferência solicitada por Antonio foi registrada separadamente na memória, sem alterar gates ou billing.
+Publicação do código, implantação e aplicação da migration MeCard são etapas separadas. O conector Supabase disponível durante a validação não expunha o projeto MeCard; nenhuma migration remota foi aplicada nesta revisão.
 
 
 ## Limites reais
@@ -33,4 +33,4 @@ Implementação, gates, publicação, migration MeCard e validação autenticada
 
 Login com credencial exclusiva de desenvolvimento, PGlite separado e integrações externas desabilitadas. Confirmados no navegador: Lista/Kanban com as mesmas tarefas em três estados; /kanban redirecionando com projeto e Empresa preservados; notas abertas pelo projeto, criadas e editadas com autosave, recuperadas após recarregar; inventário do vault exibido mesmo sem n8n. Avisos de hydration continham atributos bis_skin_checked injetados por extensão do navegador, não diferenças de dados da aplicação. Não desabilitada nenhuma proteção nem extensão.
 
-Commits locais dos conectores: CRM c1d262b; Barberias f8cbfac; MeCard fa82dd0. Os checkouts estão em .data/review/ e permanecem preservados para a publicação autorizada.
+Commits locais dos conectores: CRM c1d262b; Barberias f8cbfac; MeCard fa82dd0. Os conectores são entregues em PRs próprios, com implantação separada da central.
