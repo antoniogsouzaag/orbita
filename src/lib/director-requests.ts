@@ -30,6 +30,9 @@ const LABELS: Record<string, string> = {
   interrupted: "Interrompido", due: "Vencido na caixa interna",
 };
 
+export function verifiedMaintenance(row: HermesOperation) {
+ return row.action === "maintenance.execute" && row.maintenanceExecution === true && row.verified === true && typeof row.changed === "boolean" && typeof row.taskId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(row.taskId);
+}
 function group(status: string, silent: boolean): RequestGroup {
   if (status === "completed") return "completed";
   if (silent || ["unknown", "failed", "rejected", "interrupted", "due"].includes(status)) return "attention";
@@ -48,9 +51,9 @@ export function directorRequests(tom: DispatchView[], oracle: HermesOperation[])
     })),
     ...oracle.map((row): DirectorRequest => ({
       key: `oracle:${row.id}`, id: row.id, agent: "Hermes Oracle",
-      title: row.action === "agent.analyze" && row.text ? row.text : ACTIONS[row.action] ?? row.action, status: LABELS[row.status] ?? row.status,
-      group: group(row.status, false), createdAt: new Date(row.createdAt).toISOString(), updatedAt: new Date(row.checkedAt).toISOString(),
-      detail: row.action === "agent.analyze" && row.agentExecution && row.responseText ? row.responseText : row.detail, silent: false,
+      title: row.action === "maintenance.execute" ? (row.maintenanceOperation === "maia.recover" ? "Recuperar Maia" : `Monitorar domínio ${row.domain ?? ""}`) : row.action === "agent.analyze" && row.text ? row.text : ACTIONS[row.action] ?? row.action, status: row.action === "maintenance.execute" && row.status === "completed" && !verifiedMaintenance(row) ? "Conclusão não verificada" : LABELS[row.status] ?? row.status,
+      group: row.action === "maintenance.execute" && row.status === "completed" && !verifiedMaintenance(row) ? "attention" : group(row.status, false), createdAt: new Date(row.createdAt).toISOString(), updatedAt: new Date(row.checkedAt).toISOString(),
+      detail: ((row.action === "agent.analyze" && row.agentExecution) || verifiedMaintenance(row)) && row.responseText ? row.responseText : row.detail, silent: false,
     })),
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

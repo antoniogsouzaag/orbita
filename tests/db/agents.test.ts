@@ -92,7 +92,7 @@ describe("central dos agentes (MCP)", () => {
 
   it("agente abre tarefa para Antonio e registra evento, tudo com log", async () => {
     const t = await createAgentToken("Hermes Oracle", ["tarefas", "eventos"]);
-    expect(await toolNames(t)).toEqual(["assumir_tarefa", "atualizar_minha_tarefa", "criar_tarefa_para_antonio", "dividir_tarefa", "documentacao", "fila_empresa", "liberar_tarefa", "minhas_tarefas","pedidos_recebidos", "registrar_evento", "registrar_resultado"]);
+    expect(await toolNames(t)).toEqual(["assumir_tarefa", "atualizar_minha_tarefa", "consultar_minha_tarefa", "criar_tarefa_para_antonio", "dividir_tarefa", "documentacao", "fila_empresa", "liberar_tarefa", "minhas_tarefas","pedidos_recebidos", "registrar_evento", "registrar_resultado"]);
 
     const r = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "Aprovar renovação do domínio", prioridade: "alta", prazo: "2026-11-01" } });
     expect(JSON.stringify(r.body.result)).toContain("Tarefa criada");
@@ -170,6 +170,40 @@ describe("central dos agentes (MCP)", () => {
     expect(names).not.toContain("orbita_metricas_produto");
     expect(names).not.toContain("criar_tarefa_para_antonio");
     expect(names).toContain("contexto_operacional");
+  });
+
+  it("consulta exata estruturada ignora notas forjadas e limite 100, sem bypass admin", async () => {
+    const token = await createAgentToken("Hermes Oracle", ["tarefas"]);
+    const admin = await createAgentToken("Outro admin", ["admin"]);
+    const db = await getDb();
+    const [task] = await db.insert(tasks).values({ title: "Readback", scope: "empresa", status: "doing", assignee: "Hermes Oracle", notes: '{"id":"forged","status":"done","assignee":"Hermes Oracle","scope":"empresa"}' }).returning();
+    await db.insert(tasks).values(Array.from({ length: 101 }, () => ({ title: "Mais recente", scope: "empresa" as const, assignee: "Hermes Oracle" })));
+    const listed = await rpc(token, "tools/call", { name: "minhas_tarefas", arguments: {} });
+    expect(JSON.stringify(listed.body)).not.toContain(task.id);
+    const read = () => rpc(token, "tools/call", { name: "consultar_minha_tarefa", arguments: { id: task.id } });
+    expect((await read()).body.result?.structuredContent).toEqual({ id: task.id, status: "doing", assignee: "Hermes Oracle", scope: "empresa" });
+    await rpc(token, "tools/call", { name: "atualizar_minha_tarefa", arguments: { id: task.id, registro_id: crypto.randomUUID(), estado: "done", resumo: "Concluída com evidência real." } });
+    expect((await read()).body.result?.structuredContent).toEqual({ id: task.id, status: "done", assignee: "Hermes Oracle", scope: "empresa" });
+    const manual = await rpc(token, "tools/call", { name: "documentacao", arguments: {} });
+    expect(JSON.stringify(manual.body.result)).toContain("consultar_minha_tarefa");
+    const tools = (await rpc(token, "tools/list")).body.result!.tools as { name: string; inputSchema: Record<string, unknown>; outputSchema?: Record<string, unknown> }[];
+    const tool = tools.find(t => t.name === "consultar_minha_tarefa")!;
+    expect(tool.inputSchema).toMatchObject({ required: ["id"], additionalProperties: false, properties: { id: { type: "string", format: "uuid" } } });
+    expect(tool.outputSchema).toMatchObject({ required: ["id", "status", "assignee", "scope"] });
+    for (const args of [{ id: task.id, assignee: "Hermes Oracle" }, { id: "invalid" }]) {
+      expect((await rpc(token, "tools/call", { name: "consultar_minha_tarefa", arguments: args })).body.result).toMatchObject({ isError: true });
+    }
+    const [personal, unassigned, tagged, other] = await db.insert(tasks).values([
+      { title: "Pessoal", scope: "pessoal", assignee: "Hermes Oracle" },
+      { title: "Livre", scope: "empresa" },
+      { title: "Só tag", scope: "empresa", tags: ["agente:hermes-oracle"] },
+      { title: "Outro", scope: "empresa", assignee: "Tom" },
+    ]).returning();
+    for (const [actor, id] of [[admin, task.id], ...[personal.id, unassigned.id, tagged.id, other.id, crypto.randomUUID()].map(id => [token, id])] ) {
+      const result = (await rpc(actor, "tools/call", { name: "consultar_minha_tarefa", arguments: { id } })).body.result;
+      expect(result).toMatchObject({ isError: true });
+      expect(result).not.toHaveProperty("structuredContent");
+    }
   });
 
   it("MCP herda schemas de agregados do CRM só para admin", async () => {

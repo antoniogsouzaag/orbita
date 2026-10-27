@@ -12,6 +12,11 @@ const tom = (status: DispatchView["status"], silent = false): DispatchView => ({
 });
 
 describe("acompanhamento da diretoria", () => {
+ it("só conclui manutenção com marcadores verificados e tarefa correlacionada",()=>{
+  const maintenance:HermesOperation={...oracle("completed"),action:"maintenance.execute",taskId:"12345678-1234-4234-8234-123456789abc",maintenanceOperation:"maia.recover",maintenanceExecution:true,verified:true,changed:false,responseText:"Maia saudável"};
+  expect(directorRequests([],[maintenance])[0]).toMatchObject({title:"Recuperar Maia",detail:"Maia saudável",group:"completed"});
+  for(const patch of [{verified:undefined},{maintenanceExecution:undefined},{taskId:undefined}]) expect(directorRequests([],[{...maintenance,...patch}])[0]).toMatchObject({group:"attention",status:"Conclusão não verificada"});
+ });
   it("mostra pedido e retorno da análise sem reclassificar registros legados",()=>{
     const analysis: HermesOperation={...oracle("completed"),action:"agent.analyze",text:"Analisar operação",responseText:"Resultado real",agentExecution:true};
     expect(directorRequests([], [analysis])[0]).toMatchObject({id:analysis.id,title:"Analisar operação",detail:"Resultado real",group:"completed"});
