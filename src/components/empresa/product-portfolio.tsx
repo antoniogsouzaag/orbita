@@ -52,11 +52,16 @@ export async function ProductPortfolio() {
       </div>
       <p className="text-[11px] leading-relaxed text-faint">Soma dos cadastros nos aplicativos, sem deduplicar a mesma pessoa entre produtos. Ativos registraram atividade no produto nos últimos 30 dias. Novos: mês atual em São Paulo. Dados ausentes ou desatualizados ficam fora da soma. VibeKit é acompanhado por compras, sem contagem de usuários.</p>
 
+      <Card className="overflow-x-auto p-4"><h3 className="mb-3 text-sm font-medium">Cobertura dos indicadores por aplicativo</h3><table className="w-full text-left text-xs"><thead className="text-muted"><tr><th className="py-2">Aplicativo</th><th>Total</th><th>Ativos · 30d</th><th>Novos · mês</th><th>Coleta</th></tr></thead><tbody>{snapshots.filter(unit => unit.model !== "compra_unica").map(unit => {
+        const row = businessAudience(unit.result, now);
+        return <tr key={unit.id} className="border-t border-border"><td className="py-2"><Link href={`/empresa/negocios/${unit.id}`} className="text-accent">{unit.name}</Link></td>{[row.total, row.active, row.newMonth].map((value, i) => <td key={i}>{value === null ? "Não informado" : num(value)}</td>)}<td>{unit.result.status === "ok" ? "Conectado" : unit.result.message}</td></tr>;
+      })}</tbody></table><p className="mt-3 text-[11px] text-faint">Conectado significa que a origem respondeu. Campos não informados precisam de coleta no aplicativo; não são atividade zero.</p></Card>
       {!data ? (
         <Card className="p-5 text-[13px] text-muted">{result.message ?? "O CRM não retornou o resumo nesta consulta."}</Card>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <KpiCard icon={<BadgeDollarSign />} label="Receita acumulada" value={data.receita_total == null ? "—" : brl(data.receita_total)} hint="Todo o histórico · mesma base do painel CRM" />
             <KpiCard icon={<BadgeDollarSign />} label="Receita líquida do mês" value={data.receita_mes == null ? "—" : brl(data.receita_mes)} delta={revenueDelta} period="vs mês anterior" hint={revenueDelta === undefined ? "Pagamentos registrados no CRM" : undefined} />
             <KpiCard icon={<Target />} label="Oportunidades abertas" value={num(data.oportunidades_abertas)} hint={data.contatos_a_qualificar != null ? `${num(data.contatos_a_qualificar)} a qualificar` : "Funil sem a base fria"} />
             <KpiCard icon={<Users />} label="Clientes no funil" value={num(data.clientes)} hint={data.pagantes_mes != null ? `${num(data.pagantes_mes)} pagantes no mês` : "Etapa Cliente do CRM"} />

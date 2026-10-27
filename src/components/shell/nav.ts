@@ -1,6 +1,6 @@
 import {
   BarChart3, BookOpen, Bot, Briefcase, Building2, CalendarDays, CheckSquare, Dumbbell, FolderKanban, Gauge, Goal, Home, GitFork,
-  KanbanSquare, LibraryBig, MessageSquareText, NotebookPen, Plug, Repeat, Settings, Sparkles, Timer, User, Wallet, Workflow, type LucideIcon,
+  LibraryBig, MessageSquareText, NotebookPen, Plug, Repeat, Settings, Sparkles, Timer, User, Wallet, Workflow, type LucideIcon,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; dock?: boolean; keywords?: string };
@@ -22,7 +22,6 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
           { href: "/agenda", label: "Agenda", icon: CalendarDays, dock: true, keywords: "calendário eventos" },
           { href: "/notas", label: "Notas", icon: NotebookPen, dock: true },
           { href: "/projetos", label: "Projetos", icon: FolderKanban },
-          { href: "/kanban", label: "Kanban", icon: KanbanSquare },
         ],
       },
       {
@@ -53,7 +52,6 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
           { href: "/empresa/negocios", label: "Negócios", icon: Building2, keywords: "produtos barberias members mecard viajeki" },
           { href: "/projetos?escopo=empresa", label: "Projetos", icon: FolderKanban },
           { href: "/notas?escopo=empresa", label: "Notas", icon: NotebookPen, keywords: "rascunhos ideias anotações da empresa" },
-          { href: "/kanban?escopo=empresa", label: "Kanban", icon: KanbanSquare },
           { href: "/foco?escopo=empresa", label: "Foco", icon: Timer },
         ],
       },

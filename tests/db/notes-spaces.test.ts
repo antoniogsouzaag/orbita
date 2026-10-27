@@ -75,3 +75,15 @@ it("archives reversibly without losing contents, pins, tags or workspace isolati
   expect(await getNote(company, "pessoal")).toBeNull();
   expect(noteHref("empresa", id, true)).toBe(`/notas?escopo=empresa&id=${id}&arquivo=1`);
 });
+
+it("links project notes explicitly and refuses projects from a different workspace", async () => {
+  const db = await getDb();
+  const [personal, company] = await db.insert(projects).values([{ name: "Notas pessoais", area: "estudos" }, { name: "Notas empresa", area: "empresa" }]).returning();
+  const id = await insertNote("Projeto", "Conteúdo", "empresa", company.id);
+  await insertNote("Avulsa", "Outro", "empresa");
+  expect((await listNotes(undefined, "empresa", false, company.id)).map(note => note.id)).toEqual([id]);
+  expect(await listNotes(undefined, "pessoal", false, company.id)).toEqual([]);
+  await expect(insertNote("Errada", "", "empresa", personal.id)).rejects.toThrow("neste espaço");
+  await expect(insertNote("Errada", "", "pessoal", company.id)).rejects.toThrow("neste espaço");
+  expect(noteHref("empresa", id, false, company.id)).toContain(`projeto=${company.id}`);
+});

@@ -1,3 +1,4 @@
+import { businessAudience } from "@/lib/business-audience";
 import { Card } from "@/components/ui/card";
 import { BarRows } from "@/components/ui/mini-charts";
 import type { ProductMetrics } from "@/lib/product-metrics";
@@ -12,11 +13,9 @@ export async function ProductAppMetrics({ product }: { product: string }) {
   const result = await productMetrics(product);
   if (!result.data) return <Card className="flex flex-wrap items-center gap-4 p-3"><div className="min-w-0 flex-1"><p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-faint">Dados do app · conexão pendente</p><h2 className="mt-1 text-sm font-semibold">Indicadores do negócio</h2><p className="mt-1 text-xs leading-relaxed text-muted">{result.message}</p></div><span className="rounded-full border border-border px-3 py-1 text-[11px] text-muted">Sem snapshot disponível</span></Card>;
   const data = result.data;
-  if (data.freemium) return <FreemiumMetrics data={data} result={result} />;
-  if (data.marketplace) return <MarketplaceMetrics data={data} result={result} />;
-  if (data.commerceFunnel) return <CommerceMetrics data={data} result={result} />;
-  if (data.credits) return <CreditsMetrics data={data} result={result} />;
-  return <AccountMetrics data={data} result={result} />;
+  const body = data.freemium ? <FreemiumMetrics data={data} result={result} /> : data.marketplace ? <MarketplaceMetrics data={data} result={result} /> : data.commerceFunnel ? <CommerceMetrics data={data} result={result} /> : data.credits ? <CreditsMetrics data={data} result={result} /> : <AccountMetrics data={data} result={result} />;
+  const audience = businessAudience(result);
+  return <div className="space-y-3">{!data.commerceFunnel && <Card className="p-4"><h2 className="text-sm font-semibold">Usuários e atividade</h2><div className="mt-3 grid grid-cols-3 gap-3">{[["Cadastrados", audience.total], ["Ativos · 30 dias", audience.active], ["Novos · mês", audience.newMonth]].map(([label, value]) => <div key={String(label)}><p className="text-xs text-muted">{label}</p><p className="mt-1 text-xl tabular-nums">{num(value as number | null)}</p></div>)}</div><p className="mt-3 text-[11px] text-faint">{product === "barberias" ? "Atividade observada: visitas autenticadas dos gestores ao painel; não representa consumo dos clientes nem toda a equipe." : product === "mecard" ? "Atividade: criação, edição salva ou publicação de cartões pelo proprietário; visitas públicas não contam." : "Atividade autenticada conforme os eventos do produto."} Mês atual em São Paulo. — significa coleta não informada ou desatualizada.</p></Card>}{body}</div>;
 }
 
 function Footer({ result, data, note }: { result: ProductMetricsResult; data: ProductMetrics; note: string }) {

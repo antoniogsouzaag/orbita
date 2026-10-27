@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/card";
 import { BarRows, Big, ColumnBars, Dot, Legend, Ring, ShareStrip, WidgetShell, lastDays, type Tone } from "@/components/ui/mini-charts";
 import { WidgetBoard } from "@/components/ui/widget-board";
 import { cn } from "@/lib/utils";
+import { BUSINESS_REGISTERED_DOMAINS } from "@/lib/business-models";
 import { monitorTargets } from "@/server/ops";
 import { coherence, liveOps, opsEventsByDay } from "@/server/ops-live";
 import { VaultBanner } from "@/components/vault/vault-banner";
@@ -54,6 +55,7 @@ export default async function Page() {
   const openIncidents = live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt);
   const pendingWorkflows = live.events.filter(e => e.kind === "workflow_error" && !e.resolvedAt);
   const wf24 = live.events.filter((e) => e.kind === "workflow_error" && live.generatedAt - e.createdAt.getTime() < 86_400_000);
+  const pendingDomains = BUSINESS_REGISTERED_DOMAINS.filter(unit => !live.domains.some(domain => domain.domain === unit.domain) && targets?.some(target => { try { return new URL(target.url).hostname === unit.domain; } catch { return false; } }));
   const soonDomains = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - live.generatedAt < 45 * 86_400_000);
   const silent = live.monitors.filter((m) => m.silent);
   const down = board.filter((b) => !b.ok);
@@ -210,6 +212,7 @@ export default async function Page() {
     domains: (
       <WidgetShell title="Domínios" meta="dias até vencer">
         <div id="dominios" className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {pendingDomains.length > 0 && <div className="mb-3 space-y-1 text-xs text-warning">{pendingDomains.map(unit => <p key={unit.id}>{unit.domain} · cadastrado no monitoramento · aguardando coleta de vencimento</p>)}</div>}
           {live.domains.length === 0 ? <p className="text-[12.5px] text-muted">Nenhum domínio recebido. O monitor de vencimento envia a lista quando ligado à Órbita.</p> : (
             <BarRows label="Dias até o vencimento de cada domínio" max={365}
               rows={live.domains.map((d) => {
