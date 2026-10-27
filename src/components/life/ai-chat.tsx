@@ -158,6 +158,7 @@ export function AiChat({ enabled, scope = "pessoal", trustedActionOrigins = [], 
   React.useEffect(() => { convRef.current = conv; }, [conv]);
   const textarea = React.useRef<HTMLTextAreaElement>(null);
   const end = React.useRef<HTMLDivElement>(null);
+  const log = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const startNew = React.useCallback(() => { setConv({ id: crypto.randomUUID(), saved: false, msgs: [] }); syncUrl(scope, null); setLoadError(null); }, [scope]);
@@ -204,7 +205,8 @@ export function AiChat({ enabled, scope = "pessoal", trustedActionOrigins = [], 
   React.useEffect(() => {
     const jump = jumpToEnd.current;
     jumpToEnd.current = false;
-    const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 320;
+    const messages = log.current;
+    const nearBottom = !messages || messages.scrollTop + messages.clientHeight >= messages.scrollHeight - 320;
     if (!jump && !nearBottom) return;
     // Espera o layout (e a rolagem ao topo da navegação vinda da Home) antes de descer.
     setTimeout(() => end.current?.scrollIntoView({ behavior: jump ? "auto" : "smooth", block: "end" }), jump ? 60 : 0);
@@ -262,7 +264,7 @@ export function AiChat({ enabled, scope = "pessoal", trustedActionOrigins = [], 
 
   const empty = msgs.length === 0;
   const composer = (
-    <form onSubmit={(e) => { e.preventDefault(); void send(input); }} className="rounded-[26px] border border-border-strong bg-surface shadow-soft transition focus-within:border-accent/50">
+    <form onSubmit={(e) => { e.preventDefault(); void send(input); }} className="rounded-[22px] border border-border-strong bg-surface shadow-soft transition focus-within:border-accent/50">
       <textarea
         ref={textarea}
         value={input}
@@ -274,9 +276,9 @@ export function AiChat({ enabled, scope = "pessoal", trustedActionOrigins = [], 
         disabled={!enabled}
         aria-label="Mensagem para ORBE"
         placeholder={enabled ? (empty ? "Pergunte ou peça uma ação…" : "Responder à ORBE…") : "IA desativada — configure a chave em Integrações"}
-        className="block max-h-[220px] min-h-12 w-full resize-none bg-transparent px-5 pb-1 pt-3.5 text-[15px] leading-relaxed outline-none placeholder:text-faint"
+        className="block max-h-[220px] min-h-10 w-full resize-none bg-transparent px-4 pb-1 pt-2.5 text-[15px] leading-relaxed outline-none placeholder:text-faint"
       />
-      <div className="flex items-center gap-1.5 px-2.5 pb-2.5 pt-1">
+      <div className="flex items-center gap-1.5 px-2.5 pb-2 pt-0.5">
         <button
           type="button"
           onClick={() => setReadOnly(v => !v)}
@@ -301,8 +303,8 @@ export function AiChat({ enabled, scope = "pessoal", trustedActionOrigins = [], 
   );
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-14rem)] w-full max-w-3xl flex-col px-4 sm:px-6">
-      <header className="flex items-center gap-2 pb-4 text-[13px]">
+    <div className="orbe-chat mx-auto flex w-full max-w-3xl flex-col px-4 sm:px-6">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 pb-4 text-[13px]">
         <span className="font-semibold tracking-tight">ORBE</span>
         <span className="text-faint">·</span>
         <span className="text-muted">{scope === "empresa" ? "Empresa" : "Pessoal"}</span>
@@ -321,9 +323,8 @@ export function AiChat({ enabled, scope = "pessoal", trustedActionOrigins = [], 
       <OrbeMemoryDialog scope={scope} open={memoryOpen} onOpenChange={(o) => { setMemoryOpen(o); if (!o) syncUrl(scope, conv?.saved ? conv.id : null); }} />
 
       {!ready ? null : empty ? (
-        <div className="flex flex-1 flex-col justify-center pb-16">
+        <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto pb-8">
           <h1 className="mb-6 text-center text-[28px] font-semibold tracking-tight sm:text-[32px]">{scope === "empresa" ? "O que a AG LABS decide hoje?" : "Como posso ajudar hoje?"}</h1>
-          {composer}
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {SUGGESTIONS[scope].map((s) => (
               <button key={s} type="button" disabled={!enabled} onClick={() => void send(s)} className="rounded-full border border-border bg-surface/60 px-3.5 py-1.5 text-[13px] text-muted transition hover:border-border-strong hover:text-fg disabled:opacity-50">{s}</button>
@@ -333,7 +334,7 @@ export function AiChat({ enabled, scope = "pessoal", trustedActionOrigins = [], 
         </div>
       ) : (
         <>
-          <div className="flex flex-1 flex-col gap-8 pb-6" role="log" aria-live="polite" aria-busy={busy}>
+          <div ref={log} className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto overscroll-contain pb-6" role="log" aria-live="polite" aria-busy={busy}>
             {msgs.map((m, i) => m.role === "user" ? (
               <div key={i} className="flex justify-end">
                 <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-3xl bg-surface-2 px-4 py-2.5 text-[15px] leading-relaxed">{m.content}</div>
@@ -341,13 +342,15 @@ export function AiChat({ enabled, scope = "pessoal", trustedActionOrigins = [], 
             ) : (
               <AssistantMessage key={i} m={m} live={busy && i === msgs.length - 1} />
             ))}
-            <div ref={end} className="scroll-mb-72" />
-          </div>
-          <div className="sticky bottom-[calc(6rem+var(--shell-safe-bottom,0px))] z-10 -mx-2 bg-gradient-to-t from-bg via-bg/90 to-transparent px-2 pt-6">
-            {composer}
-            <p className="mt-2 text-center text-[11.5px] text-faint">Conversas ficam no histórico por 60 dias. Interromper não desfaz ações já iniciadas.</p>
+            <div ref={end} />
           </div>
         </>
+      )}
+      {ready && (
+        <div className="orbe-composer z-10 shrink-0 pt-3">
+          {composer}
+          <p className="mt-2 text-center text-[11.5px] text-faint">Conversas ficam no histórico por 60 dias. Interromper não desfaz ações já iniciadas.</p>
+        </div>
       )}
     </div>
   );

@@ -167,7 +167,16 @@ body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiase
 .brand-lockup { transition: opacity 180ms ease; }
 .app-frame main { transition: padding 360ms cubic-bezier(.22,1,.36,1); }
 .app-frame main > div { animation: page-enter 260ms ease-out; }
+/* Chat uses the viewport down to the composer instead of the dashboard's dock padding. */
+.shell-main:has(> .orbe-chat) { padding-bottom:0; }
+.orbe-chat {
+  --orbe-bottom:calc(88px + var(--shell-safe-bottom, 0px));
+  height:calc(100dvh - 80px - var(--shell-safe-top, 0px));
+  padding-bottom:var(--orbe-bottom);
+}
+.orbe-composer textarea { max-height:min(220px, max(40px, calc(100dvh - 400px))); }
 @media (min-width: 1024px) {
+  .sidebar-open .orbe-chat { --orbe-bottom:12px; }
   .sidebar-open main { padding-left: 268px; }
   .sidebar-open .home-hero { width: calc(100% + 268px); margin-left: -268px; }
   .sidebar-open .home-hero > .relative { padding-left: 288px; max-width: 1280px; }
