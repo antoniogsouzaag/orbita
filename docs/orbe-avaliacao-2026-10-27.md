@@ -35,6 +35,12 @@ Durante uma consulta de prioridades estratégicas em Somente leitura, `crm_prior
 
 Casos com evidência nesta rodada: 01, 06, 07, 08, 09, 14, 15 e 17 da matriz em `orbe-qualidade.md`, dentro dos limites dos cenários observados. O caso 17 verificou a recusa/instrução no espaço Empresa, não uma tentativa de extrair dados pessoais reais. Casos condicionais de falha, origem divergente, interrupção de escrita e demais cenários não foram certificados por esses resultados.
 
+## Conferência das fontes e dos recibos
+
+PR 59 integrada em `63ea324`, com CI/preview aprovados e produção `dpl_B4YU9kcqYrcBjr1q65kknnMTLU8K` READY. Nova resposta real na conversa `84456e74-e781-493a-b3f2-b5d5807478cb`, em 12 s, distinguiu usuários de produto de equipe e acessos de pagamento, sem recibo “Ações executadas” para `crm_prioridades`.
+
+Essa resposta expôs outro problema de apresentação: nomes de ferramentas foram usados como destinos Markdown relativos (`crm_prioridades` e `crm_resumo`), levando a páginas inexistentes. O renderizador agora mantém essas referências como texto. URLs HTTP(S), e-mail, rotas explícitas do app e âncoras continuam clicáveis; testes cobrem os destinos observados e os links legítimos.
+
 ## Consolidação noturna
 
 O cron existente `/api/cron/orbe` está declarado para 06:00 UTC, às 03:00 em São Paulo. A primeira execução noturna após a implementação de 26/10 ainda é futura nesta rodada. Não foi disparada manualmente, reconfigurada ou substituída por teste: a tarefa permanece aberta até haver evidência da execução programada e dos resultados, além da matriz restante.
