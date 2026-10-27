@@ -62,7 +62,7 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
       { label: "Compras registradas e acessos provisionados", source: "app", available: true },
       { label: "Valor registrado em checkout", source: "app", available: true },
     ],
-    next: "Publicar a coleta, ativar o token e comparar uma navegação controlada.",
+    next: "Acompanhar eventos de checkout, compras registradas e acessos provisionados; comparar campanhas sem tratar eventos anônimos como pessoas.",
   },
   {
     id: "mecard", name: "MeCard", domain: "mecard.com.br", logo: "/brands/mecard.png", tag: "mecard", model: "freemium_assinatura",
@@ -101,3 +101,6 @@ export const BUSINESS_UNITS: BusinessUnit[] = [
 ];
 
 export const businessUnit = (id: string) => BUSINESS_UNITS.find((unit) => unit.id === id);
+
+/** Domínios próprios de registro; subdomínios usam o vencimento do domínio pai. */
+export const BUSINESS_REGISTERED_DOMAINS = BUSINESS_UNITS.filter(unit => unit.domain.endsWith(".br") && unit.domain.split(".").length === 3);

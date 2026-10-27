@@ -33,6 +33,7 @@ export type CrmSummary = {
   base_prospeccao: number;
   novos_7d: number;
   novos_30d: number;
+  receita_total?: number;
   receita_mes: number;
   receita_mes_anterior: number;
   tarefas: { pendentes: number; vencidas: number; para_hoje: number; por_responsavel: Record<string, number> };

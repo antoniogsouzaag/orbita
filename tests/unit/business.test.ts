@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BARBERIAS, belongsToBarberias, groupSocialChannels, socialGroupId } from "@/lib/business";
+import { BARBERIAS, belongsToBarberias, groupSocialChannels, preferredSocialChannel, socialGroupId } from "@/lib/business";
 
 describe("entidades do ecossistema", () => {
   it("mantém contas antigas no grupo canônico Barberias, sem adivinhar pelo nome", () => {
@@ -20,4 +20,13 @@ describe("entidades do ecossistema", () => {
     expect(belongsToBarberias("https://barberias.com.br.evil.example")).toBe(false);
     expect(belongsToBarberias("https://outro.example/barberias.com.br")).toBe(false);
   });
+});
+
+// Explicit channel choices are resolved by the caller; default prioritizes connected Instagram.
+
+it("prefers connected Instagram and falls back to another connected network", () => {
+ const facebook = {identifier:"facebook", id:"fb"}, instagram = {identifier:"instagram-standalone", id:"ig"};
+ expect(preferredSocialChannel([facebook, instagram])).toBe(instagram);
+ expect(preferredSocialChannel([facebook, {...instagram, disabled:true}])).toBe(facebook);
+ expect(preferredSocialChannel([])).toBeUndefined();
 });

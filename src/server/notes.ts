@@ -2,6 +2,8 @@ import "server-only";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { notes, type TaskScope } from "@/db/schema";
+import { getProject } from "./projects";
+import { projectScope } from "@/lib/task-scope";
 import { ARCHIVED_NOTE_TAG, COMPANY_NOTE_TAG, noteTags } from "@/lib/note-scope";
 
 export function noteScopeCondition(scope: TaskScope) {
@@ -14,12 +16,12 @@ export function noteArchiveCondition(archived = false) {
   return archived ? condition : sql`not (${condition})`;
 }
 
-export async function listNotes(q?: string, scope: TaskScope = "pessoal", archived = false) {
+export async function listNotes(q?: string, scope: TaskScope = "pessoal", archived = false, projectId?: string) {
   const db = await getDb();
   return db
     .select()
     .from(notes)
-    .where(and(noteScopeCondition(scope), noteArchiveCondition(archived), q ? or(ilike(notes.title, `%${q}%`), ilike(notes.content, `%${q}%`)) : undefined))
+    .where(and(noteScopeCondition(scope), noteArchiveCondition(archived), projectId ? sql`${`p:${projectId}`} = any(${notes.tags})` : undefined, q ? or(ilike(notes.title, `%${q}%`), ilike(notes.content, `%${q}%`)) : undefined))
     .orderBy(desc(notes.pinned), desc(notes.updatedAt))
     .limit(300);
 }
@@ -30,9 +32,13 @@ export async function getNote(id: string, scope: TaskScope = "pessoal") {
   return n ?? null;
 }
 
-export async function insertNote(title: string, content: string, scope: TaskScope) {
+export async function insertNote(title: string, content: string, scope: TaskScope, projectId?: string) {
+  if (projectId) {
+    const project = await getProject(projectId);
+    if (!project || projectScope(project.area) !== scope) throw new Error("Projeto não encontrado neste espaço.");
+  }
   const db = await getDb();
-  const [row] = await db.insert(notes).values({ title, content, tags: noteTags([], scope) }).returning({ id: notes.id });
+  const [row] = await db.insert(notes).values({ title, content, tags: noteTags(projectId ? [`p:${projectId}`] : [], scope) }).returning({ id: notes.id });
   return row.id;
 }
 

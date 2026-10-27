@@ -2,7 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { socialGroupId } from "@/lib/business";
+import { preferredSocialChannel, socialGroupId } from "@/lib/business";
 
 const channelSchema = z.object({ id: z.string(), name: z.string(), identifier: z.string(), disabled: z.boolean().optional(), profile: z.string().nullable().optional(), customer: z.object({ id: z.string(), name: z.string() }).nullable().optional() });
 const channelsSchema = z.array(channelSchema);
@@ -40,7 +40,7 @@ export async function socialOverview(channelId?: string, days: 7 | 30 = 7, force
     const channels = await (force ? readChannels() : socialChannels());
     const entityId = entity ? socialGroupId(entity) : undefined;
     const candidates = entityId ? channels.filter((channel) => (channel.customer?.id ?? "ungrouped") === entityId) : channels;
-    const selected = channelId ? candidates.find((channel) => channel.id === channelId) : candidates.find((channel) => !channel.disabled) ?? candidates[0];
+    const selected = channelId ? candidates.find((channel) => channel.id === channelId) : preferredSocialChannel(candidates);
     if (entityId && !candidates.length) return { configured: true, checkedAt, error: "Nenhum canal retornado para esta entidade. Confira os grupos no Postiz ou escolha outra entidade.", channels: [], available: channels, total: channels.length, days, entityId };
     if (channelId && !selected) return { configured: true, checkedAt, error: "Este canal não está mais disponível nesta entidade. Selecione outro canal.", channels: [], available: channels, total: channels.length, days, entityId: entityId ?? candidates[0]?.customer?.id ?? "ungrouped" };
     const product = selected ? channels.filter(channel => (channel.customer?.id ?? "ungrouped") === (selected.customer?.id ?? "ungrouped")) : [];

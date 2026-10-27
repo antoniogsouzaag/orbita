@@ -37,3 +37,8 @@ export function groupSocialChannels<T extends GroupableChannel>(channels: T[]) {
 export function belongsToBarberias(url: string) {
   try { const host = new URL(url).hostname.toLowerCase(); return host === BARBERIAS.domain || host.endsWith(`.${BARBERIAS.domain}`); } catch { return false; }
 }
+
+/** Prioriza Instagram conectado; seleção explícita de outro canal continua válida. */
+export function preferredSocialChannel<T extends { disabled?: boolean; identifier: string }>(channels: T[]) {
+  return channels.find(channel => !channel.disabled && /^instagram(?:-|$)/i.test(channel.identifier)) ?? channels.find(channel => !channel.disabled) ?? channels[0];
+}

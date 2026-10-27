@@ -1,4 +1,4 @@
-import { FolderKanban, KanbanSquare } from "lucide-react";
+import { FolderKanban, KanbanSquare, NotebookPen } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { EditProjectButton } from "@/components/projects/projects-grid";
@@ -43,6 +43,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <Button size="sm" variant="ghost" asChild>
               <Link href={kanban ? `/projetos/${id}${scope === "empresa" ? "?escopo=empresa" : ""}` : `/projetos/${id}?modo=kanban${scope === "empresa" ? "&escopo=empresa" : ""}`}><KanbanSquare /> {kanban ? "Lista" : "Kanban"}</Link>
             </Button>
+            <Button size="sm" variant="ghost" asChild><Link href={`/notas?projeto=${id}${scope === "empresa" ? "&escopo=empresa" : ""}`}><NotebookPen /> Notas do projeto</Link></Button>
             <EditProjectButton project={project} />
             <NewTaskButton projectId={id} scope={scope} />
           </>

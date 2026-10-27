@@ -184,9 +184,9 @@ export async function deleteGoal(id: string) {
 
 /* ───────────── Notas ───────────── */
 
-export async function createNote(title?: string, content?: string, scope: "pessoal" | "empresa" = "pessoal") {
+export async function createNote(title?: string, content?: string, scope: "pessoal" | "empresa" = "pessoal", projectId?: string) {
   await requireAuth();
-  const id = await insertNote(z.string().trim().max(200).parse(title || "Sem título") || "Sem título", z.string().max(200000).parse(content ?? ""), z.enum(TASK_SCOPES).parse(scope));
+  const id = await insertNote(z.string().trim().max(200).parse(title || "Sem título") || "Sem título", z.string().max(200000).parse(content ?? ""), z.enum(TASK_SCOPES).parse(scope), projectId ? uuid.parse(projectId) : undefined);
   refresh();
   return id;
 }

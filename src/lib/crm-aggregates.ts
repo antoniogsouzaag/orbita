@@ -43,7 +43,7 @@ export const crmSummarySchema = z.preprocess(safeProductGroups, z.object({
   funil: counts(CRM_FUNNEL).optional(), contas_no_produto: crmAccountsSchema.optional(),
   oportunidades_abertas: count.optional(), clientes: count.optional(), clientes_inativos: count.optional(),
   contatos_a_qualificar: count.optional(), base_prospeccao: count.optional(), novos_7d: count.optional(), novos_30d: count.optional(),
-  receita_mes: amount.optional(), receita_mes_anterior: amount.optional(),
+  receita_total: amount.optional(), receita_mes: amount.optional(), receita_mes_anterior: amount.optional(),
   tarefas: z.object({ pendentes: count.optional(), vencidas: count.optional(), para_hoje: count.optional(), por_responsavel: counts(["maia", "leo", "antonio", "tecnico", "sem_responsavel"]).optional() }).optional(),
   por_produto: z.record(z.string().regex(/^[a-z0-9][a-z0-9_-]{1,59}$/), productTotals).optional(),
   agrupamentos_sem_slug: count.optional(),

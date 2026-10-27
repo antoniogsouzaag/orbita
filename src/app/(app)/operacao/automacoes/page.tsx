@@ -165,7 +165,7 @@ export default async function Page() {
       <PageHeader
         icon={<Workflow />}
         title="Automações"
-        description={<>Estado ao vivo dos workflows. A descrição de cada automação está em <Link className="text-accent hover:underline" href={notePath ? `/vault?p=${encodeURIComponent(notePath)}` : "/vault"}>Automações Ativas</Link> no vault.</>}
+        description={<>Inventário de todos os ambientes e estado recebido dos workflows. Fonte canônica: <Link className="text-accent hover:underline" href={notePath ? `/vault?p=${encodeURIComponent(notePath)}` : "/vault"}>Automações Ativas</Link> no vault.</>}
       />
       <VaultBanner />
 
@@ -177,6 +177,11 @@ export default async function Page() {
 
       <WidgetBoard storageKey={n8n.configured ? "automacoes" : "automacoes-min"} items={items} panels={panels} />
 
+      <section className="space-y-3">
+        <SectionLabel>Inventário do vault · {n8n.documented.length} rotinas</SectionLabel>
+        <p className="text-xs text-muted">Rotinas sem correspondência na consulta ao vivo, incluindo outros ambientes. As rotinas já encontradas no n8n aparecem nas tabelas abaixo. O cadastro não comprova execução.</p>
+        <div className="grid gap-3 md:grid-cols-2">{n8n.documented.filter(d => !d.id || !liveIds.has(d.id)).map((d, i) => <Card key={`${d.where}:${d.id ?? d.name}:${i}`} className="p-4"><h3 className="text-sm font-medium">{d.name}</h3><p className="mt-1 text-xs text-accent">{d.where}</p><p className="mt-2 text-xs text-muted">{d.description || "Descrição não informada no vault."}</p><p className="mt-2 text-xs text-faint">{d.schedule || "Agenda não informada"} · sem estado de execução recebido</p></Card>)}</div>
+      </section>
       {n8n.configured && n8n.instances.map((inst) => (
         <section key={inst.name} className="space-y-3">
           <SectionLabel>n8n · {inst.name}</SectionLabel>

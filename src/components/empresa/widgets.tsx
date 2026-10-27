@@ -1,3 +1,4 @@
+import { BUSINESS_REGISTERED_DOMAINS } from "@/lib/business-models";
 import { stageLabel } from "@/lib/github-triage";
 import { awaitsOwner, type ReplyTask } from "@/lib/proposals";
 import { agentSlug } from "@/lib/team";
@@ -130,6 +131,7 @@ function CrmBody({ crm }: { crm: Extract<EmpresaData["crm"], { ok: true }> }) {
         <div className="min-w-0">
           <div className="text-[11.5px] text-muted">Receita do mês</div>
           <div className="truncate text-[18px] font-semibold tabular-nums">{brl(s.receita_mes)}</div>
+          <div className="mt-1 text-[11.5px] text-faint">Acumulada: {s.receita_total == null ? "não informada" : brl(s.receita_total)}</div>
           {(s.receita_mes || s.receita_mes_anterior) > 0 && <div className={cn("text-[11.5px] tabular-nums", delta >= 0 ? "text-success" : "text-danger")}>{delta >= 0 ? "+" : "−"}{brl(Math.abs(delta))} vs. mês anterior</div>}
         </div>
         <div>
@@ -279,15 +281,17 @@ export function IncidentsWidget({ incidents }: { incidents: EmpresaData["inciden
 
 /* ───────── Domínios ───────── */
 export function DomainsWidget({ domains }: { domains: EmpresaData["domains"] }) {
+  const pending = BUSINESS_REGISTERED_DOMAINS.filter(unit => !domains.some(domain => domain.domain === unit.domain));
   return (
     <Card className="h-full">
       <CardHeader icon={<Globe />} title="Domínios" href="/operacao" hrefLabel="Operação" />
       <div className="px-5 pb-5 text-[13px]">
+        {pending.map(unit => <p key={unit.id} className="mb-2 text-xs text-warning">{unit.domain} · aguardando coleta de vencimento</p>)}
         {domains.length === 0 ? (
           <p className="text-muted">O monitor de domínios ainda não enviou dados.</p>
         ) : (
           <ul className="space-y-2">
-            {domains.slice(0, 6).map((d) => {
+            {domains.map((d) => {
               const days = d.days;
               return (
                 <li key={d.domain} className="flex items-center gap-2">
