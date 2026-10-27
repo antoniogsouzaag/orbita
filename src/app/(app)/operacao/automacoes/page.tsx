@@ -165,7 +165,7 @@ export default async function Page() {
       <PageHeader
         icon={<Workflow />}
         title="Automações"
-        description={<>Estado ao vivo dos workflows. A descrição de cada automação está em <Link className="text-accent hover:underline" href={notePath ? `/vault?p=${encodeURIComponent(notePath)}` : "/vault"}>Automações Ativas</Link> no vault.</>}
+        description={<>Inventário de todos os ambientes e estado recebido dos workflows. Fonte canônica: <Link className="text-accent hover:underline" href={notePath ? `/vault?p=${encodeURIComponent(notePath)}` : "/vault"}>Automações Ativas</Link> no vault.</>}
       />
       <VaultBanner />
 

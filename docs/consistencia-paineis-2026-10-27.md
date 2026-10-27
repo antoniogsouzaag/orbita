@@ -28,3 +28,9 @@ A revisão automática de permissões bloqueou publicar branches/PRs nos quatro 
 As lacunas de conversão por coorte, compradores únicos, custo de geração e conciliação de pagamento exigem instrumentação própria; não derivar essas medidas de snapshots ou esconder as lacunas para completar o painel. O próximo passo do VibeKit foi atualizado porque a coleta já respondeu. Dados ausentes continuam explícitos e não são zero. Atividade Barberias é observada nos gestores, não em toda a equipe.
 
 Implementação, gates, publicação, migration MeCard e validação autenticada da nova versão devem ter evidências separadas. Nenhum pagamento, mensagem a cliente ou execução de automação foi usado como teste.
+
+## Interface local isolada
+
+Login com credencial exclusiva de desenvolvimento, PGlite separado e integrações externas desabilitadas. Confirmados no navegador: Lista/Kanban com as mesmas tarefas em três estados; /kanban redirecionando com projeto e Empresa preservados; notas abertas pelo projeto, criadas e editadas com autosave, recuperadas após recarregar; inventário do vault exibido mesmo sem n8n. Avisos de hydration continham atributos bis_skin_checked injetados por extensão do navegador, não diferenças de dados da aplicação. Não desabilitada nenhuma proteção nem extensão.
+
+Commits locais dos conectores: CRM c1d262b; Barberias f8cbfac; MeCard fa82dd0. Os checkouts estão em .data/review/ e permanecem preservados para a publicação autorizada.
