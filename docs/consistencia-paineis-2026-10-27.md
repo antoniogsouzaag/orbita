@@ -14,6 +14,15 @@ Tarefas é a mesma base em Lista e Kanban, selecionadas ao lado de Nova tarefa. 
 
 Viajeki e MeCard foram movidos a P1 no vault; Loja Labs, hub de links, a P3. Commit canônico: 9113d4fc4feec249b5826c60c024512c35f39274.
 
+## Validação local
+
+Órbita sobre a base 8d02738: instalação limpa, lint, TypeScript, build e 428 testes em 81 arquivos aprovados. Runtime Node 24.22.1 do bundle, pois a base atual inclui jsdom 30.1.3, que exige versão mais nova que o Node 22.20 do shell.
+
+Barberias: npm run verify aprovado (inclui auditoria de segurança e build), 14 testes do endpoint. MeCard: npm run check (564 testes) e npm run test:sql completos aprovados, incluindo o relatório SQL novo. CRM: npm run check completo aprovado: lint, TypeScript, 145 testes de biblioteca, 44 de interface e build. Rede foi usada somente para as fontes oficiais do Next.js.
+
+A revisão automática de permissões bloqueou publicar branches/PRs nos quatro repositórios, inclusive depois de Antonio pedir para evitar confirmações repetidas. Não houve merge, deploy ou aplicação remota da migration MeCard. O conector Supabase desta sessão expõe somente outro projeto inativo, sem o projeto MeCard. A correção de preferência solicitada por Antonio foi registrada separadamente na memória, sem alterar gates ou billing.
+
+
 ## Limites reais
 
 As lacunas de conversão por coorte, compradores únicos, custo de geração e conciliação de pagamento exigem instrumentação própria; não derivar essas medidas de snapshots ou esconder as lacunas para completar o painel. O próximo passo do VibeKit foi atualizado porque a coleta já respondeu. Dados ausentes continuam explícitos e não são zero. Atividade Barberias é observada nos gestores, não em toda a equipe.
