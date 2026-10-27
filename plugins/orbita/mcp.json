@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "orbita": {
+      "type": "streamable-http",
+      "url": "https://orb.aglabs.api.br/api/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": { "mode": "dcr" },
+            "resource": "https://orb.aglabs.api.br/api/mcp",
+            "baseScopes": ["contexto", "status", "tarefas", "eventos", "admin"]
+          }
+        }
+      }
+    }
+  }
+}

@@ -328,6 +328,41 @@ export const agentActivity = pgTable(
 export type AgentToken = typeof agentTokens.$inferSelect;
 export type AgentActivity = typeof agentActivity.$inferSelect;
 
+/* OAuth MCP: credenciais opacas, persistidas somente como hash. */
+export const mcpOAuthClients = pgTable("mcp_oauth_clients", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  redirectUris: text("redirect_uris").array().notNull(),
+  createdAt: createdAt(),
+});
+export const mcpOAuthCodes = pgTable("mcp_oauth_codes", {
+  hash: text("hash").primaryKey(),
+  clientId: text("client_id").notNull().references(() => mcpOAuthClients.id),
+  agentId: uuid("agent_id").notNull().references(() => agentTokens.id, { onDelete: "cascade" }),
+  redirectUri: text("redirect_uri").notNull(),
+  resource: text("resource").notNull(),
+  challenge: text("challenge").notNull(),
+  scopes: text("scopes").array().$type<AgentScope[]>().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+export const mcpOAuthGrants = pgTable("mcp_oauth_grants", {
+  id: id(),
+  clientId: text("client_id").notNull().references(() => mcpOAuthClients.id),
+  agentId: uuid("agent_id").notNull().references(() => agentTokens.id, { onDelete: "cascade" }),
+  resource: text("resource").notNull(),
+  scopes: text("scopes").array().$type<AgentScope[]>().notNull(),
+  accessHash: text("access_hash").notNull().unique(),
+  accessExpiresAt: timestamp("access_expires_at", { withTimezone: true }).notNull(),
+  revoked: boolean("revoked").notNull().default(false),
+  createdAt: createdAt(),
+});
+export const mcpOAuthRefreshTokens = pgTable("mcp_oauth_refresh_tokens", {
+  hash: text("hash").primaryKey(),
+  grantId: uuid("grant_id").notNull().references(() => mcpOAuthGrants.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  used: boolean("used").notNull().default(false),
+});
+
 /* ───────────── Pedidos aos diretores (Órbita → runtimes) ───────────── */
 
 /** Runtimes que recebem pedidos da Órbita. O id do pedido é o mesmo request_id/Idempotency-Key enviado. */
