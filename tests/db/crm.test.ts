@@ -30,6 +30,7 @@ beforeAll(async () => {
       const ok = (data: unknown) => ({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data, isError: false } });
       let out: unknown;
       if (name === "crm_resumo") out = ok(args.produto ? { ...RESUMO, produto: args.produto, contas_no_produto: { trial: 5, trial_encerrado: 1, ativo: 2, cancelado: 0 } } : RESUMO);
+      else if (name === "crm_prioridades") out = ok({ produto: args.produto ?? null, consultado_em: "2026-10-27T03:00:00Z", tarefas_vencidas: 2, testes_encerrados: 0, sem_proximo_passo: 3 });
       else if (name === "crm_funil_emails") out = ok({ produto: args.produto ?? null, categoria: args.categoria ?? null, dias: args.dias, desde: "2026-09-24T03:00:00.000Z", total: { enviados: 4, entregues: 2, taxa_abertura: 50, respostas: 0 } });
       else if (name === "crm_tarefas" && args.responsavel === "antonio") out = ok({ total: 2, tarefas: [task("a1", "antonio", "2026-10-22", true), task("a2", "antonio", "2026-10-30")] });
       else if (name === "crm_tarefas") out = ok({ total: 3, tarefas: [task("a1", "antonio", "2026-10-22", true), task("l1", "leo", "2026-10-21", true), task("m1", "maia", "2026-10-23")] });
@@ -57,6 +58,13 @@ beforeEach(async () => {
 });
 
 describe("CRM pela Órbita", () => {
+  it.each([true, false])("consulta de prioridades não emite recibo de ação (somente leitura: %s)", async readOnly => {
+    const result = await runAssistantTool("crm_prioridades", { produto: "barberias" }, { scope: "empresa", readOnly });
+    expect(result.ok).toBe(true);
+    expect(JSON.parse(result.text)).toMatchObject({ status: "ok", data: { tarefas_vencidas: 2 } });
+    expect(result.action).toBeUndefined();
+    expect(calls.map(call => call.name)).toEqual(["crm_prioridades"]);
+  });
   it("resume o CRM e separa as tarefas de Antonio das do time", async () => {
     const { crmOverview } = await import("@/server/crm");
     const o = await crmOverview();
