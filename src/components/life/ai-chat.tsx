@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { ThinkingState, type TraceNode } from "@/components/ui/ai-agent-response";
 import { type AiAction, type AiSource, type AiStep, type ChatPart } from "@/lib/ai-stream";
 import { readChatStream } from "@/lib/ai-chat-stream";
+import { chatReferenceHref } from "@/lib/chat-reference";
 import { boundedChatHistory, CHAT_LIMITS } from "@/lib/orbe-chat";
 import { cn } from "@/lib/utils";
 import { OrbeMemoryDialog } from "./orbe-memory-dialog";
@@ -66,7 +67,7 @@ function AssistantMessage({ m, live }: { m: Msg; live: boolean }) {
   return (
     <div className="group/msg flex flex-col gap-3">
       {segs.map((s, i) => {
-        if (s.type === "text") return <div key={i} className="prose-orbita text-[15px]"><ReactMarkdown remarkPlugins={[remarkGfm]}>{s.text}</ReactMarkdown></div>;
+        if (s.type === "text") return <div key={i} className="prose-orbita text-[15px]"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ({ href, children }) => { const target = chatReferenceHref(href); return target ? <a href={target}>{children}</a> : <span>{children}</span>; } }}>{s.text}</ReactMarkdown></div>;
         const working = waiting && i === segs.length - 1;
         const nodes: TraceNode[] = s.steps.map(stepNode);
         return <ThinkingState key={i} nodes={nodes} working={working} workingLabel={working ? workingLabel(lastStep) : undefined} startedAt={m.startedAt} durationMs={stepGroups === 1 ? m.durationMs : undefined} />;
