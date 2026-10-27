@@ -12,6 +12,11 @@ const tom = (status: DispatchView["status"], silent = false): DispatchView => ({
 });
 
 describe("acompanhamento da diretoria", () => {
+  it("mostra pedido e retorno da análise sem reclassificar registros legados",()=>{
+    const analysis: HermesOperation={...oracle("completed"),action:"agent.analyze",text:"Analisar operação",responseText:"Resultado real",agentExecution:true};
+    expect(directorRequests([], [analysis])[0]).toMatchObject({id:analysis.id,title:"Analisar operação",detail:"Resultado real",group:"completed"});
+    expect(directorRequests([], [oracle("scheduled")])[0]).toMatchObject({title:"Pedido na caixa interna",detail:"Estado do receptor",status:"Agendado no receptor"});
+  });
   it("não trata admissão como conclusão nem mistura identificadores entre receptores", () => {
     const rows = directorRequests([tom("accepted")], [oracle("completed")]);
     expect(rows.map(row => row.agent)).toEqual(["Hermes Oracle", "Tom"]);
