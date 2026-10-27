@@ -235,6 +235,23 @@ export function buildMcpServer(agent: AgentIdentity) {
         }),
     );
     server.registerTool(
+      "consultar_minha_tarefa",
+      {
+        title: "Consultar minha tarefa por UUID",
+        description: "Readback estruturado exato de tarefa Empresa atribuída ao agente autenticado. Sem limite de listagem, notas ou bypass de administrador.",
+        inputSchema: z.object({ id: z.uuid() }).strict(),
+        outputSchema: z.object({ id: z.uuid(), status: z.string(), assignee: z.string(), scope: z.literal("empresa") }).strict(),
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      },
+      async ({ id }) => run("consultar_minha_tarefa", `consultou tarefa ${id}`, async () => {
+        const db = await getDb();
+        const [task] = await db.select({ id: tasks.id, status: tasks.status, assignee: tasks.assignee, scope: tasks.scope })
+          .from(tasks).where(and(eq(tasks.id, id), eq(tasks.scope, "empresa"), eq(tasks.assignee, agent.name)));
+        if (!task) return text("Tarefa atribuída não encontrada.", true);
+        return { ...text(JSON.stringify(task)), structuredContent: task };
+      }),
+    );
+    server.registerTool(
       "minhas_tarefas",
       { title: "Minhas tarefas e respostas", description: "Lista pedidos deste agente e tarefas atribuídas a ele, incluindo as respostas de Antonio nas notas. Retornos continuam pendentes até o agente executar e registrar o resultado.", inputSchema: {} },
       async () =>

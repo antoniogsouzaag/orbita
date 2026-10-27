@@ -1,14 +1,13 @@
 import "server-only";
 import { createHmac } from "node:crypto";
 import { z } from "zod";
-import { parse as parseDomain } from "tldts";
 import { validateMaintenanceTask } from "./hermes-maintenance-tasks";
 import { saveHermesOperation, storedHermesOperation, storedHermesHistory } from "./hermes-store";
 
 const idSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 export const maintenanceParams = z.discriminatedUnion("operation", [
  z.object({task_id:idSchema, operation:z.literal("maia.recover")}).strict(),
- z.object({task_id:idSchema, operation:z.literal("monitor.domain.ensure"), domain:z.string().max(253).regex(/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/).refine(domain => { const parsed = parseDomain(domain); return parsed.isIcann === true && parsed.domain === domain; }, "Use um domínio registrável completo em minúsculas, sem subdomínio.")}).strict(),
+ z.object({task_id:idSchema, operation:z.literal("monitor.domain.ensure"), domain:z.string().regex(/^(?!xn--)(?!(?:com|api|ia|app)\.br$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(?:(?:com|api|ia|app)\.)?br$/, "Use nome.br ou nome.(com|api|ia|app).br em ASCII minúsculo, sem punycode ou subdomínio.")}).strict(),
 ]);
 export const hermesCommand = z.discriminatedUnion("action", [
   z.object({action:z.literal("maintenance.execute"),params:maintenanceParams}).strict(),

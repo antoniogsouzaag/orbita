@@ -17,7 +17,8 @@ it("despacha manutenção exata, persistida antes do envio e correlaciona conclu
 });
 it("recusa campos extras, domínio não DNS/minúsculo e UUID não v4",()=>{
  const command=(params:unknown)=>hermesCommand.safeParse({action:"maintenance.execute",params}).success;
- expect(command({task_id,operation:"monitor.domain.ensure",domain:"example.com.br"})).toBe(true);
+ for (const domain of ["example.br", "example.com.br", "example.api.br", "example.ia.br", "example.app.br", "a.br", `${"a".repeat(63)}.br`]) expect(command({task_id,operation:"monitor.domain.ensure",domain}), domain).toBe(true);
+ for (const domain of ["example.com", "example.org", "example.net", "example.org.br", "example.net.br", "example.dev.br", "www.example.br", "www.example.com.br", "xn--exemplo.br", "xn--exemplo.com.br", "exémplo.br", "EXAMPLE.br", "example.br.", `${"a".repeat(64)}.br`]) expect(command({task_id,operation:"monitor.domain.ensure",domain}), domain).toBe(false);
  for(const domain of ["EXAMPLE.com","https://example.com","localhost","127.0.0.1","a..com","-a.com","a.com/","a.com;id","co.uk","com.br","www.example.com","example.invalid"])expect(command({task_id,operation:"monitor.domain.ensure",domain})).toBe(false);
  for(const params of [{task_id,operation:"maia.recover",domain:"a.com"},{task_id,operation:"shell",command:"ls"},{task_id:"12345678-1234-1234-8234-123456789abc",operation:"maia.recover"}])expect(command(params)).toBe(false);
 });
