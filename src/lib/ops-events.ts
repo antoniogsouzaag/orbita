@@ -8,6 +8,14 @@ export function opsEventLabel(kind: string) {
   return kind === "site_down" ? "Queda de site" : kind === "workflow_error" ? "Falha de automação" : "Alerta operacional";
 }
 
+/** Cada tipo de evento pertence a uma única série histórica; tipos novos não somem do gráfico. */
+export function opsHistoryGroup(kind: string): "quedas" | "falhas de workflow" | "retornos" | "agentes" | "outros" {
+  if (kind === "site_down") return "quedas";
+  if (kind === "workflow_error") return "falhas de workflow";
+  if (kind === "site_up") return "retornos";
+  return kind.startsWith("agente_") ? "agentes" : "outros";
+}
+
 /** Sem resultado da consulta não há contagem, inclusive quando o histórico estaria vazio. */
 export function countOpsHistory<T extends { count: number }>(rows: T[] | null, match: (row: T) => boolean = () => true): number | null {
   return rows === null ? null : rows.filter(match).reduce((total, row) => total + row.count, 0);

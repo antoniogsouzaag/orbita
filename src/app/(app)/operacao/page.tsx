@@ -10,7 +10,7 @@ import { WidgetBoard } from "@/components/ui/widget-board";
 import { cn } from "@/lib/utils";
 import { BUSINESS_REGISTERED_DOMAINS } from "@/lib/business-models";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
-import { classifyOpsEvents, countOpsHistory } from "@/lib/ops-events";
+import { classifyOpsEvents, countOpsHistory, opsHistoryGroup } from "@/lib/ops-events";
 import { monitorTargets } from "@/server/ops";
 import { coherence, liveOps, opsEventsByDay } from "@/server/ops-live";
 import { VaultBanner } from "@/components/vault/vault-banner";
@@ -40,10 +40,11 @@ const EVENT_STYLE: Record<string, { icon: typeof XCircle; tone: string; label: s
 
 /** Categoria do evento para o gráfico empilhado. */
 const EVENT_GROUP: { name: string; tone: Tone; match: (kind: string) => boolean }[] = [
-  { name: "quedas", tone: "err", match: (k) => k === "site_down" || k === "agente_incidente" },
-  { name: "falhas de workflow", tone: "warn", match: (k) => k === "workflow_error" || k === "agente_alerta" },
-  { name: "retornos", tone: "ok", match: (k) => k === "site_up" },
-  { name: "agentes", tone: "idle", match: (k) => k === "agente_info" || k === "agente_resumo" },
+  { name: "quedas", tone: "err", match: (k) => opsHistoryGroup(k) === "quedas" },
+  { name: "falhas de workflow", tone: "warn", match: (k) => opsHistoryGroup(k) === "falhas de workflow" },
+  { name: "retornos", tone: "ok", match: (k) => opsHistoryGroup(k) === "retornos" },
+  { name: "agentes", tone: "accent", match: (k) => opsHistoryGroup(k) === "agentes" },
+  { name: "outros", tone: "idle", match: (k) => opsHistoryGroup(k) === "outros" },
 ];
 
 export default async function Page() {
@@ -182,7 +183,7 @@ export default async function Page() {
         {byDay ? <ColumnBars height={72} axis={axis} label={`Eventos por dia nos últimos 14 dias, por tipo: ${EVENT_GROUP.map((g) => `${stacked.reduce((n, c) => n + (c.segments.find((s) => s.name === g.name)?.value ?? 0), 0)} ${g.name}`).join(", ")}.`} columns={stacked} /> : <p className="text-xs text-muted">Histórico indisponível nesta consulta.</p>}
         <Legend className="mt-2.5" items={EVENT_GROUP.map((g) => ({ name: g.name, tone: g.tone }))} />
         <ul id="incidentes" className="-mx-2 mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto border-t border-border pt-2">
-          {live.events.length === 0 && <li className="px-2 text-[13px] text-muted">Nenhum evento registrado.</li>}
+          {live.events.length === 0 && <li className="px-2 text-[13px] text-muted">Nenhum evento nesta amostra.</li>}
           {live.events.map((e) => {
             const st = EVENT_STYLE[e.kind] ?? { icon: Activity, tone: "text-muted", label: e.kind };
             const d = e.detail as { url?: string; message?: string; node?: string; executionUrl?: string; error?: string; status?: number };
