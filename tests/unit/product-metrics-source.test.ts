@@ -75,3 +75,21 @@ it("CRM centraliza coleta sem fallback direto quando não configurada", async ()
   expect(await productMetrics("barberias")).toMatchObject({ status: "not_configured", data: null });
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+it("preserva desatualização informada pelo CRM sem inventar idade superior a 24 horas", async () => {
+  vi.stubEnv("CRM_MCP_URL", "https://crm.example/api/mcp"); vi.stubEnv("CRM_MCP_TOKEN", "fixture");
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ result: { structuredContent: { status: "stale", data: raw() } } })));
+  const result = await productMetrics("barberias");
+  expect(result).toMatchObject({ status: "stale", data: { product: "barberias" } });
+  expect(result.message).toContain("CRM informou");
+  expect(result.message).not.toContain("24 horas");
+});
+
+it("identifica snapshot de mais de 24 horas mesmo quando o CRM informa ok", async () => {
+  vi.stubEnv("CRM_MCP_URL", "https://crm.example/api/mcp"); vi.stubEnv("CRM_MCP_TOKEN", "fixture");
+  const snapshot = { ...raw(), generatedAt: new Date(Date.now() - 25 * 3_600_000).toISOString() };
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ result: { structuredContent: { status: "ok", data: snapshot } } })));
+  const result = await productMetrics("barberias");
+  expect(result).toMatchObject({ status: "stale", data: { product: "barberias" } });
+  expect(result.message).toContain("mais de 24 horas");
+});
