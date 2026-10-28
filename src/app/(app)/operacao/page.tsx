@@ -10,6 +10,7 @@ import { WidgetBoard } from "@/components/ui/widget-board";
 import { cn } from "@/lib/utils";
 import { BUSINESS_REGISTERED_DOMAINS } from "@/lib/business-models";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
+import { classifyOpsEvents } from "@/lib/ops-events";
 import { monitorTargets } from "@/server/ops";
 import { coherence, liveOps, opsEventsByDay } from "@/server/ops-live";
 import { VaultBanner } from "@/components/vault/vault-banner";
@@ -55,9 +56,7 @@ export default async function Page() {
     return { url: s.url, name: s.name, group: v?.group ?? s.group ?? "Fora da nota do vault", ok: s.ok, stale: staleUrls.has(s.url), unstable: s.ok && s.fails > 0, status: s.statusCode, error: s.error, ms: s.latencyMs, checkedAt: s.checkedAt.toISOString(), since: s.changedAt.toISOString(), source: live.monitors.find((m) => m.source === s.source)?.label ?? s.source };
   });
   const groupOrder = [...new Set((targets ?? []).map((t) => t.group))];
-  const openIncidents = live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt);
-  const pendingWorkflows = live.events.filter(e => e.kind === "workflow_error" && !e.resolvedAt);
-  const wf24 = live.events.filter((e) => e.kind === "workflow_error" && live.generatedAt - e.createdAt.getTime() < 86_400_000);
+  const { siteIncidents: openIncidents, pendingWorkflows, recentWorkflows: wf24 } = classifyOpsEvents(live.events, live.generatedAt);
   const pendingDomains = BUSINESS_REGISTERED_DOMAINS.filter(unit => !live.domains.some(domain => domain.domain === unit.domain) && targets?.some(target => { try { return new URL(target.url).hostname === unit.domain; } catch { return false; } }));
   const soonDomains = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - live.generatedAt < 45 * 86_400_000);
   const silent = live.monitors.filter((m) => m.silent);
@@ -141,13 +140,13 @@ export default async function Page() {
       </WidgetShell>
     ),
     incidents: (
-      <WidgetShell title="Incidentes abertos" meta="14 dias">
+      <WidgetShell title="Quedas de sites abertas" meta="amostra">
         <Big tone={openIncidents.length ? "err" : undefined} unit={openIncidents.length === 1 ? "aberto" : "abertos"}>{openIncidents.length}</Big>
         <ColumnBars className="mt-auto" axis={axis} label={`Quedas registradas por dia nos últimos 14 dias: ${downDays.reduce((a, b) => a + b, 0)} no total.`} columns={days.map((d, i) => ({ label: d.label, segments: [{ name: "quedas", tone: "err", value: downDays[i] }] }))} />
       </WidgetShell>
     ),
     workflows: (
-      <WidgetShell title="Falhas de workflow" meta="24h" href="/operacao/automacoes" hrefLabel="n8n">
+      <WidgetShell title="Falhas de workflow" meta="24h · amostra" href="/operacao/automacoes" hrefLabel="n8n">
         <Big tone={wf24.length ? "warn" : undefined} unit={`${wfDays.reduce((a, b) => a + b, 0)} em 14d`}>{wf24.length}</Big>
         <ColumnBars className="mt-auto" axis={axis} label={`Falhas de workflow por dia nos últimos 14 dias: ${wfDays.reduce((a, b) => a + b, 0)} no total.`} columns={days.map((d, i) => ({ label: d.label, segments: [{ name: "falhas", tone: "warn", value: wfDays[i] }] }))} />
       </WidgetShell>
@@ -249,7 +248,7 @@ export default async function Page() {
         items={[
           { id: "uptime", size: "wide", label: "Disponibilidade" },
           { id: "attention", size: "wide", label: "O que pede atenção" },
-          { id: "incidents", size: "sm", label: "Incidentes abertos" },
+          { id: "incidents", size: "sm", label: "Quedas de sites abertas" },
           { id: "workflows", size: "sm", label: "Falhas de workflow" },
           { id: "events", size: "lg", label: "Incidentes e eventos" },
           { id: "monitors", size: "sm", label: "Monitores" },

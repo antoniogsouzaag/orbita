@@ -4,6 +4,7 @@ import { getVaultIndexSafe, vaultHealth } from "@/server/vault";
 import { agents, appRegistry, documentedAutomations, monitorTargets, n8nOverview, vpsList } from "./ops";
 import { liveOps } from "./ops-live";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
+import { classifyOpsEvents, opsEventSummary } from "@/lib/ops-events";
 
 /** Pacote de contexto operacional para agentes (sem dados pessoais nem segredos). */
 export async function buildContext(opts: { live?: boolean } = {}) {
@@ -34,7 +35,8 @@ export async function buildContext(opts: { live?: boolean } = {}) {
     automations: autos,
     monitoring: targets,
     status,
-    incidents: live ? live.events.filter((e) => e.severity !== "info" && !e.resolvedAt).map((e) => ({ subject: e.subject, since: e.createdAt.toISOString() })) : null,
+    incidents: live ? classifyOpsEvents(live.events, live.generatedAt).siteIncidents.map((e) => ({ subject: e.subject, since: e.createdAt.toISOString() })) : null,
+    eventSummary: live ? opsEventSummary(live.events, live.generatedAt) : null,
     monitors: live ? live.monitors.map((m) => ({ label: m.label, lastSeen: m.lastSeen.toISOString(), silent: m.silent })) : null,
     n8n,
   };
@@ -61,9 +63,9 @@ export function contextToMarkdown(c: Awaited<ReturnType<typeof buildContext>>): 
       lines.push(`- ${m.priority} · ${m.name}: ${m.url}${s ? ` → ${s.stale ? "⚠️ sem verificação recente" : s.ok ? "✅" : "❌"} ${s.status ?? s.error ?? ""} (última verificação ${s.checkedAt})` : ""}`);
     }
   }
-  if (c.incidents?.length) {
-    lines.push(``, `## Incidentes abertos`, ``);
-    for (const i of c.incidents) lines.push(`- ❌ ${i.subject} desde ${i.since}`);
+  if (c.eventSummary) {
+    lines.push(``, `## Eventos operacionais`, ``, ...c.eventSummary);
+    for (const i of (c.incidents ?? []).slice(0, 10)) lines.push(`- ❌ ${i.subject.replace(/\s+/g, " ").slice(0, 160)} desde ${i.since}`);
   }
   if (c.monitors?.length) {
     lines.push(``, `## Monitores`, ``);

@@ -5,6 +5,7 @@ import { agentActivity, agentTokens, opsEvents, opsStatus, tasks } from "@/db/sc
 import { eq } from "drizzle-orm";
 import { ingest, IngestSchema } from "@/server/ops-live";
 import { agentActivitySummary, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken, updateAgentScopes } from "@/server/agents";
+import { buildContext, contextToMarkdown } from "@/server/context";
 
 let n = 0;
 async function rpc(token: string | null, method: string, params: object = {}) {
@@ -68,6 +69,32 @@ describe("central dos agentes (MCP)", () => {
     expect(output).toContain("Monitor antigo");
     expect(output).not.toContain("1/1 no ar com verificação recente");
     await db.delete(opsStatus).where(eq(opsStatus.url, url));
+  });
+
+  it("informa as mesmas categorias e recorte nas ferramentas e no contexto", async () => {
+    const db = await getDb();
+    await db.delete(opsEvents);
+    const now = new Date();
+    await db.insert(opsEvents).values([
+      { kind: "site_down", severity: "critical", source: "fixture", subject: "Queda aberta" },
+      { kind: "site_down", severity: "critical", source: "fixture", subject: "Queda resolvida", resolvedAt: now },
+      { kind: "workflow_error", severity: "warning", source: "fixture", subject: "Falha aberta" },
+      { kind: "workflow_error", severity: "warning", source: "fixture", subject: "Falha resolvida", resolvedAt: now },
+      { kind: "agente_alerta", severity: "warning", source: "fixture", subject: "Relato de agente" },
+      { kind: "agente_resumo", severity: "info", source: "fixture", subject: "Resumo" },
+    ]);
+    const token = await createAgentToken("Status categorias", ["admin"]);
+    const regular = await rpc(token, "tools/call", { name: "status_ao_vivo", arguments: {} });
+    const admin = await rpc(token, "tools/call", { name: "orbita_status_operacao", arguments: {} });
+    const context = contextToMarkdown(await buildContext({ live: true }));
+    for (const output of [JSON.stringify(regular.body), JSON.stringify(admin.body), context]) {
+      expect(output).toContain("Quedas de sites não resolvidas na amostra: 1");
+      expect(output).toContain("2 nas últimas 24h; 1 sem resolução registrada");
+      expect(output).toContain("Outros alertas ou relatos de agentes não resolvidos na amostra: 1");
+      expect(output).toContain("não representa o histórico completo");
+      expect(output).toContain("Relato de agente");
+    }
+    await db.delete(opsEvents).where(eq(opsEvents.source, "fixture"));
   });
 
   it("entrega o mesmo manual por ferramenta, resource e prompt sem ampliar permissões", async () => {

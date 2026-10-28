@@ -31,4 +31,12 @@ describe("fontes de notificação por espaço", () => {
     expect(sources.agents).toHaveBeenCalledOnce();
     expect(sources.operation).toHaveBeenCalledOnce();
   });
+  it("distingue quedas, falhas e alertas de agentes nas notificações", async () => {
+    sources.operation.mockResolvedValue({ events: [
+      { id: "1", kind: "site_down", subject: "Site", severity: "critical", resolvedAt: null },
+      { id: "2", kind: "workflow_error", subject: "Fluxo", severity: "warning", resolvedAt: null },
+      { id: "3", kind: "agente_alerta", subject: "Agente", severity: "warning", resolvedAt: null },
+    ], monitors: [] });
+    expect((await loadNotifications("empresa")).map((notice) => notice.detail)).toEqual(["Queda de site", "Falha de automação", "Alerta operacional"]);
+  });
 });

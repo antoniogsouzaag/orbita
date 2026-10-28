@@ -13,6 +13,7 @@ import { eventsBetween } from "./calendar";
 import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./crm";
 import { liveOps } from "./ops-live";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
+import { opsEventSummary } from "@/lib/ops-events";
 import { crmCommercialSummary, crmEmailFunnel, crmCommercialNotes, crmPrioritySummary } from "./crm-commercial";
 import { crmSummaryInput, crmEmailInput, crmProductSchema, crmProductKey } from "@/lib/crm-aggregates";
 import { businessUnit, MODEL_INFO } from "@/lib/business-models";
@@ -270,14 +271,10 @@ export const statusOperacao = {
     const live = await liveOps();
     const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
     const down = snapshot.down;
-    const open = live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt);
-    const pendingWorkflows = live.events.filter(e => e.kind === "workflow_error" && !e.resolvedAt);
-    const wf = live.events.filter((e) => e.kind === "workflow_error" && Date.now() - e.createdAt.getTime() < 86_400_000);
     const lines = [
       `Endereços: ${snapshot.current.length ? `${snapshot.up.length}/${snapshot.current.length} no ar com verificação recente` : "nenhuma verificação recente"}; ${snapshot.stale.length} sem verificação recente.`,
       ...down.map((d) => `- Fora do ar: ${d.name} (${d.url}) — ${d.statusCode ?? d.error ?? "sem resposta"}`),
-      `Incidentes abertos: ${open.length}. Falhas de workflow nas últimas 24h: ${wf.length}${wf.length ? ` (${wf.map((e) => e.subject).join(", ")})` : ""}.`,
-      `Falhas de workflow sem resolução registrada (inclui antigas): ${pendingWorkflows.length}${pendingWorkflows.length ? ` — ${pendingWorkflows.slice(0, 10).map(e => e.subject).join("; ")}` : ""}.`,
+      ...opsEventSummary(live.events, live.generatedAt),
       `Monitores: ${live.monitors.map((m) => `${m.label}${m.silent ? " ⚠️ em silêncio" : ""}`).join("; ") || "nenhum enviando ainda"}.`,
     ];
     const soon = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - Date.now() < 45 * 86_400_000);

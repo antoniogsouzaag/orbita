@@ -7,6 +7,7 @@ import { agentTasks } from "./agents";
 import { eventsBetween } from "./calendar";
 import { liveOps } from "./ops-live";
 import { listTasks } from "./tasks";
+import { opsEventLabel } from "@/lib/ops-events";
 
 /** Local persisted sources only: notification refresh never waits for a provider. */
 export async function loadNotifications(scope: TaskScope = "pessoal"): Promise<ShellNotification[]> {
@@ -21,7 +22,7 @@ export async function loadNotifications(scope: TaskScope = "pessoal"): Promise<S
   const agentIds = new Set(asks.filter((a) => a.status !== "done").map((a) => a.id));
   return [
     ...ops.events.filter((e) => !e.resolvedAt && e.severity !== "info").slice(0, 15)
-      .map((e) => ({ id: `o-${e.id}`, title: e.subject, detail: e.kind === "workflow_error" ? "Falha de automação" : "Incidente operacional", href: "/operacao", tone: e.severity === "critical" ? "danger" as const : "warning" as const })),
+      .map((e) => ({ id: `o-${e.id}`, title: e.subject, detail: opsEventLabel(e.kind), href: "/operacao", tone: e.severity === "critical" ? "danger" as const : "warning" as const })),
     ...ops.monitors.filter((m) => m.silent).map((m) => ({ id: `m-${m.source}-${m.lastSeen.getTime()}`, title: m.label, detail: `Monitor sem sinal há ${m.minutesAgo} min`, href: "/operacao", tone: "warning" as const })),
     ...asks.filter((a) => a.status !== "done" && !a.tags.includes(ANSWERED_TAG)).slice(0, 20).map((a) => ({ id: `a-${a.id}`, title: a.title, detail: "Pedido de agente aguardando você", href: `/propostas?task=${a.id}`, tone: "info" as const })),
     ...upcoming.filter((e) => !e.allDay).map((e) => ({ id: `e-${e.id}-${e.startAt.getTime()}`, title: e.title, detail: e.startAt <= now ? "Em andamento" : `Começa às ${localTime(e.startAt)}`, href: "/agenda", tone: "info" as const })),
