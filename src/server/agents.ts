@@ -172,8 +172,8 @@ export function buildMcpServer(agent: AgentIdentity) {
   if (can("status")) {
     server.registerTool(
       "pendencias_github",
-      { title: "PRs e propostas pendentes", description: "Lê PRs e a fila GitHub separando execução, decisão de Antonio e itens a classificar. Não aprova, executa, mescla nem altera nada.", inputSchema: {} },
-      async () => run("pendencias_github", "consultou PRs e propostas", async () => {
+      { title: "PRs e issues pendentes", description: "Lê PRs e issues abertas da organização, separando execução, decisão de Antonio e itens a classificar. Exclui issues recusadas. Não aprova, executa, mescla nem altera nada.", inputSchema: {} },
+      async () => run("pendencias_github", "consultou PRs e issues", async () => {
         const inbox = await githubInbox();
         if (!inbox.configured) return text("GitHub não configurado na Órbita.", true);
         if (inbox.error) return text(inbox.error, true);

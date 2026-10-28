@@ -19,14 +19,14 @@ export function GithubInbox({ initial: data }: { initial: Inbox }) {
 
   return (
     <div className="space-y-5">
-      <p className="text-[12px] text-muted">Correções autorizadas seguem na fila técnica. Só escolhas concretas de negócio, política ou acesso aguardam Antonio. Rótulos não aprovam código nem dispensam testes, revisão ou deploy.</p>
+      <p className="text-[12px] text-muted">Issues abertas sem classificação aparecem em A classificar. Correções autorizadas seguem na fila técnica. Só escolhas concretas de negócio, política ou acesso aguardam Antonio. Rótulos não aprovam código nem dispensam testes, revisão ou deploy.</p>
       <div className="flex flex-wrap gap-2" aria-label="Repositórios">
         <button type="button" aria-pressed={repo === "all"} onClick={() => setRepo("all")} className={pillClass(repo === "all")}>Todos · {data.items.length}</button>
         {repositories.map((name) => <button key={name} type="button" aria-pressed={repo === name} onClick={() => setRepo(name)} className={pillClass(repo === name)}><FolderGit2 className="size-3" />{name}<span className="text-faint">{data.items.filter((item) => item.repo === name).length}</span></button>)}
       </div>
       <Card className="overflow-hidden !rounded-2xl">
         <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
-          <div className="relative min-w-0 flex-1 basis-56"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" /><Input aria-label="Buscar PRs por título, repositório ou autor" className="pl-9" placeholder="Buscar título, repositório, autor…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
+          <div className="relative min-w-0 flex-1 basis-56"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" /><Input aria-label="Buscar PRs e issues por título, repositório ou autor" className="pl-9" placeholder="Buscar título, repositório, autor…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
           <Select aria-label="Filtrar tipo de pendência" value={kind} onChange={(event) => setKind(event.target.value)} className="w-auto text-[13px]"><option value="all">Todas as pendências</option><option value="pr">PRs para revisar</option><option value="draft">Rascunhos</option>{GITHUB_STAGES.map(stage => <option key={stage.id} value={stage.id}>{stage.label}</option>)}</Select>
 
         </div>

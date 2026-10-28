@@ -29,7 +29,7 @@ export const EMPRESA_WIDGETS = [
   { id: "operacao", label: "Operação agora" },
   { id: "tarefas", label: "Tarefas da empresa" },
   { id: "crm", label: "CRM" },
-  { id: "github", label: "GitHub — PRs e propostas" },
+  { id: "github", label: "GitHub — PRs e issues" },
   { id: "agentes", label: "Atividade dos agentes" },
   { id: "projetos", label: "Projetos" },
   { id: "incidentes", label: "Incidentes e falhas" },

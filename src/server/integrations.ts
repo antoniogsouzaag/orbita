@@ -35,7 +35,7 @@ export function integrationConfiguration(): IntegrationHealthRow[] {
   return [
     row("database", "Banco de dados", true, has("DATABASE_URL") ? "Postgres configurado. Verifique a resposta do banco." : "PGlite local de desenvolvimento. Configure Postgres para persistência em produção.", ["DATABASE_URL"]),
     row("vault", "Vault · Knowledge", vault.configured, vault.local ? "Cópia local do vault configurada." : `${vault.repo} · ${vault.branch}. Cada salvamento no GitHub gera um commit.`, ["VAULT_GITHUB_TOKEN", "VAULT_GITHUB_REPO", "VAULT_GITHUB_BRANCH"], "/vault"),
-    row("github", "GitHub · PRs e propostas", gh.configured, gh.credential ? `Credencial: ${gh.credential}. ${gh.warning}` : "Configure um token de leitura para os repositórios da organização. O acesso do Knowledge também pode ser reutilizado com as permissões que ele já tem.", ["GITHUB_INBOX_TOKEN", "GITHUB_ORG"], "/github"),
+    row("github", "GitHub · PRs e issues", gh.configured, gh.credential ? `Credencial: ${gh.credential}. ${gh.warning}` : "Configure um token de leitura para os repositórios da organização. O acesso do Knowledge também pode ser reutilizado com as permissões que ele já tem.", ["GITHUB_INBOX_TOKEN", "GITHUB_ORG"], "/github"),
     row("crm", "CRM · AG LABS", crmConfigured(), "Resumo comercial e tarefas via MCP. O CRM aplica as próprias permissões.", ["CRM_MCP_URL", "CRM_MCP_TOKEN"], "/empresa"),
     row("n8n", "n8n · Workflows", n8nInstances().length > 0, has("N8N_INSTANCES") && !n8nInstances().length ? "N8N_INSTANCES está preenchida, mas não contém instâncias válidas com url e apiKey." : "Consulta de workflows e falhas pela API pública de cada servidor.", ["N8N_INSTANCES"], "/operacao/automacoes"),
     row("monitors", "Monitores · n8n → Órbita", validToken("OPS_TOKEN"), "Recebe resultados em /api/ops/ingest. O diagnóstico verifica se há batidas recentes registradas.", ["OPS_TOKEN"], "/operacao"),
@@ -90,7 +90,7 @@ export async function checkIntegrationHealth(): Promise<IntegrationHealthRow[]> 
         }
         case "github": {
           const inbox = await githubInbox({ force: true });
-          return result(inbox.error ? "error" : inbox.credential === "VAULT_GITHUB_TOKEN" || inbox.truncated ? "warning" : "verified", inbox.error ?? `${inbox.items.length} de ${inbox.total} PRs/propostas visíveis. ${inbox.warning}`);
+          return result(inbox.error ? "error" : inbox.credential === "VAULT_GITHUB_TOKEN" || inbox.truncated ? "warning" : "verified", inbox.error ?? `${inbox.items.length} de ${inbox.total} PRs/issues visíveis. ${inbox.warning}`);
         }
         case "crm": {
           const crm = await crmOverview(0);
