@@ -39,6 +39,22 @@ describe("ingestão de status (n8n → Órbita)", () => {
     expect(after.events.filter((e) => e.kind === "site_up")).toHaveLength(1);
   });
 
+  it("resolve somente o endereço recuperado, mesmo com nomes iguais ou alterados", async () => {
+    const first = "https://um.monitor-fixture.example/";
+    const second = "https://dois.monitor-fixture.example/";
+    const links = [first, second].map(url => ({ url, nome: "Mesmo nome", status: 503 }));
+    await run(links);
+    await run(links);
+    await run([{ url: first, nome: "Nome atualizado", status: 503 }]);
+    await run([{ url: first, nome: "Nome atualizado", status: 200 }]);
+    const events = (await liveOps()).events.filter(event => event.kind === "site_down" && [first, second].includes(String(event.detail.url)));
+    expect(events.find(event => event.detail.url === first)?.resolvedAt).not.toBeNull();
+    expect(events.find(event => event.detail.url === second)?.resolvedAt).toBeNull();
+    expect((await liveOps()).status.find(site => site.url === second)?.ok).toBe(false);
+    await run([{ url: second, nome: "Mesmo nome", status: 200 }]);
+    expect((await liveOps()).events.find(event => event.kind === "site_down" && event.detail.url === second)?.resolvedAt).not.toBeNull();
+  });
+
   it("registra domínios, falhas de workflow e a batida do monitor", async () => {
     await ingest(IngestSchema.parse({ source: "n8n-vps03-dominios", everyMinutes: 60 * 24 * 3, domains: [{ dominio: "AGLABS.IA.BR", depende: "Institucional", expiracao: "2027-01-10T00:00:00Z" }] }));
     await ingest(IngestSchema.parse({ source: "n8n-vps01-erros", workflowError: { workflow: "Comentários do Instagram", node: "HTTP Request", message: "401" } }));

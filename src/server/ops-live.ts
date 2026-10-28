@@ -123,7 +123,8 @@ export async function ingest(p: IngestPayload) {
       await db.insert(opsEvents).values({ kind: "site_down", severity: "critical", source: p.source, subject: l.name, detail: { url: l.url, status: l.status, error: l.error, group: l.group } });
       counters.events++;
     } else if (prev && !prev.ok && ok) {
-      await db.update(opsEvents).set({ resolvedAt: now }).where(and(eq(opsEvents.kind, "site_down"), isNull(opsEvents.resolvedAt), eq(opsEvents.subject, prev.name)));
+      // O nome é apenas apresentação: pode mudar ou ser compartilhado por URLs distintas.
+      await db.update(opsEvents).set({ resolvedAt: now }).where(and(eq(opsEvents.kind, "site_down"), isNull(opsEvents.resolvedAt), sql`${opsEvents.detail}->>'url' = ${l.url}`));
       await db.insert(opsEvents).values({ kind: "site_up", severity: "info", source: p.source, subject: l.name, detail: { url: l.url, downSince: prev.changedAt.toISOString() } });
       counters.events++;
     }
