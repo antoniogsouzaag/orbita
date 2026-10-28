@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { getDb } from "@/db";
+import { withDbTransaction } from "@/db";
 import { tasks, dispatches } from "@/db/schema";
 import { maintenanceParams, deliverHermesOperation } from "./hermes";
 import { assertMaintenanceTask } from "./hermes-maintenance-tasks";
@@ -16,8 +16,7 @@ export async function dispatchMaintenance(raw: MaintenanceInput) {
  const input = inputSchema.parse(raw);
  const taskId = "id" in input.task ? input.task.id : input.requestId;
  const params = maintenanceParams.parse({task_id:taskId,operation:input.operation,...(input.domain !== undefined ? {domain:input.domain} : {})});
- const db = await getDb();
- const fresh = await db.transaction(async tx => {
+ const fresh = await withDbTransaction(async tx => {
   const [reserved] = await tx.insert(dispatches).values({id:input.requestId,target:"hermes",action:"maintenance.execute",params,status:"sending",detail:"Envio iniciado"}).onConflictDoNothing().returning();
   if (!reserved) {
    const [existing] = await tx.select().from(dispatches).where(eq(dispatches.id,input.requestId));

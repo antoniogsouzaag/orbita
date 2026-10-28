@@ -45,4 +45,28 @@ export function getDb(): Promise<DB> {
   return globalForDb.__orbitaDb;
 }
 
+/**
+ * Interactive transactions cannot use neon-http. Keep normal queries on HTTP,
+ * but give each reservation its own WebSocket session (Node 22+/Vercel Node 24).
+ * Never cache this client: serverless sockets must close in the same request,
+ * including callback, BEGIN/COMMIT and connection failures. The caller resumes
+ * only after commit and close, before any external delivery.
+ */
+export async function withDbTransaction<T>(
+  callback: (tx: Parameters<Parameters<DB["transaction"]>[0]>[0]) => Promise<T>,
+): Promise<T> {
+  const url = process.env.DATABASE_URL;
+  if (!url || !/neon\.tech/.test(url)) return (await getDb()).transaction(callback);
+
+  const { Client } = await import("@neondatabase/serverless");
+  const { drizzle } = await import("drizzle-orm/neon-serverless");
+  const client = new Client({ connectionString: url });
+  try {
+    await client.connect();
+    return await drizzle(client, { schema }).transaction(callback);
+  } finally {
+    await client.end();
+  }
+}
+
 export { schema };

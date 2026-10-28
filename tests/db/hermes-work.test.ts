@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { getDb } from "@/db";
+import * as dbModule from "@/db";
 import { tasks, dispatches, settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { dispatchWork } from "@/server/hermes-work";
@@ -14,6 +15,7 @@ it("generic gate defaults closed before any task or reservation", async () => {
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 it("reserva tarefa, atribuição e despacho antes da rede; retry incerto preserva UUID sem reenviar", async () => {
+ const transaction = vi.spyOn(dbModule, "withDbTransaction");
  const db = await getDb();
  await (await getDb()).insert(settings).values({key:"hermes-task-dispatch",value:{enabled:true}}).onConflictDoUpdate({target:settings.key,set:{value:{enabled:true}}}); vi.stubEnv("HERMES_DISPATCH_ENABLED", "true"); vi.stubEnv("HERMES_WEBHOOK_URL", "https://hermes.example/webhooks/orbita-hermes"); vi.stubEnv("HERMES_WEBHOOK_SECRET", "test");
  const fetcher = vi.fn(async (_url, init) => {
@@ -31,6 +33,8 @@ it("reserva tarefa, atribuição e despacho antes da rede; retry incerto preserv
  expect(first).toMatchObject({ status: "unknown", action: "task.dispatch" });
  expect(await dispatchWork(actor, input)).toMatchObject({ id: first.id, taskId: first.taskId, status: "unknown" });
  expect(fetcher).toHaveBeenCalledTimes(1);
+ expect(transaction).toHaveBeenCalledTimes(2);
+ transaction.mockRestore();
 });
 it("recusa grants insuficientes, escopo pessoal, tarefas fechadas/de outro dono e campos de controle",async()=>{
  const db=await getDb(); await db.insert(settings).values({key:"hermes-task-dispatch",value:{enabled:true}}).onConflictDoUpdate({target:settings.key,set:{value:{enabled:true}}}); const fetcher=vi.fn();vi.stubGlobal("fetch",fetcher);
