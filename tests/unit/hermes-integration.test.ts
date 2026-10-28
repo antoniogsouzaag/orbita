@@ -4,8 +4,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { HermesIntegration } from "@/components/agents/hermes-integration";
-import { sendHermes, checkHermes, executeMaintenance } from "@/app/actions/hermes";
-vi.mock("@/app/actions/hermes",()=>({sendHermes:vi.fn(),checkHermes:vi.fn(),executeMaintenance:vi.fn()}));
+import { sendHermes, checkHermes, executeMaintenance, executeWork } from "@/app/actions/hermes";
+vi.mock("@/app/actions/hermes",()=>({sendHermes:vi.fn(),checkHermes:vi.fn(),executeMaintenance:vi.fn(),executeWork:vi.fn()}));
 vi.mock("sonner",()=>({toast:Object.assign(vi.fn(),{error:vi.fn()})}));
 vi.mock("@/components/ui/dialog",()=>({Dialog:({open,children}:{open:boolean;children:React.ReactNode})=>open?children:null,DialogContent:({children,title,description}:{children:React.ReactNode;title:string;description:string})=>React.createElement("section",null,title,description,children)}));
 let host: HTMLDivElement;
@@ -13,6 +13,28 @@ let mounted: Root;
 const config={enabled:true,endpointConfigured:true,secretConfigured:true};
 beforeEach(()=>{Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});host=document.createElement("div");document.body.append(host);mounted=createRoot(host);vi.clearAllMocks();sessionStorage.clear();});
 afterEach(async()=>{await act(async()=>mounted.unmount());host.remove();vi.useRealTimers();});
+it("trabalho genérico é primário, não duplica e conserva pedido incerto",async()=>{
+ vi.mocked(executeWork).mockRejectedValue(new Error("network"));
+ await act(async()=>mounted.render(React.createElement(HermesIntegration,{config,initial:[]})));
+ expect(host.querySelector("button")?.textContent).toBe("Encaminhar trabalho");
+ await act(async()=>host.querySelector("button")!.click());
+ for (const [label,value] of [["Título do trabalho","Investigar VPS03"],["Brief do trabalho","Investigue o problema"],["Critério de aceite","Teste real"]]) {
+  const field=host.querySelector(`[aria-label="${label}"]`)!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(field.tagName === "INPUT" ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype,"value")!.set!.call(field,value);field.dispatchEvent(new Event("input",{bubbles:true}));});
+ }
+ const form=host.querySelector('form[aria-label="Encaminhar trabalho"]')!;
+ await act(async()=>{form.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));form.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));});
+ expect(executeWork).toHaveBeenCalledTimes(1);
+ await act(async()=>form.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
+ expect(executeWork).toHaveBeenCalledTimes(2);
+ expect(vi.mocked(executeWork).mock.calls[0]).toEqual(vi.mocked(executeWork).mock.calls[1]);
+ expect(executeWork).toHaveBeenCalledWith({title:"Investigar VPS03",brief:"Investigue o problema",acceptance:"Teste real"});
+ expect(host.textContent).toContain("não aprova negócio, despesa ou destruição");
+ const reset=[...host.querySelectorAll("button")].find(b=>b.textContent==="Iniciar outro trabalho explicitamente");expect(reset).toBeDefined();
+ await act(async()=>reset!.click());
+ expect((host.querySelector('input[aria-label="Título do trabalho"]') as HTMLInputElement).value).toBe("");
+ expect(host.querySelector("fieldset")!.disabled).toBe(false);
+});
 it("oferece manutenção separada, exige tarefa explícita e conserva UUID em retry incerto",async()=>{
  vi.mocked(executeMaintenance).mockRejectedValue(new Error("network"));
  await act(async()=>mounted.render(React.createElement(HermesIntegration,{config,initial:[]})));

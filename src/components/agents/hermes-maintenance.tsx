@@ -45,7 +45,7 @@ export function HermesMaintenance({ready,onOperation}:{ready:boolean;onOperation
   const input=snapshot.current;
   start(async()=>{try{const item=await executeMaintenance(input);onOperation(item);toast(item.detail);}catch{toast.error("Envio incerto ou recusado. Consulte o mesmo pedido; não crie outra tarefa.");}finally{busy.current=false;}});
  }
- return <><Button size="sm" onClick={show}>Executar manutenção</Button><Dialog open={open} onOpenChange={value=>{if(!pending)setOpen(value);}}><DialogContent title="Executar manutenção" description="Correção manual por runbooks determinísticos, sem shell arbitrário.">
+ return <><Button size="sm" variant="ghost" onClick={show}>Executar manutenção</Button><Dialog open={open} onOpenChange={value=>{if(!pending)setOpen(value);}}><DialogContent title="Executar manutenção" description="Correção manual por runbooks determinísticos, sem shell arbitrário.">
  <p className="text-xs text-muted">Autoriza mudanças apenas na operação escolhida. O executor reivindica e encerra a tarefa via MCP; a Órbita não conclui tarefas. Nenhuma automação de incidentes é habilitada.</p>
  <form aria-label="Manutenção operacional" className="space-y-3" onSubmit={event=>{event.preventDefault();submit();}}>
  <fieldset disabled={pending || submitted} className="space-y-3">

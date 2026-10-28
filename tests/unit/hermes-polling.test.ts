@@ -14,6 +14,13 @@ const operation:HermesOperation={id:"analysis",action:"agent.analyze",text:"Anal
 beforeEach(()=>{Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});vi.useFakeTimers();vi.clearAllMocks();host=document.createElement("div");document.body.append(host);mounted=createRoot(host);});
 afterEach(async()=>{await act(async()=>mounted.unmount());host.remove();vi.useRealTimers();});
 const tick=async()=>{await act(async()=>{await vi.advanceTimersByTimeAsync(5000);});};
+it("consulta trabalho genérico ativo e renderiza prova como texto sem executar HTML",async()=>{
+ const task:HermesOperation={...operation,id:"task",action:"task.dispatch",taskId:"12345678-1234-4234-8234-123456789abc"};
+ vi.mocked(checkHermes).mockResolvedValue({...task,status:"completed",taskExecution:true,verified:true,responseText:"<script>Teste real</script>"});
+ await act(async()=>mounted.render(React.createElement(HermesIntegration,{config,initial:[task]})));
+ await tick();expect(checkHermes).toHaveBeenCalledExactlyOnceWith("task");expect(host.textContent).toContain("<script>Teste real</script>");expect(host.querySelector("script")).toBeNull();
+ await tick();expect(checkHermes).toHaveBeenCalledTimes(1);
+});
 it("consulta manutenção ativa e mostra somente retorno verificado, com limite no histórico",async()=>{
  const maintenance:HermesOperation={...operation,id:"maintenance",action:"maintenance.execute",taskId:"12345678-1234-4234-8234-123456789abc",maintenanceOperation:"maia.recover"};
  vi.mocked(checkHermes).mockResolvedValue({...maintenance,status:"completed",responseText:"Maia recuperada",maintenanceExecution:true,verified:true,changed:true});

@@ -5,13 +5,18 @@ import type { HermesOperation } from "@/server/hermes";
 
 const oracle = (status: HermesOperation["status"]): HermesOperation => ({ id: "same-id", status, action: "reminder.internal", detail: "Estado do receptor", createdAt: "2026-10-24T12:00:00Z", checkedAt: "2026-10-24T13:00:00Z" });
 const tom = (status: DispatchView["status"], silent = false): DispatchView => ({
-  id: "same-id", target: "openclaw", action: "request.tom", status,
+  origin: null, requestKey: null, id: "same-id", target: "openclaw", action: "request.tom", status,
   params: { texto: "Analisar operação" }, detail: "Estado do gateway", summary: "Evidência recebida",
   evidence: "https://example.com/prova", runId: null, reportedBy: "Tom", silent,
   createdAt: new Date("2026-10-24T11:00:00Z"), updatedAt: new Date("2026-10-24T13:00:00Z"), finishedAt: null,
 });
 
 describe("acompanhamento da diretoria", () => {
+ it("trabalho genérico só conclui com prova validada",()=>{
+  const task:HermesOperation={...oracle("completed"),action:"task.dispatch",taskId:"12345678-1234-4234-8234-123456789abc",taskExecution:true,verified:true,responseText:"Teste executado"};
+  expect(directorRequests([],[task])[0]).toMatchObject({group:"completed",detail:"Teste executado"});
+  for(const invalid of [{verified:undefined},{taskExecution:undefined},{taskId:undefined}]) expect(directorRequests([],[{...task,...invalid}])[0]).toMatchObject({group:"attention",status:"Conclusão não verificada"});
+ });
  it("só conclui manutenção com marcadores verificados e tarefa correlacionada",()=>{
   const maintenance:HermesOperation={...oracle("completed"),action:"maintenance.execute",taskId:"12345678-1234-4234-8234-123456789abc",maintenanceOperation:"maia.recover",maintenanceExecution:true,verified:true,changed:false,responseText:"Maia saudável"};
   expect(directorRequests([],[maintenance])[0]).toMatchObject({title:"Recuperar Maia",detail:"Maia saudável",group:"completed"});

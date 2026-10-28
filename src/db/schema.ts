@@ -1,5 +1,6 @@
 import {
   type AnyPgColumn,
+  uniqueIndex,
   boolean,
   date,
   index,
@@ -13,6 +14,8 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+
+import { sql } from "drizzle-orm";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -387,11 +390,17 @@ export const dispatches = pgTable(
     evidence: text("evidence"),
     reportedBy: text("reported_by"),
     runId: text("run_id"),
+    /** Authenticated server-side origin; never accepted from a signed brief. */
+    origin: jsonb("origin").$type<{ kind: "ui" | "mcp"; id: string; name: string }>(),
+    requestKey: text("request_key"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
-  (t) => [index("dispatches_target_created_idx").on(t.target, t.createdAt)],
+  (t) => [index("dispatches_target_created_idx").on(t.target, t.createdAt),
+    uniqueIndex("dispatches_generic_request_key").on(t.requestKey).where(sql`${t.action} = 'task.dispatch' AND ${t.target} = 'hermes'`),
+    uniqueIndex("dispatches_generic_active_task").on(sql`(${t.params}->>'task_id')`).where(sql`${t.action} = 'task.dispatch' AND ${t.target} = 'hermes' AND ${t.status} IN ('sending','accepted','running','unknown')`),
+  ],
 );
 
 export type Dispatch = typeof dispatches.$inferSelect;

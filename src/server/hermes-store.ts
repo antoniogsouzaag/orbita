@@ -3,21 +3,24 @@ import { and, desc, eq, like, notInArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { dispatches, settings } from "@/db/schema";
 import { z } from "zod";
+import { taskProof } from "@/lib/hermes-task-proof";
 import type { HermesOperation } from "./hermes";
 
 function operation(row: typeof dispatches.$inferSelect): HermesOperation {
+  const task = row.action === "task.dispatch" && row.reportedBy === "hermes:task-execution" ? taskProof.refine(p => p.task_id === row.params.task_id).safeParse((() => { try { return { ...JSON.parse(row.evidence ?? "null"), response_text: row.summary }; } catch { return null; } })()) : undefined;
+  const generic = row.action === "task.dispatch" ? { ...(task?.success ? { taskExecution: true as const, verified: true as const, responseText: task.data.response_text, sessionId: task.data.session_id, evidence: task.data.evidence } : {}), taskId: String(row.params.task_id), text: typeof row.params.brief === "string" ? row.params.brief : undefined } : {};
   const proof = row.action === "maintenance.execute" && row.reportedBy === "hermes:maintenance-execution"
     ? z.object({maintenance_execution:z.literal(true),verified:z.literal(true),changed:z.boolean(),task_id:z.literal(String(row.params.task_id))}).safeParse((()=>{try{return JSON.parse(row.evidence ?? "null");}catch{return null;}})()) : undefined;
   const maintenance = row.action === "maintenance.execute" ? {taskId:String(row.params.task_id),maintenanceOperation:row.params.operation as HermesOperation["maintenanceOperation"],...(typeof row.params.domain === "string" ? {domain:row.params.domain} : {}),...(proof?.success && row.summary !== null ? {maintenanceExecution:true as const,verified:true as const,changed:proof.data.changed,responseText:row.summary} : {})} : {};
 
-  return { ...maintenance, id: row.id, action: row.action as HermesOperation["action"], status: row.status as HermesOperation["status"], createdAt: row.createdAt.toISOString(), checkedAt: row.updatedAt.toISOString(), detail: row.detail, ...(row.action === "agent.analyze" ? { text: typeof row.params.text === "string" ? row.params.text : undefined, ...(row.summary !== null && row.reportedBy === "hermes:agent-execution" ? { responseText: row.summary, agentExecution: true as const } : {}) } : {}) };
+  return { ...generic, ...maintenance, id: row.id, action: row.action as HermesOperation["action"], status: row.status as HermesOperation["status"], createdAt: row.createdAt.toISOString(), checkedAt: row.updatedAt.toISOString(), detail: row.detail, ...(row.action === "agent.analyze" ? { text: typeof row.params.text === "string" ? row.params.text : undefined, ...(row.summary !== null && row.reportedBy === "hermes:agent-execution" ? { responseText: row.summary, agentExecution: true as const } : {}) } : {}) };
 }
 
 /** Novos pedidos no registro comum; estados finais nunca regridem após consulta concorrente. */
 export async function saveHermesOperation(value: HermesOperation, params: Record<string, unknown> = {}) {
   const db = await getDb();
   const final = ["completed", "failed", "interrupted", "due"].includes(value.status);
-  const values = { id: value.id, target: "hermes" as const, action: value.action, status: value.status, params, summary: value.responseText ?? null, reportedBy: value.maintenanceExecution && value.verified ? "hermes:maintenance-execution" : value.agentExecution ? "hermes:agent-execution" : null, evidence: value.maintenanceExecution && value.verified ? JSON.stringify({maintenance_execution:true,verified:true,changed:value.changed,task_id:value.taskId}) : null, detail: value.detail, createdAt: new Date(value.createdAt), updatedAt: new Date(value.checkedAt), finishedAt: final ? new Date(value.checkedAt) : null };
+  const values = { id: value.id, target: "hermes" as const, action: value.action, status: value.status, params, summary: value.responseText ?? null, reportedBy: value.taskExecution && value.verified ? "hermes:task-execution" : value.maintenanceExecution && value.verified ? "hermes:maintenance-execution" : value.agentExecution ? "hermes:agent-execution" : null, evidence: value.taskExecution && value.verified ? JSON.stringify({ task_execution: true, verified: true, task_id: value.taskId, session_id: value.sessionId, evidence: value.evidence }) : value.maintenanceExecution && value.verified ? JSON.stringify({maintenance_execution:true,verified:true,changed:value.changed,task_id:value.taskId}) : null, detail: value.detail, createdAt: new Date(value.createdAt), updatedAt: new Date(value.checkedAt), finishedAt: final ? new Date(value.checkedAt) : null };
   await db.insert(dispatches).values(values).onConflictDoUpdate({ target: dispatches.id,
     set: { status: value.status, summary: values.summary, evidence: values.evidence, reportedBy: values.reportedBy, detail: value.detail, updatedAt: values.updatedAt, finishedAt: values.finishedAt },
     setWhere: and(eq(dispatches.target, "hermes"), notInArray(dispatches.status, ["completed", "failed", "interrupted", "due"])),
