@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Tooltip } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
 
-export type BoardItem = { url: string; name: string; group: string; ok: boolean; unstable?: boolean; status: number | null; error: string | null; ms: number | null; checkedAt: string; since?: string; source: string };
+export type BoardItem = { url: string; name: string; group: string; ok: boolean; stale?: boolean; unstable?: boolean; status: number | null; error: string | null; ms: number | null; checkedAt: string; since?: string; source: string };
 
 function ago(iso: string) {
   const m = Math.round((Date.now() - Date.parse(iso)) / 60_000);
@@ -35,7 +35,7 @@ export function StatusBoard({ initial, groupOrder }: { initial: BoardItem[]; gro
       if (!r.ok) return void toast.error("Não foi possível verificar agora");
       const json = (await r.json()) as { results: { url: string; name: string; group: string; ok: boolean; status: number; error?: string; ms: number; checkedAt: string }[] };
       const byUrl = new Map(items.map((i) => [i.url, i]));
-      for (const r of json.results) byUrl.set(r.url, { ...(byUrl.get(r.url) ?? {}), url: r.url, name: r.name, group: byUrl.get(r.url)?.group ?? r.group, ok: r.ok, status: r.status || null, error: r.error ?? null, ms: r.ms, checkedAt: r.checkedAt, source: "Órbita (agora)" });
+      for (const r of json.results) byUrl.set(r.url, { ...(byUrl.get(r.url) ?? {}), url: r.url, name: r.name, group: byUrl.get(r.url)?.group ?? r.group, ok: r.ok, stale: false, unstable: false, status: r.status || null, error: r.error ?? null, ms: r.ms, checkedAt: r.checkedAt, source: "Órbita (agora)" });
       setItems([...byUrl.values()]);
       toast.success("Verificação feita pela Órbita");
     } finally {
@@ -57,7 +57,9 @@ export function StatusBoard({ initial, groupOrder }: { initial: BoardItem[]; gro
     });
   }, [items, groupOrder]);
 
-  const up = items.filter((i) => i.ok).length;
+  const current = items.filter((i) => !i.stale);
+  const up = current.filter((i) => i.ok).length;
+  const stale = items.length - current.length;
   return (
     <Card className="p-4">
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -66,7 +68,7 @@ export function StatusBoard({ initial, groupOrder }: { initial: BoardItem[]; gro
           <div className="text-[12px] text-faint">Resultados enviados pelos monitores do n8n · queda confirmada após 2 falhas seguidas</div>
         </div>
         {items.length > 0 && (
-          <span className={cn("ml-auto rounded-full px-2.5 py-1 text-[12px] font-semibold tabular-nums", up === items.length ? "bg-success/15 text-success" : "bg-danger/15 text-danger")}>{up}/{items.length} no ar</span>
+          <span className={cn("ml-auto rounded-full px-2.5 py-1 text-[12px] font-semibold tabular-nums", stale ? "bg-warning/15 text-warning" : up === current.length ? "bg-success/15 text-success" : "bg-danger/15 text-danger")}>{current.length ? `${up}/${current.length} no ar` : "Sem verificação recente"}{stale ? ` · ${stale} sem atualização` : ""}</span>
         )}
         <Button size="sm" variant="ghost" onClick={checkNow} disabled={loading} className={items.length ? "" : "ml-auto"}>
           {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />} Verificar agora
@@ -79,7 +81,7 @@ export function StatusBoard({ initial, groupOrder }: { initial: BoardItem[]; gro
         {groups.map(([group, list]) => (
           <div key={group}>
             <div className="mb-2 flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-wider text-faint">
-              {group}<span className="font-normal normal-case tracking-normal">{list.filter((i) => i.ok).length}/{list.length}</span>
+              {group}<span className="font-normal normal-case tracking-normal">{list.some((i) => !i.stale) ? `${list.filter((i) => i.ok && !i.stale).length}/${list.filter((i) => !i.stale).length} recentes` : "sem verificação recente"}{list.some((i) => i.stale) ? ` · ${list.filter((i) => i.stale).length} sem atualização` : ""}</span>
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {list.map((r) => {
@@ -88,15 +90,15 @@ export function StatusBoard({ initial, groupOrder }: { initial: BoardItem[]; gro
                   const u = new URL(r.url);
                   host = u.host + (u.pathname !== "/" ? u.pathname : "");
                 } catch {}
-                const Icon = !r.ok ? XCircle : r.unstable ? AlertTriangle : CheckCircle2;
+                const Icon = r.stale ? AlertTriangle : !r.ok ? XCircle : r.unstable ? AlertTriangle : CheckCircle2;
                 return (
                   <Tooltip key={r.url} content={`${r.name} · ${host} · ${r.source} · ${ago(r.checkedAt)}${r.error ? ` · ${r.error}` : ""}${r.since ? ` · neste estado desde ${new Date(r.since).toLocaleString("pt-BR")}` : ""}`}>
-                    <a href={r.url} target="_blank" rel="noreferrer" aria-label={`${r.name} · ${host} · ${!r.ok ? "Fora do ar" : r.unstable ? "Instável" : "No ar"}${r.status ? ` · HTTP ${r.status}` : ""}`} className={cn("group flex min-h-9 min-w-0 max-w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 transition hover:border-border-strong", !r.ok ? "border-danger/40 bg-danger/5" : r.unstable ? "border-warning/40" : "border-border")}>
-                      <Icon className={cn("size-4 shrink-0", !r.ok ? "text-danger" : r.unstable ? "text-warning" : "text-success")} />
+                    <a href={r.url} target="_blank" rel="noreferrer" aria-label={`${r.name} · ${host} · ${r.stale ? "Sem verificação recente" : !r.ok ? "Fora do ar" : r.unstable ? "Instável" : "No ar"}${r.status ? ` · último HTTP ${r.status}` : ""}`} className={cn("group flex min-h-9 min-w-0 max-w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 transition hover:border-border-strong", r.stale ? "border-warning/40" : !r.ok ? "border-danger/40 bg-danger/5" : r.unstable ? "border-warning/40" : "border-border")}>
+                      <Icon className={cn("size-4 shrink-0", r.stale ? "text-warning" : !r.ok ? "text-danger" : r.unstable ? "text-warning" : "text-success")} />
                       <span className="min-w-0 flex-1 truncate text-xs font-medium">{r.name || host}</span>
-                      <span className={cn("flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10.5px] tabular-nums", r.ok ? "text-muted" : "text-danger")}>
-                        {r.status ?? (r.error ? "Falha" : "—")}
-                        {r.ms !== null && <span className="text-faint">{r.ms}ms</span>}
+                      <span className={cn("flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10.5px] tabular-nums", r.stale ? "text-warning" : r.ok ? "text-muted" : "text-danger")}>
+                        {r.stale ? "Sem atualização" : r.status ?? (r.error ? "Falha" : "—")}
+                        {!r.stale && r.ms !== null && <span className="text-faint">{r.ms}ms</span>}
                       </span>
                       <ExternalLink className="size-3 shrink-0 text-faint opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
                     </a>

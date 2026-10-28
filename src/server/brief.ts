@@ -5,6 +5,7 @@ import { agentTasks } from "./agents";
 import { eventsBetween } from "./calendar";
 import { CRM_ASSIGNEE, crmOverview } from "./crm";
 import { liveOps } from "./ops-live";
+import { availabilitySnapshot } from "@/lib/ops-freshness";
 import { getSettings } from "./settings";
 import { listTasks, type TaskRow } from "./tasks";
 import { escHtml } from "./telegram";
@@ -58,13 +59,15 @@ export async function buildBrief(): Promise<string> {
 
   // Rotinas e totais comerciais continuam nos painéis; o aviso traz só ações devidas.
 
-  const down = live.status.filter((s) => !s.ok);
+  const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
+  const down = snapshot.down;
   const soon = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - Date.now() < 45 * 86_400_000);
   const silent = live.monitors.filter((m) => m.silent);
   const pendingWorkflows = live.events.filter(e => e.kind === "workflow_error" && !e.resolvedAt);
   const noCoverage = !live.status.length;
-  if (down.length || soon.length || silent.length || pendingWorkflows.length || noCoverage) lines.push("", "🛰️ <b>Operação · atenção</b>");
+  if (down.length || soon.length || silent.length || pendingWorkflows.length || noCoverage || snapshot.stale.length) lines.push("", "🛰️ <b>Operação · atenção</b>");
   if (noCoverage) lines.push("• Sem dados dos monitores nesta consulta.");
+  if (snapshot.stale.length) lines.push(`• ${snapshot.stale.length} endereço(s) sem verificação recente.`);
   for (const d of down.slice(0, 3)) lines.push(`• ❌ ${short(d.name)}`);
   if (pendingWorkflows.length) lines.push(`• ${pendingWorkflows.length} falha(s) de workflow sem resolução registrada (inclui antigas)`);
   for (const d of soon.slice(0, 3)) lines.push(`• 🌐 ${short(d.domain)} vence em ${Math.ceil((d.expiresAt!.getTime() - Date.now()) / 86_400_000)} dias`);

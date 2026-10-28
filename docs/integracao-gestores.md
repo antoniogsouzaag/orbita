@@ -6,6 +6,8 @@ As consultas da Órbita aos workflows seguem até dez páginas por instância. Q
 
 O painel compara os workflows à nota de automações somente quando ela está disponível e contém tabelas reconhecidas. Se a nota estiver indisponível ou sem estrutura reconhecida, não classifica workflows como não documentados; isso não implica que o vault esteja vazio. A cobertura agregada exige também leitura completa das instâncias n8n.
 
+Na disponibilidade, cada endereço conserva seu último resultado, mas só entra nos totais atuais se a fonte tiver batida recente e o próprio endereço tiver sido verificado na janela do monitor (2,5 vezes o intervalo informado, mais dois minutos). Fonte desconhecida, em silêncio ou verificação vencida aparece como sem verificação recente, inclusive quando o último HTTP foi 200. O painel informa quando os dados foram avaliados; uma verificação manual é uma consulta separada. Isso não altera os workflows nem comprova jornadas autenticadas.
+
 Entrada canônica da central: `/documentacao` (mesmo contrato de `orbita://manual` e `documentacao` no MCP). Este guia complementa o manual com a configuração específica dos runtimes.
 
 Este guia documenta os contratos de conexão e os critérios de validação por gestor. O estado de cada acesso e sua comunicação funcional devem ser conferidos no ambiente correspondente; a configuração descrita aqui não comprova uma execução.

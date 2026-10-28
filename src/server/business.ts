@@ -5,6 +5,7 @@ import { tasks } from "@/db/schema";
 import { BARBERIAS, belongsToBarberias } from "@/lib/business";
 import { githubInbox } from "@/server/github-inbox";
 import { liveOps } from "@/server/ops-live";
+import { availabilitySnapshot } from "@/lib/ops-freshness";
 import { socialChannels, socialConfigured } from "@/server/social";
 
 export async function barberiasSummary() {
@@ -18,12 +19,14 @@ export async function barberiasSummary() {
       return row.count;
     })(),
   ]);
-  const checks = operation.status === "fulfilled" ? operation.value.status.filter((item) => belongsToBarberias(item.url)) : [];
+  const snapshot = operation.status === "fulfilled" ? availabilitySnapshot(operation.value.status, operation.value.monitors, operation.value.generatedAt) : null;
+  const checks = snapshot?.current.filter((item) => belongsToBarberias(item.url)) ?? [];
+  const staleChecks = snapshot?.stale.filter((item) => belongsToBarberias(item.url)) ?? [];
   return {
     channels: social.status === "fulfilled" ? social.value.filter((item) => item.customer?.id === BARBERIAS.postizGroupId).length : null,
     reviews: github.status === "fulfilled" && github.value.configured && !github.value.error ? github.value.items.filter((item) => item.repo === BARBERIAS.repo).length : null,
     tasks: actionCount.status === "fulfilled" ? actionCount.value : null,
-    operation: operation.status === "fulfilled" && checks.length ? { ok: checks.filter((item) => item.ok).length, total: checks.length } : null,
+    operation: operation.status === "fulfilled" && checks.length && !staleChecks.length ? { ok: checks.filter((item) => item.ok).length, total: checks.length } : null,
     checkedAt: new Date().toISOString(),
   };
 }

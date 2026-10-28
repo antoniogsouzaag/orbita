@@ -9,6 +9,7 @@ import { BarRows, Big, ColumnBars, Dot, Legend, Ring, ShareStrip, WidgetShell, l
 import { WidgetBoard } from "@/components/ui/widget-board";
 import { cn } from "@/lib/utils";
 import { BUSINESS_REGISTERED_DOMAINS } from "@/lib/business-models";
+import { availabilitySnapshot } from "@/lib/ops-freshness";
 import { monitorTargets } from "@/server/ops";
 import { coherence, liveOps, opsEventsByDay } from "@/server/ops-live";
 import { VaultBanner } from "@/components/vault/vault-banner";
@@ -46,10 +47,12 @@ const EVENT_GROUP: { name: string; tone: Tone; match: (kind: string) => boolean 
 
 export default async function Page() {
   const [live, targets, coh, h, byDay] = await Promise.all([liveOps(), monitorTargets().catch(() => null), coherence().catch(() => null), headers(), opsEventsByDay(14).catch(() => [])]);
+  const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
+  const staleUrls = new Set(snapshot.stale.map((item) => item.url));
   const vaultByUrl = new Map((targets ?? []).map((t) => [norm(t.url), t]));
   const board: BoardItem[] = live.status.map((s) => {
     const v = vaultByUrl.get(norm(s.url));
-    return { url: s.url, name: s.name, group: v?.group ?? s.group ?? "Fora da nota do vault", ok: s.ok, unstable: s.ok && s.fails > 0, status: s.statusCode, error: s.error, ms: s.latencyMs, checkedAt: s.checkedAt.toISOString(), since: s.changedAt.toISOString(), source: live.monitors.find((m) => m.source === s.source)?.label ?? s.source };
+    return { url: s.url, name: s.name, group: v?.group ?? s.group ?? "Fora da nota do vault", ok: s.ok, stale: staleUrls.has(s.url), unstable: s.ok && s.fails > 0, status: s.statusCode, error: s.error, ms: s.latencyMs, checkedAt: s.checkedAt.toISOString(), since: s.changedAt.toISOString(), source: live.monitors.find((m) => m.source === s.source)?.label ?? s.source };
   });
   const groupOrder = [...new Set((targets ?? []).map((t) => t.group))];
   const openIncidents = live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt);
@@ -58,11 +61,13 @@ export default async function Page() {
   const pendingDomains = BUSINESS_REGISTERED_DOMAINS.filter(unit => !live.domains.some(domain => domain.domain === unit.domain) && targets?.some(target => { try { return new URL(target.url).hostname === unit.domain; } catch { return false; } }));
   const soonDomains = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - live.generatedAt < 45 * 86_400_000);
   const silent = live.monitors.filter((m) => m.silent);
-  const down = board.filter((b) => !b.ok);
-  const unstable = board.filter((b) => b.ok && b.unstable);
-  const up = board.filter((b) => b.ok && !b.unstable);
+  const current = board.filter((b) => !b.stale);
+  const down = current.filter((b) => !b.ok);
+  const unstable = current.filter((b) => b.ok && b.unstable);
+  const up = current.filter((b) => b.ok && !b.unstable);
   const priorities = [
     ...(silent.length ? [{ title: `${silent.length} monitor(es) sem atualização`, detail: "Restabeleça a coleta antes de interpretar disponibilidade.", href: "/operacao/automacoes", tone: "err" as Tone }] : []),
+    ...(snapshot.stale.length ? [{ title: `${snapshot.stale.length} endereço(s) sem verificação recente`, detail: "Os últimos resultados não confirmam o estado atual.", href: "#disponibilidade", tone: "warn" as Tone }] : []),
     ...(down.length ? [{ title: `${down.length} endereço(s) com falha`, detail: "Priorize os produtos afetados.", href: "#disponibilidade", tone: "err" as Tone }] : []),
     ...(pendingWorkflows.length ? [{ title: `${pendingWorkflows.length} falha(s) de workflow sem resolução`, detail: "Inclui pendências antigas. Registre a correção e a evidência antes de encerrar.", href: "#incidentes", tone: "warn" as Tone }] : []),
     ...(wf24.length ? [{ title: `${wf24.length} falha(s) de workflow em 24h`, detail: "Inspecione a execução antes de repetir efeitos.", href: "/operacao/automacoes", tone: "warn" as Tone }] : []),
@@ -100,17 +105,17 @@ export default async function Page() {
     uptime: (
       <WidgetShell title="Disponibilidade" meta={board.length ? `${groups.length} grupos` : undefined} href="#disponibilidade" hrefLabel="Detalhes">
         <div className="flex min-h-0 flex-1 items-center gap-5">
-          <Ring value={up.length + unstable.length} total={board.length} tone={down.length || unstable.length ? "warn" : "ok"} size={96} stroke={9} label={`${up.length + unstable.length} de ${board.length} endereços no ar`}>
-            <span className="text-[19px] font-semibold tabular-nums leading-none">{board.length ? `${Math.round(((up.length + unstable.length) / board.length) * 100)}%` : "—"}</span>
+          <Ring value={up.length + unstable.length} total={current.length} tone={down.length || unstable.length || snapshot.stale.length ? "warn" : "ok"} size={96} stroke={9} label={`${up.length + unstable.length} de ${current.length} endereços com verificação recente no ar; ${snapshot.stale.length} sem verificação recente`}>
+            <span className="text-[19px] font-semibold tabular-nums leading-none">{current.length ? `${Math.round(((up.length + unstable.length) / current.length) * 100)}%` : "—"}</span>
             <span className="mt-1 text-[10px] text-faint">no ar</span>
           </Ring>
           <div className="min-w-0 flex-1 space-y-2.5">
-            <Big unit="no ar" tone={down.length ? "err" : board.length ? undefined : "idle"}>{board.length ? `${up.length + unstable.length}/${board.length}` : "—"}</Big>
+            <Big unit="no ar · verificação recente" tone={down.length ? "err" : current.length ? undefined : "idle"}>{current.length ? `${up.length + unstable.length}/${current.length}` : "—"}</Big>
             <ShareStrip label={`${up.length} estáveis, ${unstable.length} instáveis, ${down.length} fora do ar`} parts={[{ name: "Estáveis", value: up.length, tone: "ok" }, { name: "Instáveis", value: unstable.length, tone: "warn" }, { name: "Fora do ar", value: down.length, tone: "err" }]} />
             <Legend items={[{ name: "estáveis", tone: "ok", value: up.length }, { name: "instáveis", tone: "warn", value: unstable.length }, { name: "fora", tone: "err", value: down.length }]} />
             <ul className="hidden gap-x-4 gap-y-1 text-[11.5px] text-muted @[420px]:grid @[420px]:grid-cols-2">
               {groups.slice(0, 4).map(({ g, list }) => (
-                <li key={g} className="flex min-w-0 items-center gap-1.5"><Dot tone={list.every((i) => i.ok) ? "ok" : "err"} /><span className="truncate">{g}</span><span className="ml-auto tabular-nums text-fg">{list.filter((i) => i.ok).length}/{list.length}</span></li>
+                <li key={g} className="flex min-w-0 items-center gap-1.5"><Dot tone={list.some((i) => i.stale) ? "warn" : list.every((i) => i.ok) ? "ok" : "err"} /><span className="truncate">{g}</span><span className="ml-auto tabular-nums text-fg">{list.some((i) => !i.stale) ? `${list.filter((i) => i.ok && !i.stale).length}/${list.filter((i) => !i.stale).length}` : "—"}</span></li>
               ))}
             </ul>
           </div>
@@ -228,6 +233,7 @@ export default async function Page() {
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 sm:px-6">
       <PageHeader icon={<Gauge />} title="Operação" description="Disponibilidade, incidentes e prioridades da AG LABS." />
+      <p className="text-xs text-muted">Atualidade avaliada ao carregar, em {new Date(live.generatedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}. Atualize a página para reavaliar os monitores.</p>
       <VaultBanner />
 
       {silent.length > 0 && (

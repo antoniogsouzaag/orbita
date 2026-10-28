@@ -11,6 +11,7 @@ import { liveOps } from "./ops-live";
 import { githubInbox } from "./github-inbox";
 import { stageLabel } from "@/lib/github-triage";
 import { n8nOverview } from "./ops";
+import { availabilitySnapshot } from "@/lib/ops-freshness";
 import { getVaultIndexSafe, vaultHealth } from "./vault";
 import { assistantTools, runAssistantTool } from "./assistant";
 import { TARGET_LABEL, isSilent, listDispatches, reportDispatchResult, resultInput } from "./dispatch";
@@ -194,9 +195,11 @@ export function buildMcpServer(agent: AgentIdentity) {
       async () =>
         run("status_ao_vivo", "consultou o status ao vivo", async () => {
           const live = await liveOps();
-          const down = live.status.filter((s) => !s.ok);
+          const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
+          const down = snapshot.down;
           const lines = [
-            `Endereços: ${live.status.length - down.length}/${live.status.length} no ar.`,
+            `Endereços: ${snapshot.current.length ? `${snapshot.up.length}/${snapshot.current.length} no ar com verificação recente` : "nenhuma verificação recente"}; ${snapshot.stale.length} sem verificação recente.`,
+            ...snapshot.stale.map((s) => `- Sem verificação recente: ${s.name} (${s.url}), último registro ${s.checkedAt.toISOString()}.`),
             ...down.map((d) => `- ❌ ${d.name} (${d.url}) desde ${d.changedAt.toISOString()} — ${d.statusCode ?? d.error ?? ""}`),
             `Incidentes abertos (amostra): ${live.events.filter((e) => e.severity !== "info" && !e.resolvedAt).length}`,
             `Monitores: ${live.monitors.map((m) => `${m.label} ${m.silent ? "⚠️ em silêncio" : "ok"} (última batida ${m.lastSeen.toISOString()})`).join("; ") || "nenhum"}`,
