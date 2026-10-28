@@ -90,7 +90,8 @@ export function OperationWidget({ ops }: { ops: EmpresaData["ops"] }) {
           </div>
         )}
         {ops.silent.length > 0 && <p className="mt-3 text-[12.5px] text-danger">Sem sinal: {ops.silent.map((m) => m.label).join(", ")}</p>}
-        {!ops.total && <p className="mt-3 text-[12.5px] text-muted">Os monitores do n8n ainda não enviaram dados.</p>}
+        {ops.stale > 0 && <p className="mt-3 text-[12.5px] text-warning">{ops.stale} endereço(s) sem verificação recente.</p>}
+        {!ops.total && !ops.stale && <p className="mt-3 text-[12.5px] text-muted">Os monitores do n8n ainda não enviaram dados.</p>}
       </div>
     </Card>
   );

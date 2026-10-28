@@ -3,12 +3,14 @@ import { AGENT_MANUAL_PATH, AGENT_MANUAL_URI, AGENT_MANUAL_VERSION } from "@/lib
 import { getVaultIndexSafe, vaultHealth } from "@/server/vault";
 import { agents, appRegistry, documentedAutomations, monitorTargets, n8nOverview, vpsList } from "./ops";
 import { liveOps } from "./ops-live";
+import { availabilitySnapshot } from "@/lib/ops-freshness";
 
 /** Pacote de contexto operacional para agentes (sem dados pessoais nem segredos). */
 export async function buildContext(opts: { live?: boolean } = {}) {
   const [ags, vps, apps, autos, targets] = await Promise.all([agents(), vpsList(), appRegistry(), documentedAutomations(), monitorTargets()]);
   const live = opts.live ? await liveOps() : null;
-  const status = live ? live.status.map((s) => ({ url: s.url, ok: s.ok, status: s.statusCode, error: s.error, checkedAt: s.checkedAt.toISOString() })) : null;
+  const stale = live ? new Set(availabilitySnapshot(live.status, live.monitors, live.generatedAt).stale.map((item) => item.url)) : null;
+  const status = live ? live.status.map((s) => ({ url: s.url, ok: s.ok, stale: stale!.has(s.url), status: s.statusCode, error: s.error, checkedAt: s.checkedAt.toISOString() })) : null;
   const n8n = opts.live ? await n8nOverview() : null;
   let index: string | null = null;
   let rules: string | null = null;
@@ -56,7 +58,7 @@ export function contextToMarkdown(c: Awaited<ReturnType<typeof buildContext>>): 
     lines.push(``, `## Monitoramento (${c.monitoring.length} endereços)`, ``);
     for (const m of c.monitoring) {
       const s = c.status?.find((x) => x.url === m.url);
-      lines.push(`- ${m.priority} · ${m.name}: ${m.url}${s ? ` → ${s.ok ? "✅" : "❌"} ${s.status ?? s.error ?? ""}` : ""}`);
+      lines.push(`- ${m.priority} · ${m.name}: ${m.url}${s ? ` → ${s.stale ? "⚠️ sem verificação recente" : s.ok ? "✅" : "❌"} ${s.status ?? s.error ?? ""} (última verificação ${s.checkedAt})` : ""}`);
     }
   }
   if (c.incidents?.length) {

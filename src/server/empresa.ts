@@ -9,6 +9,7 @@ import { githubInbox } from "@/server/github-inbox";
 import { listGoals } from "@/server/goals";
 import { groupAgenda } from "@/server/home";
 import { liveOps } from "@/server/ops-live";
+import { availabilitySnapshot } from "@/lib/ops-freshness";
 import { listProjects } from "@/server/projects";
 import { getSettings } from "@/server/settings";
 import { homeTasks, listTasks, taskCounts } from "@/server/tasks";
@@ -38,7 +39,8 @@ export async function loadEmpresaLocal() {
   const proposalReplies = asksAll.filter(x => x.tags.includes(ANSWERED_TAG)).map(({ id, notes, tags, status }) => ({ id, notes, tags, status }));
   const askIds = new Set(asks.map((task) => task.id));
   const waitingDue = due.filter((task) => !askIds.has(task.id) && !task.tags.includes(ANSWERED_TAG));
-  const down = live.status.filter((s) => !s.ok);
+  const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
+  const down = snapshot.down;
   const failures = live.events.filter((e) => e.kind === "workflow_error" && now.getTime() - e.createdAt.getTime() < DAY);
   const incidents = live.events.filter((e) => ["site_down", "workflow_error", "domain_alert", "monitor_silent"].includes(e.kind) && (!e.resolvedAt || now.getTime() - e.createdAt.getTime() < 7 * DAY));
   const domains = live.domains.filter((d) => d.expiresAt || d.error).map((d) => ({ ...d, days: d.expiresAt ? Math.ceil((d.expiresAt.getTime() - now.getTime()) / DAY) : null }));
@@ -51,8 +53,9 @@ export async function loadEmpresaLocal() {
   let subtitle: { text: string; tone?: "warning" };
   if (down.length) subtitle = { text: `⚠ Fora do ar: ${down.map((d) => d.name).join(", ")}`, tone: "warning" };
   else if (silent.length) subtitle = { text: `⚠ Monitor em silêncio: ${silent.map((m) => m.label).join(", ")}`, tone: "warning" };
+  else if (snapshot.stale.length) subtitle = { text: `⚠ ${snapshot.stale.length} endereço(s) sem verificação recente`, tone: "warning" };
   else if (waiting) subtitle = { text: `${waiting} ${waiting === 1 ? "item aguardando" : "itens aguardando"} você${overdue.length ? ` · ${overdue.length} ${overdue.length === 1 ? "atrasada" : "atrasadas"}` : ""}` };
-  else if (live.status.length) subtitle = { text: `Tudo no ar · ${live.status.length} endereços monitorados` };
+  else if (snapshot.current.length) subtitle = { text: `Tudo no ar · ${snapshot.current.length} endereços monitorados` };
   else subtitle = { text: `${counts.open} tarefas abertas na empresa` };
 
   const empresaProjects = projects.filter((p) => p.area === "empresa");
@@ -70,7 +73,7 @@ export async function loadEmpresaLocal() {
     tasks,
     counts,
     activity,
-    ops: { total: live.status.length, down, failures, soon, monitors: live.monitors, silent },
+    ops: { total: snapshot.current.length, down, stale: snapshot.stale.length, failures, soon, monitors: live.monitors, silent },
     incidents,
     domains,
     projects: empresaProjects,

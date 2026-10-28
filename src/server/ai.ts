@@ -22,6 +22,7 @@ import { listTasks, taskCounts } from "@/server/tasks";
 import { assistantTools, runAssistantTool, toolJsonSchema } from "@/server/assistant";
 import { crmConfigured, crmOverview, crmUrl } from "@/server/crm";
 import { liveOps } from "@/server/ops-live";
+import { availabilitySnapshot } from "@/lib/ops-freshness";
 import { getVaultIndexSafe, getVaultProvider } from "@/server/vault";
 
 /**
@@ -124,7 +125,7 @@ export async function empresaContext(): Promise<string> {
     `## Sinais comerciais agregados`,
     crm.configured && crm.ok ? `Clientes no funil: ${crm.summary.clientes}; oportunidades: ${crm.summary.oportunidades_abertas}; receita líquida registrada no mês: ${crm.summary.receita_mes}. Contas ativas não comprovam pagamento. Consulte crm_resumo por produto e crm_funil_emails para aprofundar decisões.` : "Dados comerciais indisponíveis; não presumir ausência de clientes ou oportunidades.",
     `## Operação monitorada`,
-    `${live.status.filter((item) => item.ok).length}/${live.status.length} endereços no ar. ${live.monitors.filter((monitor) => monitor.silent).length} monitores sem sinal. Disponibilidade não demonstra sucesso comercial; priorize também evolução, ativação, receita e eficiência.`,
+    (() => { const s = availabilitySnapshot(live.status, live.monitors, live.generatedAt); return `Endereços: ${s.current.length ? `${s.up.length}/${s.current.length} no ar com verificação recente` : "nenhuma verificação recente"}; ${s.stale.length} sem verificação recente. ${live.monitors.filter((monitor) => monitor.silent).length} monitores sem sinal. Disponibilidade não demonstra sucesso comercial; priorize também evolução, ativação, receita e eficiência.`; })(),
   ].join("\n");
 }
 

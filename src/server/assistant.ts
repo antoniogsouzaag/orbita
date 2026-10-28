@@ -12,6 +12,7 @@ import { insertTask, patchTask } from "./task-write";
 import { eventsBetween } from "./calendar";
 import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./crm";
 import { liveOps } from "./ops-live";
+import { availabilitySnapshot } from "@/lib/ops-freshness";
 import { crmCommercialSummary, crmEmailFunnel, crmCommercialNotes, crmPrioritySummary } from "./crm-commercial";
 import { crmSummaryInput, crmEmailInput, crmProductSchema, crmProductKey } from "@/lib/crm-aggregates";
 import { businessUnit, MODEL_INFO } from "@/lib/business-models";
@@ -267,12 +268,13 @@ export const statusOperacao = {
   schema: statusOperacaoSchema,
   async run(): Promise<ActionResult> {
     const live = await liveOps();
-    const down = live.status.filter((s) => !s.ok);
+    const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
+    const down = snapshot.down;
     const open = live.events.filter((e) => e.kind === "site_down" && !e.resolvedAt);
     const pendingWorkflows = live.events.filter(e => e.kind === "workflow_error" && !e.resolvedAt);
     const wf = live.events.filter((e) => e.kind === "workflow_error" && Date.now() - e.createdAt.getTime() < 86_400_000);
     const lines = [
-      `Endereços no ar: ${live.status.length - down.length}/${live.status.length}.`,
+      `Endereços: ${snapshot.current.length ? `${snapshot.up.length}/${snapshot.current.length} no ar com verificação recente` : "nenhuma verificação recente"}; ${snapshot.stale.length} sem verificação recente.`,
       ...down.map((d) => `- Fora do ar: ${d.name} (${d.url}) — ${d.statusCode ?? d.error ?? "sem resposta"}`),
       `Incidentes abertos: ${open.length}. Falhas de workflow nas últimas 24h: ${wf.length}${wf.length ? ` (${wf.map((e) => e.subject).join(", ")})` : ""}.`,
       `Falhas de workflow sem resolução registrada (inclui antigas): ${pendingWorkflows.length}${pendingWorkflows.length ? ` — ${pendingWorkflows.slice(0, 10).map(e => e.subject).join("; ")}` : ""}.`,

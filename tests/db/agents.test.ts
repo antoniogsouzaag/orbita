@@ -1,7 +1,9 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/mcp/route";
 import { getDb } from "@/db";
-import { agentActivity, agentTokens, opsEvents, tasks } from "@/db/schema";
+import { agentActivity, agentTokens, opsEvents, opsStatus, tasks } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { ingest, IngestSchema } from "@/server/ops-live";
 import { agentActivitySummary, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken, updateAgentScopes } from "@/server/agents";
 
 let n = 0;
@@ -52,6 +54,20 @@ describe("central dos agentes (MCP)", () => {
     expect(await toolNames(t)).toEqual(["automacoes_operacionais", "documentacao", "eventos_recentes", "pendencias_github", "status_ao_vivo"]);
     const call = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "não deveria" } });
     expect(JSON.stringify(call.body)).toMatch(/not found|não|error/i);
+  });
+
+  it("não apresenta a última resposta antiga como disponibilidade atual ao agente", async () => {
+    const url = "https://monitor-expirado.example/";
+    await ingest(IngestSchema.parse({ source: "teste-status-expirado", everyMinutes: 15, links: [{ url, name: "Monitor antigo", status: 200 }] }));
+    const db = await getDb();
+    await db.update(opsStatus).set({ checkedAt: new Date(Date.now() - 60 * 60_000) }).where(eq(opsStatus.url, url));
+    const token = await createAgentToken("Status teste", ["status"]);
+    const result = await rpc(token, "tools/call", { name: "status_ao_vivo", arguments: {} });
+    const output = JSON.stringify(result.body);
+    expect(output).toContain("sem verificação recente");
+    expect(output).toContain("Monitor antigo");
+    expect(output).not.toContain("1/1 no ar com verificação recente");
+    await db.delete(opsStatus).where(eq(opsStatus.url, url));
   });
 
   it("entrega o mesmo manual por ferramenta, resource e prompt sem ampliar permissões", async () => {
