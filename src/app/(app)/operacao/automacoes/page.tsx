@@ -17,7 +17,7 @@ const when = (d: Date | string) => new Date(d).toLocaleString("pt-BR", { timeZon
 export default async function Page() {
   const [n8n, live] = await Promise.all([n8nOverview(), liveOps()]);
   const notePath = (await getVaultIndexSafe())?.resolve("Automações Ativas") ?? null;
-  const sourcesVerified = n8n.configured && n8n.instances.every((instance) => instance.ok);
+  const sourcesVerified = n8n.configured && n8n.instances.every((instance) => instance.ok && !instance.workflowsPartial);
   const liveIds = new Set(n8n.instances.flatMap((i) => i.workflows.map((w) => w.id)));
   const missing = sourcesVerified ? n8n.documented.filter((d) => d.id && /^[A-Za-z0-9]{8,}$/.test(d.id) && !liveIds.has(d.id) && /n8n/i.test(d.where)) : [];
   const pushed = live.events.filter((e) => e.kind === "workflow_error");
@@ -121,7 +121,7 @@ export default async function Page() {
       <WidgetShell title="Fora do n8n" meta="no vault">
         <Big tone={missing.length ? "warn" : undefined} unit="não encontrados">{sourcesVerified ? missing.length : "—"}</Big>
         <ul className="mt-auto space-y-1 text-[12px] text-muted">
-          {!sourcesVerified && <li className="text-faint">Requer todas as instâncias respondendo.</li>}
+          {!sourcesVerified && <li className="text-faint">Requer todas as instâncias respondendo com inventário completo.</li>}
           {sourcesVerified && missing.length === 0 && <li className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-success" />Tudo que está documentado existe.</li>}
           {missing.slice(0, 3).map((m) => <li key={m.id} className="truncate">{m.name}</li>)}
         </ul>
@@ -175,6 +175,7 @@ export default async function Page() {
         </Card>
       )}
 
+      {n8n.instances.some((instance) => instance.workflowsPartial) && <Card className="p-4 text-[13px] text-warning">A consulta de workflows está incompleta em pelo menos uma instância. Os totais representam somente os dados carregados.</Card>}
       <WidgetBoard storageKey={n8n.configured ? "automacoes" : "automacoes-min"} items={items} panels={panels} />
 
       <section className="space-y-3">
@@ -187,6 +188,7 @@ export default async function Page() {
           <SectionLabel>n8n · {inst.name}</SectionLabel>
           {!inst.ok ? <Card className="p-4 text-[13px] text-danger">{inst.error}</Card> : (
             <>
+              {inst.workflowsPartial && <Card className="p-4 text-[13px] text-warning">Inventário parcial: a API retornou mais páginas ou um cursor repetido. Os totais abaixo representam apenas os workflows carregados.</Card>}
               <WorkflowTable url={inst.url} rows={inst.workflows.filter((w) => w.active)} />
               {inst.workflows.some((w) => !w.active) && (
                 <details className="card group">

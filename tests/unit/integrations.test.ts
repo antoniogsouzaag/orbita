@@ -10,6 +10,7 @@ vi.mock("@/server/vault", () => ({ vaultConfig: vi.fn(() => ({ configured: false
 
 vi.mock("@/server/product-metrics", () => ({ productMetricsConfigured: vi.fn(() => false), productMetrics: vi.fn() }));
 import { productMetrics, productMetricsConfigured } from "@/server/product-metrics";
+import { n8nInstances, n8nOverview } from "@/server/ops";
 import { checkIntegrationHealth, integrationConfiguration } from "@/server/integrations";
 
 beforeEach(() => {
@@ -20,6 +21,13 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 describe("diagnóstico das integrações", () => {
+  it("avisa quando a API n8n retorna inventário parcial", async () => {
+    vi.mocked(n8nInstances).mockReturnValue([{ name: "vps", url: "https://n8n.example", apiKey: "secret" }]);
+    vi.mocked(n8nOverview).mockResolvedValue({ configured: true, documented: [], instances: [{ name: "vps", url: "https://n8n.example", ok: true, workflows: [], errors: [], workflowsPartial: true }] });
+    const rows = await checkIntegrationHealth();
+    expect(rows.find(row => row.id === "n8n")).toMatchObject({ state: "warning", detail: expect.stringContaining("inventário incompleto") });
+    vi.mocked(n8nInstances).mockReturnValue([]);
+  });
   it("consulta os seis negócios independentemente e preserva ausência, falha e snapshot antigo", async () => {
     vi.mocked(productMetricsConfigured).mockReturnValue(true);
     const checkedAt = "2026-10-26T20:00:00.000Z";
