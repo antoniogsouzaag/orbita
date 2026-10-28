@@ -25,4 +25,6 @@ Títulos de itens puramente técnicos deixam o prefixo Proposta após triagem co
 
 GitHub é a fonte da implementação (issues/PRs/checks). Órbita consulta PRs e issues abertas com proposta,execucao,decisao na organização configurada; contagens são dos itens carregados, respeitando cobertura do token, limite100 por busca e aviso de parcialidade/erro. Cache de5minutos, botão Atualizar GitHub força renovação. O MCP de leitura usa a mesma classificação. Não é um agendamento ou agente autônomo.
 
+Se uma atualização falhar, o último snapshot válido (inclusive vazio) mantém a data original e o aviso de desatualização nas próximas consultas. Uma falha reduz o intervalo de nova tentativa para um minuto; a atualização explícita ignora esse intervalo. Recusa de acesso não reapresenta dados antigos. Consultas simultâneas da mesma organização e credencial compartilham a atualização em andamento no processo; isso não é cache distribuído. Resposta malformada não é considerada fonte verificada.
+
 Não prometer cobertura de todos os repositórios privados, organizações ou contas pessoais fora da origem consultada. Não copiar tickets inteiros para tarefas paralelas que podem divergir. Revisão/implementação/publicação/jornada validada são estados diferentes.
