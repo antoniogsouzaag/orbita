@@ -42,8 +42,10 @@ export async function productMetrics(product: string): Promise<ProductMetricsRes
       if (!["ok", "stale", "not_configured", "unavailable"].includes(result.status)) throw new Error("Contrato inválido");
       if (result.status === "not_configured" || result.status === "unavailable") return { status: result.status, checkedAt, data: null, message: result.status === "not_configured" ? "Coleta administrativa do produto ainda não configurada no CRM." : "Coleta do produto pelo CRM indisponível. Nenhum zero foi presumido." };
       const data = validateProductMetrics(result.data, product);
-      const stale = result.status === "stale" || Date.now() - Date.parse(data.generatedAt) > 24 * 3_600_000;
-      return { status: stale ? "stale" : "ok", checkedAt, data, message: stale ? "Snapshot do aplicativo via CRM há mais de 24 horas." : "Agregados do aplicativo via CRM." };
+      const expired = Date.now() - Date.parse(data.generatedAt) > 24 * 3_600_000;
+      const stale = result.status === "stale" || expired;
+      const message = expired ? "Snapshot do aplicativo via CRM há mais de 24 horas." : result.status === "stale" ? "O CRM informou que o snapshot está desatualizado; confira a origem." : "Agregados do aplicativo via CRM.";
+      return { status: stale ? "stale" : "ok", checkedAt, data, message };
     } catch { return { status: "unavailable", checkedAt, data: null, message: "Não foi possível obter as métricas pelo CRM. Verifique a conexão e a versão do conector." }; }
   }
   const source = sources().find(item => item.product === product);
