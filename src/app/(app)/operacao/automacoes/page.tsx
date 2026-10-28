@@ -19,7 +19,8 @@ export default async function Page() {
   const notePath = (await getVaultIndexSafe())?.resolve("Automações Ativas") ?? null;
   const sourcesVerified = n8n.configured && n8n.instances.every((instance) => instance.ok && !instance.workflowsPartial);
   const liveIds = new Set(n8n.instances.flatMap((i) => i.workflows.map((w) => w.id)));
-  const missing = sourcesVerified ? n8n.documented.filter((d) => d.id && /^[A-Za-z0-9]{8,}$/.test(d.id) && !liveIds.has(d.id) && /n8n/i.test(d.where)) : [];
+  const comparisonAvailable = sourcesVerified && n8n.documentationAvailable;
+  const missing = comparisonAvailable ? n8n.documented.filter((d) => d.id && /^[A-Za-z0-9]{8,}$/.test(d.id) && !liveIds.has(d.id) && /n8n/i.test(d.where)) : [];
   const pushed = live.events.filter((e) => e.kind === "workflow_error");
   const pushedUrls = new Set(pushed.map((event) => String(event.detail.executionUrl ?? "")).filter(Boolean));
   const apiErrors = n8n.instances.flatMap((i) => i.errors).filter((error) => !pushedUrls.has(error.url));
@@ -94,6 +95,7 @@ export default async function Page() {
     ),
     coverage: (
       <WidgetShell title="Documentação" href={notePath ? `/vault?p=${encodeURIComponent(notePath)}` : "/vault"} hrefLabel="Vault">
+        {!comparisonAvailable ? <p className="text-[12.5px] text-muted">Não é possível comparar a documentação: verifique o inventário do vault e a cobertura das instâncias n8n.</p> :
         <div className="flex flex-1 items-center gap-4">
           <Ring value={documentedActive.length} total={active.length} tone={documentedActive.length === active.length ? "ok" : "warn"} label={`${documentedActive.length} de ${active.length} workflows ativos documentados no vault`}>
             <span className="text-[15px] font-semibold tabular-nums">{active.length ? `${Math.round((documentedActive.length / active.length) * 100)}%` : "—"}</span>
@@ -102,7 +104,7 @@ export default async function Page() {
             <div><dt className="text-faint">Documentados</dt><dd className="font-medium tabular-nums">{documentedActive.length}</dd></div>
             <div><dt className="text-faint">Sem ficha</dt><dd className={cn("font-medium tabular-nums", active.length - documentedActive.length ? "text-warning" : "")}>{active.length - documentedActive.length}</dd></div>
           </dl>
-        </div>
+        </div>}
       </WidgetShell>
     ),
     failures: (
@@ -119,10 +121,10 @@ export default async function Page() {
     ),
     missing: (
       <WidgetShell title="Fora do n8n" meta="no vault">
-        <Big tone={missing.length ? "warn" : undefined} unit="não encontrados">{sourcesVerified ? missing.length : "—"}</Big>
+        <Big tone={missing.length ? "warn" : undefined} unit="não encontrados">{comparisonAvailable ? missing.length : "—"}</Big>
         <ul className="mt-auto space-y-1 text-[12px] text-muted">
-          {!sourcesVerified && <li className="text-faint">Requer todas as instâncias respondendo com inventário completo.</li>}
-          {sourcesVerified && missing.length === 0 && <li className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-success" />Tudo que está documentado existe.</li>}
+          {!comparisonAvailable && <li className="text-faint">Requer inventário do vault e todas as instâncias respondendo com inventário completo.</li>}
+          {comparisonAvailable && missing.length === 0 && <li className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-success" />Nenhum ID comparável ausente nas instâncias consultadas.</li>}
           {missing.slice(0, 3).map((m) => <li key={m.id} className="truncate">{m.name}</li>)}
         </ul>
       </WidgetShell>
@@ -179,7 +181,7 @@ export default async function Page() {
       <WidgetBoard storageKey={n8n.configured ? "automacoes" : "automacoes-min"} items={items} panels={panels} />
 
       <section className="space-y-3">
-        <SectionLabel>Inventário do vault · {n8n.documented.length} rotinas</SectionLabel>
+        <SectionLabel>Inventário do vault · {n8n.documentationAvailable ? `${n8n.documented.length} rotinas` : "indisponível"}</SectionLabel>
         <p className="text-xs text-muted">Rotinas sem correspondência na consulta ao vivo, incluindo outros ambientes. As rotinas já encontradas no n8n aparecem nas tabelas abaixo. O cadastro não comprova execução.</p>
         <div className="grid gap-3 md:grid-cols-2">{n8n.documented.filter(d => !d.id || !liveIds.has(d.id)).map((d, i) => <Card key={`${d.where}:${d.id ?? d.name}:${i}`} className="p-4"><h3 className="text-sm font-medium">{d.name}</h3><p className="mt-1 text-xs text-accent">{d.where}</p><p className="mt-2 text-xs text-muted">{d.description || "Descrição não informada no vault."}</p><p className="mt-2 text-xs text-faint">{d.schedule || "Agenda não informada"} · sem estado de execução recebido</p></Card>)}</div>
       </section>
@@ -189,11 +191,11 @@ export default async function Page() {
           {!inst.ok ? <Card className="p-4 text-[13px] text-danger">{inst.error}</Card> : (
             <>
               {inst.workflowsPartial && <Card className="p-4 text-[13px] text-warning">Inventário parcial: a API retornou mais páginas ou um cursor repetido. Os totais abaixo representam apenas os workflows carregados.</Card>}
-              <WorkflowTable url={inst.url} rows={inst.workflows.filter((w) => w.active)} />
+              <WorkflowTable url={inst.url} rows={inst.workflows.filter((w) => w.active)} documentationAvailable={n8n.documentationAvailable} />
               {inst.workflows.some((w) => !w.active) && (
                 <details className="card group">
                   <summary className="cursor-pointer list-none px-5 py-3 text-[12.5px] text-muted [&::-webkit-details-marker]:hidden">Inativos · {inst.workflows.filter((w) => !w.active).length}<span className="ml-2 text-faint group-open:hidden">mostrar</span></summary>
-                  <div className="border-t border-border"><WorkflowTable url={inst.url} rows={inst.workflows.filter((w) => !w.active)} bare /></div>
+                  <div className="border-t border-border"><WorkflowTable url={inst.url} rows={inst.workflows.filter((w) => !w.active)} documentationAvailable={n8n.documentationAvailable} bare /></div>
                 </details>
               )}
             </>
@@ -204,7 +206,7 @@ export default async function Page() {
   );
 }
 
-function WorkflowTable({ url, rows, bare = false }: { url: string; rows: Awaited<ReturnType<typeof n8nOverview>>["instances"][number]["workflows"]; bare?: boolean }) {
+function WorkflowTable({ url, rows, documentationAvailable, bare = false }: { url: string; rows: Awaited<ReturnType<typeof n8nOverview>>["instances"][number]["workflows"]; documentationAvailable: boolean; bare?: boolean }) {
   const table = (
     <table className="w-full text-[13px]">
       <thead><tr className="border-b border-border text-left text-[11.5px] text-faint"><th className="px-5 py-2.5 font-medium">Workflow</th><th className="px-3 py-2.5 font-medium">Estado</th><th className="hidden px-3 py-2.5 font-medium sm:table-cell">Vault</th><th className="px-5 py-2.5 text-right font-medium">Atualizado</th></tr></thead>
@@ -213,7 +215,7 @@ function WorkflowTable({ url, rows, bare = false }: { url: string; rows: Awaited
           <tr key={w.id} className="border-b border-border transition last:border-0 hover:bg-surface-2/60">
             <td className="max-w-0 px-5 py-2.5"><a href={`${url}/workflow/${w.id}`} target="_blank" rel="noreferrer" className="block truncate font-medium hover:underline">{w.name}</a></td>
             <td className="px-3 py-2.5">{w.active ? <span className="inline-flex items-center gap-1 text-[12px] text-success"><CheckCircle2 className="size-3.5" />ativo</span> : <span className="inline-flex items-center gap-1 text-[12px] text-faint"><CircleDashed className="size-3.5" />inativo</span>}</td>
-            <td className="hidden px-3 py-2.5 text-[12px] sm:table-cell">{w.documented ? <span className="text-muted">documentado</span> : w.active ? <span className="text-warning">não documentado</span> : <span className="text-faint">—</span>}</td>
+            <td className="hidden px-3 py-2.5 text-[12px] sm:table-cell">{!documentationAvailable ? <span className="text-faint">indisponível</span> : w.documented ? <span className="text-muted">documentado</span> : w.active ? <span className="text-warning">não documentado</span> : <span className="text-faint">—</span>}</td>
             <td className="px-5 py-2.5 text-right text-[12px] tabular-nums text-faint">{new Date(w.updatedAt).toLocaleDateString("pt-BR")}</td>
           </tr>
         ))}

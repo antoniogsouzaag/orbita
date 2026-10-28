@@ -2,10 +2,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/vault", () => ({ getVaultIndexSafe: vi.fn(async () => null) }));
 import { n8nOverview } from "@/server/ops";
+import { getVaultIndexSafe } from "@/server/vault";
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 describe("cobertura de consultas n8n", () => {
+  it("distingue vault indisponível, ficha sem tabelas reconhecidas e inventário lido", async () => {
+    vi.stubEnv("N8N_INSTANCES", "[]");
+    expect((await n8nOverview()).documentationAvailable).toBe(false);
+    const index = (body: string) => ({ resolve: () => "nota", notes: new Map([["nota", { body }]]) });
+    vi.mocked(getVaultIndexSafe).mockResolvedValueOnce(index("# Ficha sem inventário") as never);
+    expect((await n8nOverview()).documentationAvailable).toBe(false);
+    vi.mocked(getVaultIndexSafe).mockResolvedValueOnce(index("| Automação | ID | Função | Execução |\n|---|---|---|---|\n| Monitor | monitor123 | Verifica | Diário |") as never);
+    const loaded = await n8nOverview();
+    expect(loaded.documentationAvailable).toBe(true);
+    expect(loaded.documented).toHaveLength(1);
+  });
   it("codifica o cursor e sinaliza inventário parcial após o limite de páginas", async () => {
     vi.stubEnv("N8N_INSTANCES", JSON.stringify([{ name: "vps", url: "https://n8n.example", apiKey: "secret-key" }]));
     let page = 0;

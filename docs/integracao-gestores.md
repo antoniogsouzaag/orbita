@@ -4,6 +4,8 @@
 
 As consultas da Órbita aos workflows seguem até dez páginas por instância. Quando a API ainda fornece cursor ou repete um cursor, o inventário é parcial: painel, diagnóstico e contexto para agentes identificam a limitação e não concluem que uma automação documentada está ausente. A consulta de falhas retorna até 25 execuções por instância; a ferramenta MCP mostra no máximo dez detalhes. Uma lista vazia é apenas o resultado da consulta atual. Erros de transporte são sanitizados antes de chegar ao painel ou aos agentes.
 
+O painel compara os workflows à nota de automações somente quando ela está disponível e contém tabelas reconhecidas. Se a nota estiver indisponível ou sem estrutura reconhecida, não classifica workflows como não documentados; isso não implica que o vault esteja vazio. A cobertura agregada exige também leitura completa das instâncias n8n.
+
 Entrada canônica da central: `/documentacao` (mesmo contrato de `orbita://manual` e `documentacao` no MCP). Este guia complementa o manual com a configuração específica dos runtimes.
 
 Este guia documenta os contratos de conexão e os critérios de validação por gestor. O estado de cada acesso e sua comunicação funcional devem ser conferidos no ambiente correspondente; a configuração descrita aqui não comprova uma execução.
