@@ -15,18 +15,22 @@ describe("GitHub operacional", () => {
     const request = vi.fn(async (url: string) => {
       const q = new URL(url).searchParams.get("q")!;
       if (q.includes("is:pr")) return Response.json({items:[],total_count:0});
-      expect(q).toContain("label:proposta,execucao,decisao");
+      expect(q).toContain("is:issue is:open");
+      expect(q).toContain("-label:recusado");
+      expect(q).not.toContain("label:proposta,execucao,decisao");
       expect(q).not.toContain("-label:aprovado");
       return Response.json({items:[
         {title:"Correção",html_url:"https://github.com/org/app/issues/1",number:1,updated_at:"2026-10-24",repository_url:"https://api.github.com/repos/org/app",labels:[{name:"execucao"},{name:"bloqueado"}]},
         {title:"Mudança de preço",html_url:"https://github.com/org/app/issues/2",number:2,updated_at:"2026-10-24",repository_url:"https://api.github.com/repos/org/app",labels:[{name:"decisao"}]},
-        {title:"Proposta legada",html_url:"https://github.com/org/app/issues/3",number:3,updated_at:"2026-10-24",repository_url:"https://api.github.com/repos/org/app",labels:[{name:"proposta"}]}
-      ],total_count:3});
+        {title:"Proposta legada",html_url:"https://github.com/org/app/issues/3",number:3,updated_at:"2026-10-24",repository_url:"https://api.github.com/repos/org/app",labels:[{name:"proposta"}]},
+        {title:"Falha sem etiqueta",html_url:"https://github.com/org/app/issues/4",number:4,updated_at:"2026-10-24",repository_url:"https://api.github.com/repos/org/app",labels:[]},
+        {title:"Legado aprovado",html_url:"https://github.com/org/app/issues/5",number:5,updated_at:"2026-10-24",repository_url:"https://api.github.com/repos/org/app",labels:[{name:"aprovado"}]}
+      ],total_count:5});
     });
     vi.stubGlobal("fetch",request);
     const result = await githubInbox({force:true});
-    expect(result.total).toBe(3);
-    expect(result.items.map(i => i.stage)).toEqual(["execution","decision","triage"]);
+    expect(result.total).toBe(5);
+    expect(result.items.map(i => i.stage)).toEqual(["execution","decision","triage","triage","execution"]);
     expect(result.items[0].blocked).toBe(true);
     expect(request).toHaveBeenCalledTimes(2);
   });

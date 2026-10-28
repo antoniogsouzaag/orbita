@@ -3,7 +3,7 @@ export type GithubStage = "decision" | "execution" | "triage";
 export const GITHUB_STAGES: { id: GithubStage; label: string; description: string }[] = [
   { id: "decision", label: "Decisão de Antonio", description: "Escolha concreta de negócio, política, acesso ou ação irreversível ainda sem decisão." },
   { id: "execution", label: "Fila de execução", description: "Correção ou melhoria delimitada; permanece aberta até implementação e verificação." },
-  { id: "triage", label: "A classificar", description: "Proposta legada ainda não reconciliada. O título não determina risco nem aprovação." },
+  { id: "triage", label: "A classificar", description: "Issue aberta sem classificação de execução ou decisão. O título não determina risco nem aprovação." },
 ];
 export function issueStage(labels: string[] = []): GithubStage {
   const names = labels.map(label => label.toLowerCase());
