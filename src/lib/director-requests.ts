@@ -1,3 +1,4 @@
+import { taskProof } from "./hermes-task-proof";
 import type { DispatchView } from "@/server/dispatch";
 import type { HermesOperation } from "@/server/hermes";
 
@@ -32,7 +33,7 @@ const LABELS: Record<string, string> = {
 };
 
 export function verifiedTask(row: HermesOperation) {
- return row.action === "task.dispatch" && row.taskExecution === true && row.verified === true && typeof row.taskId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(row.taskId) && !!row.responseText?.trim();
+ return row.action === "task.dispatch" && taskProof.safeParse({task_execution:row.taskExecution,verified:row.verified,task_id:row.taskId,response_text:row.responseText,session_id:row.sessionId,evidence:row.evidence}).success;
 }
 export function verifiedMaintenance(row: HermesOperation) {
  return row.action === "maintenance.execute" && row.maintenanceExecution === true && row.verified === true && typeof row.changed === "boolean" && typeof row.taskId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(row.taskId);

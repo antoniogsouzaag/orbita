@@ -44,7 +44,7 @@ export function HermesWork({ ready, onOperation }: { ready: boolean; onOperation
    finally { busy.current = false; }
   });
  }
- return <><Button size="sm" onClick={show}>Encaminhar trabalho</Button><Dialog open={open} onOpenChange={value => { if (!pending) setOpen(value); }}><DialogContent title="Encaminhar trabalho" description="Investigação, desenvolvimento e correção autorizados · Hermes Oracle · VPS03.">
+ return <><Button size="sm" disabled={!ready} onClick={show}>Encaminhar trabalho</Button><Dialog open={open} onOpenChange={value => { if (!pending) setOpen(value); }}><DialogContent title="Encaminhar trabalho" description="Investigação, desenvolvimento e correção autorizados · Hermes Oracle · VPS03.">
  <p className="text-xs text-muted">Texto livre é contexto, não shell direto. Perfil, modelo, ferramentas e destino são fixos no executor. Criar tarefa não aprova negócio, despesa ou destruição. A tarefa e o escopo autorizado são a autoridade; sem herdar memória desta conversa.</p>
  <form aria-label="Encaminhar trabalho" className="space-y-3" onSubmit={event => { event.preventDefault(); submit(); }}>
  <fieldset disabled={pending || submitted} className="space-y-3">

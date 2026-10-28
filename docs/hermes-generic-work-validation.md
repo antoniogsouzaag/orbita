@@ -29,6 +29,18 @@ Additional regressions cover concurrent create/existing-task reservations, wrong
 - `git diff --check`: passed.
 - `npm ci --ignore-scripts`: succeeded; npm reported **4 moderate dependency advisories**. No dependency changes or automated audit upgrades were made.
 
+## Review-blocker correction gates
+
+- Default-off persisted `hermes-task-dispatch` gate before reservation, shared UI/MCP; admin activation via `configurar_encaminhamento_hermes` requires authenticated correlated diagnostics readiness. No Vercel configuration change needed; optional environment hard-disable only.
+- Exact executor-only `consultar_despacho_hermes({id:UUID4})`, persisted origin and strict params; name without admin is denied, requester tasks scope cannot read executor descriptors.
+- Exact completion proof requires bounded safe session ID and 1–12 meaningful evidence strings. Server also reads the assigned Empresa task in `done`. UI uses the same proof schema. This is task state plus native receipt, not independent effect verification.
+- Generated `drizzle/meta/0008_snapshot.json` using drizzle-kit API from the existing schema and snapshot 0007. The diff was exactly two ADD COLUMN and two CREATE UNIQUE INDEX statements, no destructive changes. No existing SQL migration was replaced. Regression verifies snapshot-to-current diff is empty.
+- TDD red observed: disabled dispatch incorrectly reserved, UI trigger remained enabled, missing activation service/MCP, omitted session/evidence accepted, task without done incorrectly completed, missing snapshot. Each fixed and retested.
+- `env -u NODE_ENV npm test`: 88 files / 462 tests passed after corrections; expanded same-test security assertions also exercised in final rerun.
+- `npm run typecheck`, targeted ESLint and `git diff --check`: passed.
+- Deployment-equivalent `env -u NODE_ENV DATABASE_URL='' PGLITE_DIR=memory sh -c 'node scripts/migrate.mjs && npm run build'`: passed, 39 static pages. The migration script explicitly skipped without DATABASE_URL; DB tests apply real SQL migrations through PGlite, not a claim of PostgreSQL/Neon deployment.
+- One initial full-suite run hit a 180-second tool timeout. Re-run with 600 seconds completed (approximately 304 seconds); no fabricated output or reduced acceptance gate.
+
 ## Not enabled or verified live
 
 No push, merge, deployment, production migration, secret/gate change or live receiver call. Global VPS03 resource locking, fixed executor sandbox and task execution binding are receiver/runtime obligations, documented here but not implemented in the Órbita repository. Compatible receiver review and a separately authorized end-to-end UI/MCP execution are required before enabling this contract. Independent parent-agent review remains pending; local gates are not an independent security review.

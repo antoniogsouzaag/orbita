@@ -9,14 +9,14 @@ import type { HermesOperation } from "@/server/hermes";
 vi.mock("@/app/actions/hermes",()=>({sendHermes:vi.fn(),checkHermes:vi.fn()}));
 vi.mock("sonner",()=>({toast:Object.assign(vi.fn(),{error:vi.fn()})}));
 let host:HTMLDivElement;let mounted:Root;
-const config={enabled:true,endpointConfigured:true,secretConfigured:true};
+const config={taskDispatchEnabled:true,enabled:true,endpointConfigured:true,secretConfigured:true};
 const operation:HermesOperation={id:"analysis",action:"agent.analyze",text:"Analisar",status:"accepted",detail:"Recebido",createdAt:new Date().toISOString(),checkedAt:new Date().toISOString()};
 beforeEach(()=>{Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});vi.useFakeTimers();vi.clearAllMocks();host=document.createElement("div");document.body.append(host);mounted=createRoot(host);});
 afterEach(async()=>{await act(async()=>mounted.unmount());host.remove();vi.useRealTimers();});
 const tick=async()=>{await act(async()=>{await vi.advanceTimersByTimeAsync(5000);});};
 it("consulta trabalho genérico ativo e renderiza prova como texto sem executar HTML",async()=>{
  const task:HermesOperation={...operation,id:"task",action:"task.dispatch",taskId:"12345678-1234-4234-8234-123456789abc"};
- vi.mocked(checkHermes).mockResolvedValue({...task,status:"completed",taskExecution:true,verified:true,responseText:"<script>Teste real</script>"});
+ vi.mocked(checkHermes).mockResolvedValue({...task,status:"completed",taskExecution:true,verified:true,sessionId:"session-123",evidence:["Native receipt"],responseText:"<script>Teste real</script>"});
  await act(async()=>mounted.render(React.createElement(HermesIntegration,{config,initial:[task]})));
  await tick();expect(checkHermes).toHaveBeenCalledExactlyOnceWith("task");expect(host.textContent).toContain("<script>Teste real</script>");expect(host.querySelector("script")).toBeNull();
  await tick();expect(checkHermes).toHaveBeenCalledTimes(1);

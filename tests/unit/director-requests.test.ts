@@ -13,7 +13,7 @@ const tom = (status: DispatchView["status"], silent = false): DispatchView => ({
 
 describe("acompanhamento da diretoria", () => {
  it("trabalho genérico só conclui com prova validada",()=>{
-  const task:HermesOperation={...oracle("completed"),action:"task.dispatch",taskId:"12345678-1234-4234-8234-123456789abc",taskExecution:true,verified:true,responseText:"Teste executado"};
+  const task:HermesOperation={...oracle("completed"),action:"task.dispatch",taskId:"12345678-1234-4234-8234-123456789abc",taskExecution:true,verified:true,sessionId:"session-123",evidence:["Native receipt"],responseText:"Teste executado"};
   expect(directorRequests([],[task])[0]).toMatchObject({group:"completed",detail:"Teste executado"});
   for(const invalid of [{verified:undefined},{taskExecution:undefined},{taskId:undefined}]) expect(directorRequests([],[{...task,...invalid}])[0]).toMatchObject({group:"attention",status:"Conclusão não verificada"});
  });

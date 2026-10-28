@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { dispatches, tasks, type AgentScope } from "@/db/schema";
-import { deliverHermesOperation, taskParams } from "./hermes";
+import { dispatches, tasks, settings, type AgentScope } from "@/db/schema";
+import { deliverHermesOperation, taskParams, request } from "./hermes";
 import { storedHermesOperation } from "./hermes-store";
 import { assertMaintenanceTask } from "./hermes-maintenance-tasks";
 
@@ -14,8 +14,28 @@ export type WorkInput = z.infer<typeof workInput>;
 /** Trusted caller only: MCP identity comes from verified bearer; UI from requireAuth. */
 export type WorkActor = { kind: "mcp"; id: string; name: string; scopes: AgentScope[] } | { kind: "ui"; id: "owner"; name: "Antonio"; scopes: ["admin"] };
 
+export async function hermesWorkEnabled() {
+ if (process.env.HERMES_TASK_DISPATCH_ENABLED === "false") return false;
+ const db = await getDb();
+ const [row] = await db.select().from(settings).where(eq(settings.key, "hermes-task-dispatch"));
+ return z.object({enabled:z.boolean()}).safeParse(row?.value).data?.enabled === true;
+}
+export async function configureHermesWork(actor: WorkActor, enabled: boolean) {
+ if (!actor.id || !actor.scopes.includes("admin")) throw new Error("Escopo admin obrigatório.");
+ if (enabled) {
+  if (process.env.HERMES_TASK_DISPATCH_ENABLED === "false") throw new Error("HERMES_TASK_DISPATCH_ENABLED desabilitado pelo operador.");
+  const proof = await request(crypto.randomUUID(), "diagnostics.read", {});
+  if (proof.task_dispatch_ready !== true) throw new Error("Receptor sem capacidade task_dispatch_ready comprovada.");
+ }
+ const db = await getDb();
+ await db.insert(settings).values({key:"hermes-task-dispatch",value:{enabled}}).onConflictDoUpdate({target:settings.key,set:{value:{enabled}}});
+ const [row] = await db.select().from(settings).where(eq(settings.key,"hermes-task-dispatch"));
+ if (z.object({enabled:z.boolean()}).safeParse(row?.value).data?.enabled !== enabled) throw new Error("Readback de ativação divergente.");
+ return {enabled};
+}
 export async function dispatchWork(actor: WorkActor, raw: WorkInput) {
  if (!actor.id || !actor.scopes.some(s => s === "tarefas" || s === "admin")) throw new Error("Escopo tarefas ou admin obrigatório.");
+ if (!(await hermesWorkEnabled())) throw new Error("Encaminhamento desativado (setting ou HERMES_TASK_DISPATCH_ENABLED); nenhum trabalho reservado.");
  const input = workInput.parse(raw);
  const requestKey = createHash("sha256").update(JSON.stringify([actor.kind, actor.id, input])).digest("hex");
  const db = await getDb();

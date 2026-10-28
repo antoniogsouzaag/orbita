@@ -1,15 +1,21 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { getDb } from "@/db";
-import { tasks, dispatches } from "@/db/schema";
+import { tasks, dispatches, settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { dispatchWork } from "@/server/hermes-work";
 import { readHermesResult, hermesCommand, dispatchHermes } from "@/server/hermes";
 import { storedHermesOperation } from "@/server/hermes-store";
 const actor = { kind: "mcp" as const, id: "test-authenticated-token", name: "Outro agente", scopes: ["tarefas" as const] };
+it("generic gate defaults closed before any task or reservation", async () => {
+ const db = await getDb(); const beforeTasks = await db.select().from(tasks); const beforeDispatches = await db.select().from(dispatches);
+ await (await getDb()).insert(settings).values({key:"hermes-task-dispatch",value:{enabled:true}}).onConflictDoUpdate({target:settings.key,set:{value:{enabled:true}}}); vi.stubEnv("HERMES_DISPATCH_ENABLED", "true"); vi.stubEnv("HERMES_TASK_DISPATCH_ENABLED", "false");
+ await expect(dispatchWork(actor, {title:"Disabled",brief:"Do not reserve",acceptance:"No writes"})).rejects.toThrow(/HERMES_TASK_DISPATCH_ENABLED/);
+ expect(await db.select().from(tasks)).toEqual(beforeTasks); expect(await db.select().from(dispatches)).toEqual(beforeDispatches);
+});
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 it("reserva tarefa, atribuição e despacho antes da rede; retry incerto preserva UUID sem reenviar", async () => {
  const db = await getDb();
- vi.stubEnv("HERMES_DISPATCH_ENABLED", "true"); vi.stubEnv("HERMES_WEBHOOK_URL", "https://hermes.example/webhooks/orbita-hermes"); vi.stubEnv("HERMES_WEBHOOK_SECRET", "test");
+ await (await getDb()).insert(settings).values({key:"hermes-task-dispatch",value:{enabled:true}}).onConflictDoUpdate({target:settings.key,set:{value:{enabled:true}}}); vi.stubEnv("HERMES_DISPATCH_ENABLED", "true"); vi.stubEnv("HERMES_WEBHOOK_URL", "https://hermes.example/webhooks/orbita-hermes"); vi.stubEnv("HERMES_WEBHOOK_SECRET", "test");
  const fetcher = vi.fn(async (_url, init) => {
   const body = JSON.parse(init.body);
   expect(body.action).toBe("task.dispatch");
@@ -27,7 +33,7 @@ it("reserva tarefa, atribuição e despacho antes da rede; retry incerto preserv
  expect(fetcher).toHaveBeenCalledTimes(1);
 });
 it("recusa grants insuficientes, escopo pessoal, tarefas fechadas/de outro dono e campos de controle",async()=>{
- const db=await getDb(); const fetcher=vi.fn();vi.stubGlobal("fetch",fetcher);
+ const db=await getDb(); await db.insert(settings).values({key:"hermes-task-dispatch",value:{enabled:true}}).onConflictDoUpdate({target:settings.key,set:{value:{enabled:true}}}); const fetcher=vi.fn();vi.stubGlobal("fetch",fetcher);
  const input={title:"Seguro",brief:"Investigue",acceptance:"Teste"};
  await expect(dispatchWork({...actor,scopes:["status"]},input)).rejects.toThrow(/Escopo/);
  for(const field of ["profile","model","tools","path","flags","resources","origin","command"]) await expect(dispatchWork(actor,{...input,[field]:"injetado"})).rejects.toThrow();
@@ -40,7 +46,7 @@ it("recusa grants insuficientes, escopo pessoal, tarefas fechadas/de outro dono 
  await expect(dispatchHermes({action:"task.dispatch",params:{task_id:crypto.randomUUID(),brief:"x",acceptance:"y"}})).rejects.toThrow(/task-backed/);
 });
 it("concorrência cria uma reserva e uma tarefa e serializa vínculo exclusivo por tarefa",async()=>{
- vi.stubEnv("HERMES_DISPATCH_ENABLED","true");vi.stubEnv("HERMES_WEBHOOK_URL","https://hermes.example/webhooks/orbita-hermes");vi.stubEnv("HERMES_WEBHOOK_SECRET","test");
+ await (await getDb()).insert(settings).values({key:"hermes-task-dispatch",value:{enabled:true}}).onConflictDoUpdate({target:settings.key,set:{value:{enabled:true}}}); vi.stubEnv("HERMES_DISPATCH_ENABLED","true");vi.stubEnv("HERMES_WEBHOOK_URL","https://hermes.example/webhooks/orbita-hermes");vi.stubEnv("HERMES_WEBHOOK_SECRET","test");
  const fetcher=vi.fn(async()=>{throw new Error("timeout");});vi.stubGlobal("fetch",fetcher);
  const input={title:"Concorrente",brief:"Investigue concorrência",acceptance:"Uma reserva"};
  const results=await Promise.all([dispatchWork(actor,input),dispatchWork(actor,input),dispatchWork(actor,input)]);
@@ -53,15 +59,17 @@ it("concorrência cria uma reserva e uma tarefa e serializa vínculo exclusivo p
 it("conclusão genérica exige prova correlacionada e persiste apenas evidência limitada", async () => {
  const db = await getDb(), id = crypto.randomUUID(), taskId = crypto.randomUUID();
  await db.insert(dispatches).values({ id, target: "hermes", action: "task.dispatch", status: "accepted", params: { task_id: taskId, brief: "Verificar", acceptance: "Teste" } });
- vi.stubEnv("HERMES_DISPATCH_ENABLED", "true"); vi.stubEnv("HERMES_WEBHOOK_URL", "https://hermes.example/webhooks/orbita-hermes"); vi.stubEnv("HERMES_WEBHOOK_SECRET", "test");
+ await (await getDb()).insert(settings).values({key:"hermes-task-dispatch",value:{enabled:true}}).onConflictDoUpdate({target:settings.key,set:{value:{enabled:true}}}); vi.stubEnv("HERMES_DISPATCH_ENABLED", "true"); vi.stubEnv("HERMES_WEBHOOK_URL", "https://hermes.example/webhooks/orbita-hermes"); vi.stubEnv("HERMES_WEBHOOK_SECRET", "test");
  const valid = { task_execution: true, verified: true, task_id: taskId, response_text: "  Testado\n", session_id: "session-123", evidence: ["Teste executado"] };
  let result: unknown = valid;
  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ request_id: id, action: "task.dispatch", status: "completed", result })));
- for (const invalid of [{ ...valid, task_execution: false }, { ...valid, verified: false }, { ...valid, task_id: crypto.randomUUID() }, { ...valid, evidence: ["x".repeat(2001)] }, { ...valid, response_text: " " }]) {
+ for (const invalid of [{ ...valid, session_id: undefined }, { ...valid, session_id: "bad session" }, { ...valid, evidence: undefined }, { ...valid, evidence: [] }, { ...valid, evidence: [" "] }, { ...valid, extra: true }, { ...valid, task_execution: false }, { ...valid, verified: false }, { ...valid, task_id: crypto.randomUUID() }, { ...valid, evidence: ["x".repeat(2001)] }, { ...valid, response_text: " " }]) {
   result = invalid; await expect(readHermesResult(id)).rejects.toThrow();
   expect(await storedHermesOperation(id)).toMatchObject({ status: "accepted" });
  }
  result = valid;
+ await expect(readHermesResult(id)).rejects.toThrow(/tarefa/);
+ await db.insert(tasks).values({id:taskId,title:"Executed",scope:"empresa",assignee:"Hermes Oracle",status:"done"});
  expect(await readHermesResult(id)).toMatchObject({ status: "completed", taskExecution: true, verified: true, taskId, responseText: valid.response_text, sessionId: "session-123", evidence: valid.evidence });
  expect(await storedHermesOperation(id)).toMatchObject({ taskExecution: true, verified: true, responseText: valid.response_text });
 });

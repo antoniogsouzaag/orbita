@@ -10,9 +10,15 @@ vi.mock("sonner",()=>({toast:Object.assign(vi.fn(),{error:vi.fn()})}));
 vi.mock("@/components/ui/dialog",()=>({Dialog:({open,children}:{open:boolean;children:React.ReactNode})=>open?children:null,DialogContent:({children,title,description}:{children:React.ReactNode;title:string;description:string})=>React.createElement("section",null,title,description,children)}));
 let host: HTMLDivElement;
 let mounted: Root;
-const config={enabled:true,endpointConfigured:true,secretConfigured:true};
+const config={taskDispatchEnabled:true,enabled:true,endpointConfigured:true,secretConfigured:true};
 beforeEach(()=>{Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});host=document.createElement("div");document.body.append(host);mounted=createRoot(host);vi.clearAllMocks();sessionStorage.clear();});
 afterEach(async()=>{await act(async()=>mounted.unmount());host.remove();vi.useRealTimers();});
+it("generic gate disables only work, not maintenance or analysis",async()=>{
+ await act(async()=>mounted.render(React.createElement(HermesIntegration,{config:{...config,taskDispatchEnabled:false},initial:[]})));
+ expect(host.querySelector("button")!.disabled).toBe(true);
+ expect([...host.querySelectorAll("button")].find(b=>b.textContent==="Executar manutenção")!.disabled).toBe(false);
+ expect(executeWork).not.toHaveBeenCalled();
+});
 it("trabalho genérico é primário, não duplica e conserva pedido incerto",async()=>{
  vi.mocked(executeWork).mockRejectedValue(new Error("network"));
  await act(async()=>mounted.render(React.createElement(HermesIntegration,{config,initial:[]})));

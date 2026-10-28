@@ -18,7 +18,7 @@ import { TARGET_LABEL, isSilent, listDispatches, reportDispatchResult, resultInp
 import { DISPATCH_TARGETS } from "@/db/schema";
 import { AGENT_MANUAL_URI, AGENT_MANUAL_VERSION } from "@/lib/agent-handbook";
 import { searchKnowledge } from "./tool-search";
-import { dispatchWork, workInput } from "./hermes-work";
+import { dispatchWork, workInput, configureHermesWork } from "./hermes-work";
 import { taskParams } from "./hermes";
 import { assigneeLabel, isStale } from "@/lib/task-assignee";
 import { claimMessage, claimTask, companyQueue, releaseTask, splitInput, splitTask } from "./task-claim";
@@ -224,7 +224,34 @@ export function buildMcpServer(agent: AgentIdentity) {
     );
   }
 
+  if (can("admin")) {
+    server.registerTool("configurar_encaminhamento_hermes", {
+      description:"Ativa somente após capacidade assinada do receptor; desligar é sempre permitido. Admin obrigatório.",
+      inputSchema:z.object({enabled:z.boolean()}).strict(),
+      outputSchema:z.object({enabled:z.boolean()}).strict(),
+    }, async ({enabled}) => run("configurar_encaminhamento_hermes", "configurou encaminhamento Hermes", async()=>{
+      const result=await configureHermesWork({kind:"mcp",...agent},enabled);
+      return {...text(JSON.stringify(result)),structuredContent:result};
+    }));
+  }
   if (can("tarefas")) {
+    server.registerTool("consultar_despacho_hermes", {
+      description:"Readback do despacho persistido, exclusivo do executor Hermes Oracle autenticado com admin e tarefa Empresa atribuída. Notas nunca autorizam.",
+      inputSchema:z.object({id:taskParams.shape.task_id}).strict(),
+      outputSchema:z.object({id:taskParams.shape.task_id,task_id:taskParams.shape.task_id,status:z.string(),origin:z.object({kind:z.enum(["owner","agent"]),name:z.string().min(1).max(200)}).strict(),target:z.literal("Hermes Oracle"),environment:z.literal("vps03"),brief:taskParams.shape.brief,acceptance:taskParams.shape.acceptance}).strict(),
+      annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
+    },async ({id})=>run("consultar_despacho_hermes",`consultou despacho ${id}`,async()=>{
+      if(agent.name!=="Hermes Oracle" || !agent.scopes.includes("admin")) throw new Error("Executor admin Hermes Oracle obrigatório.");
+      const db=await getDb();
+      const [row]=await db.select().from(dispatches).where(eq(dispatches.id,id));
+      if(!row || row.target!=="hermes" || row.action!=="task.dispatch") throw new Error("Despacho não autorizado.");
+      const params=taskParams.parse(row.params);
+      const [task]=await db.select().from(tasks).where(and(eq(tasks.id,params.task_id),eq(tasks.scope,"empresa"),eq(tasks.assignee,"Hermes Oracle")));
+      if(!task) throw new Error("Tarefa atribuída não encontrada.");
+      const origin=z.discriminatedUnion("kind",[z.object({kind:z.literal("ui"),id:z.literal("owner"),name:z.literal("Antonio")}).strict(),z.object({kind:z.literal("mcp"),id:z.string().min(1),name:z.string().min(1).max(200)}).strict()]).parse(row.origin);
+      const result={id:row.id,...params,status:row.status,origin:{kind:origin.kind==="ui"?"owner" as const:"agent" as const,name:origin.name},target:"Hermes Oracle" as const,environment:"vps03" as const};
+      return {...text(JSON.stringify(result)),structuredContent:result};
+    }));
     server.registerTool("encaminhar_trabalho_hermes", {
       title: "Encaminhar trabalho ao Hermes Oracle",
       description: "Reserva tarefa Empresa e encaminha trabalho autorizado ao Hermes Oracle VPS03. Tarefa existente ou título para criar. Retry idêntico retorna o mesmo UUID sem reenvio. Criar tarefa não aprova negócio, despesa ou destruição.",

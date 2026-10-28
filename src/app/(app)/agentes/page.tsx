@@ -1,6 +1,7 @@
 import { DirectorsPanel } from "@/components/agents/directors-panel";
 import { openclawConfiguration } from "@/server/openclaw";
 import { listDispatches, toView } from "@/server/dispatch";
+import { hermesWorkEnabled } from "@/server/hermes-work";
 import { hermesConfiguration, hermesHistory } from "@/server/hermes";
 import { Activity, Bot, XCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
@@ -77,7 +78,7 @@ export default async function Page() {
 /** Um card por agente: ficha do vault, acessos MCP, foto e integração dos diretores. */
 async function Team({ loaded, tomInitial, oracleInitial }: { loaded: Loaded; tomInitial: ReturnType<typeof toView>[]; oracleInitial: Awaited<ReturnType<typeof hermesHistory>> }) {
   const members = await buildTeam(loaded);
-  return <DirectorsPanel members={members} tomConfig={openclawConfiguration()} oracleConfig={hermesConfiguration()} tomInitial={tomInitial} oracleInitial={oracleInitial} />;
+  return <DirectorsPanel members={members} tomConfig={openclawConfiguration()} oracleConfig={{...hermesConfiguration(),taskDispatchEnabled:await hermesWorkEnabled()}} tomInitial={tomInitial} oracleInitial={oracleInitial} />;
 }
 
 function TeamLoading() {
