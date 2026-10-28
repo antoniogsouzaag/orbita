@@ -2,6 +2,8 @@ import type { InboxItem } from "@/server/github-inbox";
 
 export const ANSWERED_TAG = "resposta:antonio";
 export type ProposalSource = { kind: "github"; repo: string; number: number } | { kind: "task"; id: string };
+/** Nome simples na organização ou proprietário/repositório explícito fora dela. */
+export const githubRepoPattern = /^(?:[a-zA-Z0-9_-]{1,100}\/)?[a-zA-Z0-9_.-]{1,100}$/;
 export type ReplyTask = { id: string; tags: string[]; notes: string | null; status: string };
 
 export function githubSourceTag(url: string): string | null {

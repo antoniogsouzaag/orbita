@@ -14,6 +14,7 @@ export type GithubInbox = {
   items: InboxItem[];
   error: string | null;
   org: string;
+  extraRepo: string | null;
   credential: "GITHUB_INBOX_TOKEN" | "GITHUB_TOKEN" | "VAULT_GITHUB_TOKEN" | null;
   checkedAt: string | null;
   total: number;
@@ -36,10 +37,14 @@ function token() {
 export function githubInboxConfig() {
   const credential: GithubInbox["credential"] = process.env.GITHUB_INBOX_TOKEN ? "GITHUB_INBOX_TOKEN" : process.env.GITHUB_TOKEN ? "GITHUB_TOKEN" : process.env.VAULT_GITHUB_TOKEN ? "VAULT_GITHUB_TOKEN" : null;
   const org = process.env.GITHUB_ORG?.trim() || "aglabs-core";
-  const warning = credential === "VAULT_GITHUB_TOKEN"
+  // Órbita é uma ferramenta interna do ecossistema, mas seu repositório é público
+  // e pertence à conta pessoal. Não consultar os demais repositórios dessa conta.
+  const extraRepo = org.toLowerCase() === "aglabs-core" ? "antoniogsouzaag/orbita" : null;
+  const warning = (credential === "VAULT_GITHUB_TOKEN"
     ? "Usando o acesso já configurado para o Knowledge. A lista só inclui repositórios visíveis a esse token; um token restrito ao vault não oferece visão de toda a organização."
-    : "A lista inclui os repositórios visíveis ao token. Uma busca sem resultados não comprova cobertura de todos os repositórios privados da organização.";
-  return { configured: credential !== null, credential, org, warning };
+    : "A lista inclui os repositórios visíveis ao token. Uma busca sem resultados não comprova cobertura de todos os repositórios privados da organização.")
+    + (extraRepo ? ` Consulta também ${extraRepo} quando visível à credencial; não inclui outros repositórios da conta pessoal.` : "");
+  return { configured: credential !== null, credential, org, extraRepo, warning };
 }
 
 const searchResult = z.object({
@@ -76,11 +81,19 @@ export async function githubInbox(options: { force?: boolean } = {}): Promise<Gi
   if (!options.force && cache?.key === key && Date.now() - cache.at < (cache.data.error ? 60_000 : 5 * 60_000)) return cache.data;
   const refresh = async (): Promise<GithubInbox> => {
     try {
+      const sources = `org:${config.org}${config.extraRepo ? ` repo:${config.extraRepo}` : ""}`;
       const [prs, props] = await Promise.all([
-        search(`org:${config.org} is:pr is:open archived:false`, credential),
-        search(`org:${config.org} is:issue is:open -label:recusado archived:false`, credential),
+        search(`${sources} is:pr is:open archived:false`, credential),
+        search(`${sources} is:issue is:open -label:recusado archived:false`, credential),
       ]);
-      const map = (k: InboxItem["kind"]) => (i: SearchItem): InboxItem => ({ kind: k, title: i.title, repo: i.repository_url.split("/").pop() ?? "", url: i.html_url, number: i.number, updatedAt: i.updated_at, author: i.user?.login ?? "", draft: i.draft, ...(k === "proposta" ? { labels: (i.labels ?? []).map(label => label.name), stage: issueStage((i.labels ?? []).map(label => label.name)), blocked: (i.labels ?? []).some(label => label.name.toLowerCase() === "bloqueado") } : {}) });
+      const map = (k: InboxItem["kind"]) => (i: SearchItem): InboxItem => {
+        const match = /^https:\/\/api\.github\.com\/repos\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/.exec(i.repository_url);
+        if (!match) throw new Error("Resposta GitHub inválida");
+        const [, owner, name] = match;
+        if (owner.toLowerCase() !== config.org.toLowerCase() && `${owner}/${name}`.toLowerCase() !== config.extraRepo?.toLowerCase()) throw new Error("Repositório fora da consulta");
+        const repo = owner.toLowerCase() === config.org.toLowerCase() ? name : `${owner}/${name}`;
+        return { kind: k, title: i.title, repo, url: i.html_url, number: i.number, updatedAt: i.updated_at, author: i.user?.login ?? "", draft: i.draft, ...(k === "proposta" ? { labels: (i.labels ?? []).map(label => label.name), stage: issueStage((i.labels ?? []).map(label => label.name)), blocked: (i.labels ?? []).some(label => label.name.toLowerCase() === "bloqueado") } : {}) };
+      };
       const items = [...prs.items.map(map("pr")), ...props.items.map(map("proposta"))].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
       const total = prs.total_count + props.total_count;
       const data: GithubInbox = { ...config, items, error: null, checkedAt: new Date().toISOString(), total, truncated: total > items.length || Boolean(prs.incomplete_results || props.incomplete_results) };
@@ -108,10 +121,13 @@ export async function githubInbox(options: { force?: boolean } = {}): Promise<Gi
 
 /** Corpo de uma proposta já retornada pela busca autorizada. Nenhuma URL livre. */
 export async function githubProposalBody(item: InboxItem, org: string): Promise<string | null> {
-  if (item.kind !== "proposta" || !/^[a-zA-Z0-9_-]+$/.test(org) || !/^[a-zA-Z0-9_.-]+$/.test(item.repo)
-    || item.url !== `https://github.com/${org}/${item.repo}/issues/${item.number}`) return null;
+  const parts = item.repo.split("/");
+  const [owner, repo] = parts.length === 1 ? [org, parts[0]] : parts;
+  if (item.kind !== "proposta" || parts.length > 2 || !/^[a-zA-Z0-9_-]+$/.test(owner) || !/^[a-zA-Z0-9_.-]+$/.test(repo)
+    || (owner.toLowerCase() !== org.toLowerCase() && `${owner}/${repo}`.toLowerCase() !== githubInboxConfig().extraRepo?.toLowerCase())
+    || item.url !== `https://github.com/${owner}/${repo}/issues/${item.number}`) return null;
   try {
-    const res = await fetch(`https://api.github.com/repos/${org}/${item.repo}/issues/${item.number}`, { headers: { authorization: `Bearer ${token()}`, accept: "application/vnd.github+json", "user-agent": "orbita" }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${item.number}`, { headers: { authorization: `Bearer ${token()}`, accept: "application/vnd.github+json", "user-agent": "orbita" }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return null;
     const body = await res.json();
     return body.number === item.number && typeof body.body === "string" ? body.body.slice(0, 20_000) + (body.body.length > 20_000 ? "\n\nConteúdo truncado. Consulte a origem para ler o restante." : "") : null;

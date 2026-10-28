@@ -50,6 +50,21 @@ describe("respostas de propostas e continuidade", () => {
     expect(rows[0].notes).toContain("Segunda orientação.");
   });
 
+  it("mantém decisões de repositórios homônimos separadas por proprietário", async () => {
+    const org = { ...item, repo: "orbita", url: "https://github.com/aglabs-core/orbita/issues/94" };
+    const personal = { ...item, repo: "antoniogsouzaag/orbita", url: "https://github.com/antoniogsouzaag/orbita/issues/94" };
+    githubInbox.mockResolvedValue({ error: null, stale: false, org: "aglabs-core", items: [org, personal] });
+    const first = await saveProposalReply({ ...input(), source: { kind: "github", repo: "orbita", number: 94 } });
+    const second = await saveProposalReply({ ...input(), source: { kind: "github", repo: "antoniogsouzaag/orbita", number: 94 } });
+    expect(first.id).not.toBe(second.id);
+    const db = await getDb();
+    const rows = await db.select().from(tasks);
+    expect(rows).toHaveLength(2);
+    expect(rows.find(row => row.id === first.id)?.notes).toContain(org.url);
+    expect(rows.find(row => row.id === second.id)?.notes).toContain(personal.url);
+    expect(await proposalSource({ kind: "github", repo: "outro/orbita", number: 94 })).toBeNull();
+  });
+
   it("pedido local preserva detalhes e vínculos e fica atribuído ao agente para continuidade", async () => {
     const db = await getDb();
     const [task] = await db.insert(tasks).values({ title: "Escolher abordagem", notes: "Contexto original", scope: "empresa", priority: 3, tags: ["agente:tom", "barberias"] }).returning();
