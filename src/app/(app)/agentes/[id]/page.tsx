@@ -11,6 +11,7 @@ import { agoLabel, canonicalAgentId } from "@/lib/team";
 import { cn } from "@/lib/utils";
 import { agentActivityByDay, agentTasks, listAgentTokens, recentActivity } from "@/server/agents";
 import { listDispatches, toView } from "@/server/dispatch";
+import { hermesWorkEnabled } from "@/server/hermes-work";
 import { hermesConfiguration, hermesHistory } from "@/server/hermes";
 import { openclawConfiguration } from "@/server/openclaw";
 import { buildTeam } from "@/server/team";
@@ -125,7 +126,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
         <aside className="min-w-0 space-y-4">
           {member.director === "tom" && <OpenclawIntegration config={openclawConfiguration()} initial={tomHistory.map((row) => toView(row))} />}
-          {member.director === "oracle" && <HermesIntegration config={hermesConfiguration()} initial={oracleHistory} />}
+          {member.director === "oracle" && <HermesIntegration config={{...hermesConfiguration(),taskDispatchEnabled:await hermesWorkEnabled()}} initial={oracleHistory} />}
           {member.director === "easypanel" && <Card className="p-5 text-xs leading-relaxed text-muted">Pedidos pela Órbita ainda não estão conectados a este diretor. O acesso MCP funciona normalmente; o envio de pedidos segue o contrato do Hermes Oracle e entra numa etapa própria.</Card>}
 
           <div className="card h-[200px]">

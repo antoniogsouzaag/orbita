@@ -108,7 +108,7 @@ describe("central dos agentes (MCP)", () => {
 
   it("agente abre tarefa para Antonio e registra evento, tudo com log", async () => {
     const t = await createAgentToken("Hermes Oracle", ["tarefas", "eventos"]);
-    expect(await toolNames(t)).toEqual(["assumir_tarefa", "atualizar_minha_tarefa", "consultar_minha_tarefa", "criar_tarefa_para_antonio", "dividir_tarefa", "documentacao", "fila_empresa", "liberar_tarefa", "minhas_tarefas","pedidos_recebidos", "registrar_evento", "registrar_resultado"]);
+    expect(await toolNames(t)).toEqual(["assumir_tarefa", "atualizar_minha_tarefa", "consultar_despacho_hermes", "consultar_minha_tarefa", "criar_tarefa_para_antonio", "dividir_tarefa", "documentacao", "encaminhar_trabalho_hermes", "fila_empresa", "liberar_tarefa", "minhas_tarefas","pedidos_recebidos", "registrar_evento", "registrar_resultado"]);
 
     const r = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "Aprovar renovação do domínio", prioridade: "alta", prazo: "2026-11-01" } });
     expect(JSON.stringify(r.body.result)).toContain("Tarefa criada");
@@ -197,9 +197,9 @@ describe("central dos agentes (MCP)", () => {
     const listed = await rpc(token, "tools/call", { name: "minhas_tarefas", arguments: {} });
     expect(JSON.stringify(listed.body)).not.toContain(task.id);
     const read = () => rpc(token, "tools/call", { name: "consultar_minha_tarefa", arguments: { id: task.id } });
-    expect((await read()).body.result?.structuredContent).toEqual({ id: task.id, status: "doing", assignee: "Hermes Oracle", scope: "empresa" });
+    expect((await read()).body.result?.structuredContent).toEqual({ title: "Readback", id: task.id, status: "doing", assignee: "Hermes Oracle", scope: "empresa" });
     await rpc(token, "tools/call", { name: "atualizar_minha_tarefa", arguments: { id: task.id, registro_id: crypto.randomUUID(), estado: "done", resumo: "Concluída com evidência real." } });
-    expect((await read()).body.result?.structuredContent).toEqual({ id: task.id, status: "done", assignee: "Hermes Oracle", scope: "empresa" });
+    expect((await read()).body.result?.structuredContent).toEqual({ title: "Readback", id: task.id, status: "done", assignee: "Hermes Oracle", scope: "empresa" });
     const manual = await rpc(token, "tools/call", { name: "documentacao", arguments: {} });
     expect(JSON.stringify(manual.body.result)).toContain("consultar_minha_tarefa");
     const tools = (await rpc(token, "tools/list")).body.result!.tools as { name: string; inputSchema: Record<string, unknown>; outputSchema?: Record<string, unknown> }[];

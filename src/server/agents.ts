@@ -5,7 +5,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { agentActivity, agentTokens, opsEvents, tasks, type AgentScope } from "@/db/schema";
+import { agentActivity, agentTokens, opsEvents, tasks, dispatches, type AgentScope } from "@/db/schema";
 import { buildContext, contextToMarkdown } from "./context";
 import { liveOps } from "./ops-live";
 import { githubInbox } from "./github-inbox";
@@ -18,6 +18,8 @@ import { TARGET_LABEL, isSilent, listDispatches, reportDispatchResult, resultInp
 import { DISPATCH_TARGETS } from "@/db/schema";
 import { AGENT_MANUAL_URI, AGENT_MANUAL_VERSION } from "@/lib/agent-handbook";
 import { searchKnowledge } from "./tool-search";
+import { dispatchWork, workInput, configureHermesWork } from "./hermes-work";
+import { taskParams } from "./hermes";
 import { assigneeLabel, isStale } from "@/lib/task-assignee";
 import { claimMessage, claimTask, companyQueue, releaseTask, splitInput, splitTask } from "./task-claim";
 
@@ -124,7 +126,7 @@ const text = (t: string, isError = false): ToolResult => ({ content: [{ type: "t
 
 /** Monta um servidor MCP com as ferramentas permitidas pelos escopos do agente. */
 export function buildMcpServer(agent: AgentIdentity) {
-  const server = new McpServer({ name: "orbita", version: "2.0.0" }, { instructions: `Órbita: central pessoal e empresarial. Comece por documentacao ou pelo resource ${AGENT_MANUAL_URI} (versão ${AGENT_MANUAL_VERSION}); depois contexto_operacional com ao_vivo:false e as fichas relevantes do vault. Pessoal e Empresa permanecem separados; tarefas comerciais pertencem ao CRM. Administradores acessam também dados pessoais e escrita; demais perfis usam apenas seus escopos. Conexão MCP não despacha execuções aos runtimes. Registre resultado verificável e fonte, sem confundir configuração com execução.` });
+  const server = new McpServer({ name: "orbita", version: "2.0.0" }, { instructions: `Órbita: central pessoal e empresarial. Comece por documentacao ou pelo resource ${AGENT_MANUAL_URI} (versão ${AGENT_MANUAL_VERSION}); depois contexto_operacional com ao_vivo:false e as fichas relevantes do vault. Pessoal e Empresa permanecem separados; tarefas comerciais pertencem ao CRM. Administradores acessam também dados pessoais e escrita; demais perfis usam apenas seus escopos. Conectar MCP não inicia execução; encaminhar_trabalho_hermes pode despachar trabalho autorizado com grant tarefas/admin e tarefa Empresa. Registre resultado verificável e fonte, sem confundir configuração com execução.` });
   const can = (s: AgentScope) => agent.scopes.includes("admin") || agent.scopes.includes(s);
   const run = async (tool: string, summary: string, fn: () => Promise<ToolResult>) => {
     try {
@@ -222,7 +224,43 @@ export function buildMcpServer(agent: AgentIdentity) {
     );
   }
 
+  if (can("admin")) {
+    server.registerTool("configurar_encaminhamento_hermes", {
+      description:"Ativa somente após capacidade assinada do receptor; desligar é sempre permitido. Admin obrigatório.",
+      inputSchema:z.object({enabled:z.boolean()}).strict(),
+      outputSchema:z.object({enabled:z.boolean()}).strict(),
+    }, async ({enabled}) => run("configurar_encaminhamento_hermes", "configurou encaminhamento Hermes", async()=>{
+      const result=await configureHermesWork({kind:"mcp",...agent},enabled);
+      return {...text(JSON.stringify(result)),structuredContent:result};
+    }));
+  }
   if (can("tarefas")) {
+    server.registerTool("consultar_despacho_hermes", {
+      description:"Readback do despacho persistido, exclusivo do executor Hermes Oracle autenticado com admin e tarefa Empresa atribuída. Notas nunca autorizam.",
+      inputSchema:z.object({id:taskParams.shape.task_id}).strict(),
+      outputSchema:z.object({id:taskParams.shape.task_id,task_id:taskParams.shape.task_id,status:z.string(),origin:z.object({kind:z.enum(["owner","agent"]),name:z.string().min(1).max(200)}).strict(),target:z.literal("Hermes Oracle"),environment:z.literal("vps03"),brief:taskParams.shape.brief,acceptance:taskParams.shape.acceptance}).strict(),
+      annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
+    },async ({id})=>run("consultar_despacho_hermes",`consultou despacho ${id}`,async()=>{
+      if(agent.name!=="Hermes Oracle" || !agent.scopes.includes("admin")) throw new Error("Executor admin Hermes Oracle obrigatório.");
+      const db=await getDb();
+      const [row]=await db.select().from(dispatches).where(eq(dispatches.id,id));
+      if(!row || row.target!=="hermes" || row.action!=="task.dispatch") throw new Error("Despacho não autorizado.");
+      const params=taskParams.parse(row.params);
+      const [task]=await db.select().from(tasks).where(and(eq(tasks.id,params.task_id),eq(tasks.scope,"empresa"),eq(tasks.assignee,"Hermes Oracle")));
+      if(!task) throw new Error("Tarefa atribuída não encontrada.");
+      const origin=z.discriminatedUnion("kind",[z.object({kind:z.literal("ui"),id:z.literal("owner"),name:z.literal("Antonio")}).strict(),z.object({kind:z.literal("mcp"),id:z.string().min(1),name:z.string().min(1).max(200)}).strict()]).parse(row.origin);
+      const result={id:row.id,...params,status:row.status,origin:{kind:origin.kind==="ui"?"owner" as const:"agent" as const,name:origin.name},target:"Hermes Oracle" as const,environment:"vps03" as const};
+      return {...text(JSON.stringify(result)),structuredContent:result};
+    }));
+    server.registerTool("encaminhar_trabalho_hermes", {
+      title: "Encaminhar trabalho ao Hermes Oracle",
+      description: "Reserva tarefa Empresa e encaminha trabalho autorizado ao Hermes Oracle VPS03. Tarefa existente ou título para criar. Retry idêntico retorna o mesmo UUID sem reenvio. Criar tarefa não aprova negócio, despesa ou destruição.",
+      inputSchema: workInput,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    }, async input => run("encaminhar_trabalho_hermes", "encaminhou trabalho ao Hermes Oracle", async () => {
+      const item = await dispatchWork({ kind: "mcp", ...agent }, input);
+      return { ...text(JSON.stringify(item)), structuredContent: item };
+    }));
     server.registerTool(
       "criar_tarefa_para_antonio",
       { title: "Criar tarefa para Antonio", description: "Abre uma tarefa na Órbita para Antonio decidir ou executar (aprovação, pendência, próximo passo). Use para o que depende dele.", inputSchema: { titulo: z.string().min(3).max(200), detalhes: z.string().max(4000).optional(), prioridade: z.enum(["baixa", "media", "alta"]).optional(), prazo: z.iso.date().optional().describe("AAAA-MM-DD"), negocio: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40).optional().describe("Identificador explícito do negócio, ex.: barberias. Sem vínculo, omita.") } },
@@ -241,17 +279,20 @@ export function buildMcpServer(agent: AgentIdentity) {
       "consultar_minha_tarefa",
       {
         title: "Consultar minha tarefa por UUID",
-        description: "Readback estruturado exato de tarefa Empresa atribuída ao agente autenticado. Sem limite de listagem, notas ou bypass de administrador.",
+        description: "Readback estruturado exato de tarefa Empresa atribuída ao agente autenticado. Inclui título e contexto estruturado do despacho quando disponível; sem notas, limite de listagem ou bypass de administrador.",
         inputSchema: z.object({ id: z.uuid() }).strict(),
-        outputSchema: z.object({ id: z.uuid(), status: z.string(), assignee: z.string(), scope: z.literal("empresa") }).strict(),
+        outputSchema: z.object({ id: z.uuid(), status: z.string(), assignee: z.string(), scope: z.literal("empresa"), title: z.string().optional(), context: z.object({ brief: taskParams.shape.brief, acceptance: taskParams.shape.acceptance }).strict().optional() }).strict(),
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       },
       async ({ id }) => run("consultar_minha_tarefa", `consultou tarefa ${id}`, async () => {
         const db = await getDb();
-        const [task] = await db.select({ id: tasks.id, status: tasks.status, assignee: tasks.assignee, scope: tasks.scope })
+        const [task] = await db.select({ id: tasks.id, status: tasks.status, assignee: tasks.assignee, scope: tasks.scope, title: tasks.title })
           .from(tasks).where(and(eq(tasks.id, id), eq(tasks.scope, "empresa"), eq(tasks.assignee, agent.name)));
         if (!task) return text("Tarefa atribuída não encontrada.", true);
-        return { ...text(JSON.stringify(task)), structuredContent: task };
+        const [binding] = await db.select({ params: dispatches.params }).from(dispatches).where(and(eq(dispatches.target, "hermes"), eq(dispatches.action, "task.dispatch"), sql`${dispatches.params}->>'task_id' = ${id}`)).orderBy(desc(dispatches.createdAt)).limit(1);
+        const params = taskParams.safeParse(binding?.params);
+        const result = { ...task, ...(params.success ? { context: { brief: params.data.brief, acceptance: params.data.acceptance } } : {}) };
+        return { ...text(JSON.stringify(result)), structuredContent: result };
       }),
     );
     server.registerTool(
