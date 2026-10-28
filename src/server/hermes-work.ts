@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { getDb } from "@/db";
+import { getDb, withDbTransaction } from "@/db";
 import { dispatches, tasks, settings, type AgentScope } from "@/db/schema";
 import { deliverHermesOperation, taskParams, request } from "./hermes";
 import { storedHermesOperation } from "./hermes-store";
@@ -39,7 +39,7 @@ export async function dispatchWork(actor: WorkActor, raw: WorkInput) {
  const input = workInput.parse(raw);
  const requestKey = createHash("sha256").update(JSON.stringify([actor.kind, actor.id, input])).digest("hex");
  const db = await getDb();
- const reserved = await db.transaction(async tx => {
+ const reserved = await withDbTransaction(async tx => {
   const [retry] = await tx.select().from(dispatches).where(eq(dispatches.requestKey, requestKey));
   if (retry) return { id: retry.id, fresh: false };
   const id = crypto.randomUUID(), taskId = input.task_id ?? crypto.randomUUID();

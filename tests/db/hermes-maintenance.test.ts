@@ -1,5 +1,6 @@
 import { expect, it, vi, afterEach } from "vitest";
 import { getDb } from "@/db";
+import * as dbModule from "@/db";
 import { tasks, dispatches } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { dispatchMaintenance } from "@/server/hermes-maintenance";
@@ -26,6 +27,7 @@ it("aceita tarefa existente sem duplicar e desfaz reserva para escopo ou respons
  expect(fetcher).toHaveBeenCalledTimes(1);
 });
 it("cria tarefa empresa explicitamente antes do envio; retry incerto não recria nem reenvia",async()=>{
+ const transaction = vi.spyOn(dbModule, "withDbTransaction");
  vi.stubEnv("HERMES_DISPATCH_ENABLED","true");vi.stubEnv("HERMES_WEBHOOK_URL","https://hermes.example/webhooks/orbita-hermes");vi.stubEnv("HERMES_WEBHOOK_SECRET","test");
  const id=crypto.randomUUID();const db=await getDb();
  const fetcher=vi.fn(async()=>{expect(await db.select().from(tasks).where(eq(tasks.id,id))).toHaveLength(1);expect(await db.select().from(dispatches).where(eq(dispatches.id,id))).toHaveLength(1);throw new Error("timeout");});vi.stubGlobal("fetch",fetcher);
@@ -33,6 +35,8 @@ it("cria tarefa empresa explicitamente antes do envio; retry incerto não recria
  expect(await dispatchMaintenance(input)).toMatchObject({id,taskId:id,status:"unknown"});
  expect(await dispatchMaintenance(input)).toMatchObject({id,taskId:id,status:"unknown"});
  expect(fetcher).toHaveBeenCalledTimes(1);
+ expect(transaction).toHaveBeenCalledTimes(2);
+ transaction.mockRestore();
  const [task]=await db.select().from(tasks).where(eq(tasks.id,id));expect(task).toMatchObject({scope:"empresa",status:"todo",assignee:null,title:"Recuperar Maia",notes:"Maia indisponível"});
  await expect(dispatchMaintenance({...input,operation:"monitor.domain.ensure",domain:"example.com"})).rejects.toThrow();
 });
