@@ -184,7 +184,7 @@ export function buildMcpServer(agent: AgentIdentity) {
         const overview = await n8nOverview();
         if (!overview.configured) return text("Instâncias n8n não configuradas na Órbita (N8N_INSTANCES).", true);
         return text(overview.instances.map((instance) => instance.ok
-          ? `${instance.name}: ${instance.workflows.filter((workflow) => workflow.active).length}/${instance.workflows.length} workflows ativos. ${instance.errors.length} falhas recentes.\n${instance.errors.slice(0, 10).map((error) => `- ${error.workflowName} · ${error.startedAt} · ${error.url}`).join("\n")}`
+          ? `${instance.name}: ${instance.workflows.filter((workflow) => workflow.active).length}/${instance.workflows.length} workflows ativos${instance.workflowsPartial ? " na amostra; inventário incompleto" : ""}. ${instance.errors.length} falhas recentes retornadas (limite 25).\n${instance.errors.slice(0, 10).map((error) => `- ${error.workflowName} · ${error.startedAt} · ${error.url}`).join("\n")}`
           : `${instance.name}: não foi possível consultar a instância.`).join("\n\n"));
       }),
     );

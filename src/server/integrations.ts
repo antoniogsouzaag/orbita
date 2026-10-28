@@ -42,7 +42,7 @@ export function integrationConfiguration(): IntegrationHealthRow[] {
     row("telegram", "Telegram · Avisos", has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_CHAT_ID"), "O diagnóstico consulta bot e destino sem enviar mensagens. A entrega só é confirmada por um envio real.", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]),
     row("brief", "Resumo diário · 7h", validToken("CRON_SECRET") && has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_CHAT_ID"), "Precisa do agendador da Vercel, CRON_SECRET e Telegram. Configuração não comprova execução do resumo.", ["CRON_SECRET"], "/agenda"),
     row("calendar", "Agenda · Assinaturas e feed", validToken("CALENDAR_FEED_TOKEN"), "Calendários externos são adicionados na Agenda. O feed da Órbita pode ser assinado no iPhone ou Google.", ["CALENDAR_FEED_TOKEN"], "/agenda"),
-    row("context", "Agentes · Contexto e MCP", validToken("CONTEXT_TOKEN"), "GET /api/context usa CONTEXT_TOKEN. O MCP usa acessos individuais criados em Agentes, independente deste token.", ["CONTEXT_TOKEN"], "/agentes"),
+    row("context", "Agentes · Contexto e MCP", validToken("CONTEXT_TOKEN"), "GET /api/context usa CONTEXT_TOKEN. O MCP usa acessos individuais criados em Integrações → Acessos MCP, independentemente deste token.", ["CONTEXT_TOKEN"], "/integracoes/mcp"),
     row("openclaw", "OpenClaw · Pedidos ao Tom", Object.values(openclawConfiguration()).every(Boolean), "Saída para a rota /hooks/orbita do gateway do VPS-02. O diagnóstico não envia pedido; a solicitação em Agentes confirma a comunicação.", ["OPENCLAW_DISPATCH_ENABLED", "OPENCLAW_HOOK_URL", "OPENCLAW_HOOK_TOKEN"], "/agentes"),
     row("hermes", "Hermes Oracle · Pedidos", Object.values(hermesConfiguration()).every(Boolean), "Receptor dedicado configurado. Este diagnóstico não envia comandos; acompanhe recebimento e execução em Agentes.", ["HERMES_DISPATCH_ENABLED", "HERMES_WEBHOOK_URL", "HERMES_WEBHOOK_SECRET"], "/agentes"),
     row("ai", "IA · Assistente", has("OPENAI_API_KEY") || has("ANTHROPIC_API_KEY"), "Assistente com ações em tarefas, agenda, finanças e CRM, além de consulta ao vault. Este botão verifica a configuração; converse na IA para usar o assistente.", ["OPENAI_API_KEY", "OPENAI_MODEL", "ANTHROPIC_API_KEY"], "/ia"),
@@ -99,8 +99,9 @@ export async function checkIntegrationHealth(): Promise<IntegrationHealthRow[]> 
         case "n8n": {
           const overview = await n8nOverview();
           const failed = overview.instances.filter((instance) => !instance.ok);
+          const partial = overview.instances.some((instance) => instance.workflowsPartial);
           const workflows = overview.instances.flatMap((instance) => instance.workflows);
-          return result(failed.length ? "error" : "verified", failed.length ? `${failed.length} de ${overview.instances.length} instâncias não responderam. Confira URL, acesso e chave da API.` : `${overview.instances.length} instâncias responderam · ${workflows.filter((w) => w.active).length}/${workflows.length} workflows ativos.`);
+          return result(failed.length ? "error" : partial ? "warning" : "verified", failed.length ? `${failed.length} de ${overview.instances.length} instâncias não responderam. Confira URL, acesso e chave da API.` : `${overview.instances.length} instâncias responderam · ${workflows.filter((w) => w.active).length}/${workflows.length} workflows ativos${partial ? " na amostra; inventário incompleto" : ""}.`);
         }
         case "monitors": {
           const live = await liveOps();

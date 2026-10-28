@@ -69,7 +69,7 @@ export function contextToMarkdown(c: Awaited<ReturnType<typeof buildContext>>): 
   }
   if (c.n8n?.configured) {
     lines.push(``, `## n8n (ao vivo)`, ``);
-    for (const i of c.n8n.instances) lines.push(`- ${i.name}: ${i.ok ? `${i.workflows.filter((w) => w.active).length} workflows ativos de ${i.workflows.length}; ${i.errors.length} falhas recentes` : `erro: ${i.error}`}`);
+    for (const i of c.n8n.instances) lines.push(`- ${i.name}: ${i.ok ? `${i.workflows.filter((w) => w.active).length} workflows ativos de ${i.workflows.length}${i.workflowsPartial ? " na amostra; inventário incompleto" : ""}; ${i.errors.length} falhas recentes retornadas (limite 25)` : `erro: ${i.error}`}`);
   }
   lines.push(``, `## Notas do vault (${c.vault.notes.length})`, ``);
   for (const n of c.vault.notes) lines.push(`- \`${n.path}\`${n.type ? ` — ${n.type}` : ""}${n.status ? ` (${n.status})` : ""}`);

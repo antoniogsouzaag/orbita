@@ -174,9 +174,12 @@ export function n8nInstances(): N8nInstance[] {
 }
 
 async function n8nGet<T>(inst: N8nInstance, path: string): Promise<T> {
-  const res = await fetch(`${inst.url}/api/v1${path}`, { headers: { "X-N8N-API-KEY": inst.apiKey, accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`${inst.name}: HTTP ${res.status}`);
+  const res = await fetch(`${inst.url}/api/v1${path}`, { headers: { "X-N8N-API-KEY": inst.apiKey, accept: "application/json" }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new N8nHttpError(res.status);
   return res.json() as Promise<T>;
+}
+class N8nHttpError extends Error {
+  constructor(readonly status: number) { super(`HTTP ${status}`); }
 }
 
 export async function n8nOverview() {
@@ -188,18 +191,22 @@ export async function n8nOverview() {
       try {
         const workflows: N8nWorkflow[] = [];
         let cursor: string | undefined;
+        const cursors = new Set<string>();
+        let workflowsPartial = false;
         for (let page = 0; page < 10; page++) {
-          const r = await n8nGet<{ data: { id: string; name: string; active: boolean; updatedAt: string; tags?: { name: string }[] }[]; nextCursor?: string | null }>(inst, `/workflows?limit=250${cursor ? `&cursor=${cursor}` : ""}`);
+          const r = await n8nGet<{ data: { id: string; name: string; active: boolean; updatedAt: string; tags?: { name: string }[] }[]; nextCursor?: string | null }>(inst, `/workflows?limit=250${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
           for (const w of r.data) workflows.push({ id: w.id, name: w.name, active: w.active, updatedAt: w.updatedAt, tags: (w.tags ?? []).map((t) => t.name), instance: inst.name, documented: byId.get(w.id) ?? null });
           if (!r.nextCursor) break;
+          if (page === 9 || cursors.has(r.nextCursor)) { workflowsPartial = true; break; }
+          cursors.add(r.nextCursor);
           cursor = r.nextCursor;
         }
         const ex = await n8nGet<{ data: { id: string; workflowId: string; status?: string; startedAt: string; stoppedAt: string | null }[] }>(inst, `/executions?status=error&limit=25`);
         const names = new Map(workflows.map((w) => [w.id, w.name]));
         const errors: N8nExecution[] = ex.data.map((e) => ({ id: e.id, workflowId: e.workflowId, workflowName: names.get(e.workflowId) ?? e.workflowId, status: e.status ?? "error", startedAt: e.startedAt, stoppedAt: e.stoppedAt, instance: inst.name, url: `${inst.url}/workflow/${e.workflowId}/executions/${e.id}` }));
-        return { name: inst.name, url: inst.url, ok: true as const, workflows, errors };
+        return { name: inst.name, url: inst.url, ok: true as const, workflows, errors, workflowsPartial };
       } catch (e) {
-        return { name: inst.name, url: inst.url, ok: false as const, error: e instanceof Error ? e.message : String(e), workflows: [] as N8nWorkflow[], errors: [] as N8nExecution[] };
+        return { name: inst.name, url: inst.url, ok: false as const, error: e instanceof N8nHttpError ? `Não foi possível consultar n8n (HTTP ${e.status}).` : "Não foi possível consultar n8n. Confira a conexão e tente novamente.", workflows: [] as N8nWorkflow[], errors: [] as N8nExecution[], workflowsPartial: false };
       }
     }),
   );
