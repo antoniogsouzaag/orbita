@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyOpsEvents, opsEventSummary } from "@/lib/ops-events";
+import { classifyOpsEvents, countOpsHistory, opsEventSummary } from "@/lib/ops-events";
 
 const now = Date.parse("2026-10-28T12:00:00Z");
 const event = (kind: string, severity: string, ageHours = 0, resolved = false) => ({ kind, severity, subject: `${kind}-${ageHours}`, createdAt: new Date(now - ageHours * 3_600_000), resolvedAt: resolved ? new Date(now) : null });
@@ -22,5 +22,11 @@ describe("classificação da amostra operacional", () => {
   it("descreve zero como resultado da amostra, nunca como cobertura completa", () => {
     expect(opsEventSummary([], now).join("\n")).toContain("não representa o histórico completo");
     expect(opsEventSummary([], now).join("\n")).toContain("na amostra: 0");
+  });
+
+  it("distingue histórico indisponível de consulta vazia", () => {
+    expect(countOpsHistory(null)).toBeNull();
+    expect(countOpsHistory([])).toBe(0);
+    expect(countOpsHistory([{ count: 3 }, { count: 2 }])).toBe(5);
   });
 });

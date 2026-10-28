@@ -8,6 +8,11 @@ export function opsEventLabel(kind: string) {
   return kind === "site_down" ? "Queda de site" : kind === "workflow_error" ? "Falha de automação" : "Alerta operacional";
 }
 
+/** Sem resultado da consulta não há contagem, inclusive quando o histórico estaria vazio. */
+export function countOpsHistory<T extends { count: number }>(rows: T[] | null, match: (row: T) => boolean = () => true): number | null {
+  return rows === null ? null : rows.filter(match).reduce((total, row) => total + row.count, 0);
+}
+
 /** Categorias mutuamente exclusivas de registros abertos, não de disponibilidade atual. */
 export function classifyOpsEvents<T extends Event>(events: T[], now: number) {
   const open = events.filter((event) => !event.resolvedAt);

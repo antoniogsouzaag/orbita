@@ -10,7 +10,7 @@ import { WidgetBoard } from "@/components/ui/widget-board";
 import { cn } from "@/lib/utils";
 import { BUSINESS_REGISTERED_DOMAINS } from "@/lib/business-models";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
-import { classifyOpsEvents } from "@/lib/ops-events";
+import { classifyOpsEvents, countOpsHistory } from "@/lib/ops-events";
 import { monitorTargets } from "@/server/ops";
 import { coherence, liveOps, opsEventsByDay } from "@/server/ops-live";
 import { VaultBanner } from "@/components/vault/vault-banner";
@@ -47,7 +47,7 @@ const EVENT_GROUP: { name: string; tone: Tone; match: (kind: string) => boolean 
 ];
 
 export default async function Page() {
-  const [live, targets, coh, h, byDay] = await Promise.all([liveOps(), monitorTargets().catch(() => null), coherence().catch(() => null), headers(), opsEventsByDay(14).catch(() => [])]);
+  const [live, targets, coh, h, byDay] = await Promise.all([liveOps(), monitorTargets().catch(() => null), coherence().catch(() => null), headers(), opsEventsByDay(14).catch(() => null)]);
   const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
   const staleUrls = new Set(snapshot.stale.map((item) => item.url));
   const vaultByUrl = new Map((targets ?? []).map((t) => [norm(t.url), t]));
@@ -82,12 +82,12 @@ export default async function Page() {
   const days = lastDays(14, live.generatedAt);
   const axis: [string, string] = [days[0].label, "hoje"];
   // Contagem agregada no banco: a lista abaixo traz só os eventos mais recentes.
-  const count = (match: (kind: string) => boolean, key: string) => byDay.filter((r) => r.day === key && match(r.kind)).reduce((n, r) => n + r.count, 0);
+  const count = (match: (kind: string) => boolean, key: string) => countOpsHistory(byDay, (r) => r.day === key && match(r.kind)) ?? 0;
   const perDay = (match: (kind: string) => boolean) => days.map((d) => count(match, d.key));
   const downDays = perDay((k) => k === "site_down");
   const wfDays = perDay((k) => k === "workflow_error");
   const stacked = days.map((d, i) => ({ label: d.label, segments: EVENT_GROUP.map((g) => ({ name: g.name, tone: g.tone, value: count(g.match, days[i].key) })) }));
-  const events14 = byDay.reduce((n, r) => n + r.count, 0);
+  const events14 = countOpsHistory(byDay);
 
   // Disponibilidade por grupo.
   const groups = [...new Set(board.map((b) => b.group))]
@@ -142,13 +142,13 @@ export default async function Page() {
     incidents: (
       <WidgetShell title="Quedas de sites abertas" meta="amostra">
         <Big tone={openIncidents.length ? "err" : undefined} unit={openIncidents.length === 1 ? "aberto" : "abertos"}>{openIncidents.length}</Big>
-        <ColumnBars className="mt-auto" axis={axis} label={`Quedas registradas por dia nos últimos 14 dias: ${downDays.reduce((a, b) => a + b, 0)} no total.`} columns={days.map((d, i) => ({ label: d.label, segments: [{ name: "quedas", tone: "err", value: downDays[i] }] }))} />
+        {byDay ? <ColumnBars className="mt-auto" axis={axis} label={`Quedas registradas por dia nos últimos 14 dias: ${downDays.reduce((a, b) => a + b, 0)} no total.`} columns={days.map((d, i) => ({ label: d.label, segments: [{ name: "quedas", tone: "err", value: downDays[i] }] }))} /> : <p className="mt-auto text-xs text-muted">Histórico indisponível nesta consulta.</p>}
       </WidgetShell>
     ),
     workflows: (
       <WidgetShell title="Falhas de workflow" meta="24h · amostra" href="/operacao/automacoes" hrefLabel="n8n">
-        <Big tone={wf24.length ? "warn" : undefined} unit={`${wfDays.reduce((a, b) => a + b, 0)} em 14d`}>{wf24.length}</Big>
-        <ColumnBars className="mt-auto" axis={axis} label={`Falhas de workflow por dia nos últimos 14 dias: ${wfDays.reduce((a, b) => a + b, 0)} no total.`} columns={days.map((d, i) => ({ label: d.label, segments: [{ name: "falhas", tone: "warn", value: wfDays[i] }] }))} />
+        <Big tone={wf24.length ? "warn" : undefined} unit={byDay ? `${wfDays.reduce((a, b) => a + b, 0)} em 14d` : "histórico indisponível"}>{wf24.length}</Big>
+        {byDay ? <ColumnBars className="mt-auto" axis={axis} label={`Falhas de workflow por dia nos últimos 14 dias: ${wfDays.reduce((a, b) => a + b, 0)} no total.`} columns={days.map((d, i) => ({ label: d.label, segments: [{ name: "falhas", tone: "warn", value: wfDays[i] }] }))} /> : <p className="mt-auto text-xs text-muted">Histórico indisponível nesta consulta.</p>}
       </WidgetShell>
     ),
     monitors: (
@@ -178,8 +178,8 @@ export default async function Page() {
       </WidgetShell>
     ),
     events: (
-      <WidgetShell title="Incidentes e eventos" meta={`${events14} em 14 dias`} href="/operacao/automacoes" hrefLabel="Automações">
-        <ColumnBars height={72} axis={axis} label={`Eventos por dia nos últimos 14 dias, por tipo: ${EVENT_GROUP.map((g) => `${stacked.reduce((n, c) => n + (c.segments.find((s) => s.name === g.name)?.value ?? 0), 0)} ${g.name}`).join(", ")}.`} columns={stacked} />
+      <WidgetShell title="Incidentes e eventos" meta={events14 === null ? "histórico indisponível" : `${events14} em 14 dias`} href="/operacao/automacoes" hrefLabel="Automações">
+        {byDay ? <ColumnBars height={72} axis={axis} label={`Eventos por dia nos últimos 14 dias, por tipo: ${EVENT_GROUP.map((g) => `${stacked.reduce((n, c) => n + (c.segments.find((s) => s.name === g.name)?.value ?? 0), 0)} ${g.name}`).join(", ")}.`} columns={stacked} /> : <p className="text-xs text-muted">Histórico indisponível nesta consulta.</p>}
         <Legend className="mt-2.5" items={EVENT_GROUP.map((g) => ({ name: g.name, tone: g.tone }))} />
         <ul id="incidentes" className="-mx-2 mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto border-t border-border pt-2">
           {live.events.length === 0 && <li className="px-2 text-[13px] text-muted">Nenhum evento registrado.</li>}
