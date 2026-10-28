@@ -1,15 +1,59 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { githubInbox, githubInboxConfig } from "@/server/github-inbox";
+import { githubInbox, githubInboxConfig, githubProposalBody } from "@/server/github-inbox";
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 function credentials(inbox = "", general = "", vault = "") {
+  vi.stubEnv("GITHUB_ORG", "org");
   vi.stubEnv("GITHUB_INBOX_TOKEN", inbox);
   vi.stubEnv("GITHUB_TOKEN", general);
   vi.stubEnv("VAULT_GITHUB_TOKEN", vault);
 }
 
 describe("GitHub operacional", () => {
+  it("inclui apenas o repositório pessoal explícito e preserva os donos", async () => {
+    credentials("multiple-sources");
+    vi.stubEnv("GITHUB_ORG", "aglabs-core");
+    const request = vi.fn(async (url: string) => {
+      const q = new URL(url).searchParams.get("q")!;
+      expect(q).toContain("org:aglabs-core repo:antoniogsouzaag/orbita");
+      if (q.includes("is:pr")) return Response.json({ items: [], total_count: 0 });
+      return Response.json({ items: [
+        { title: "Organização", html_url: "https://github.com/aglabs-core/orbita/issues/74", number: 74, updated_at: "2026-10-28", repository_url: "https://api.github.com/repos/aglabs-core/orbita" },
+        { title: "Central", html_url: "https://github.com/antoniogsouzaag/orbita/issues/74", number: 74, updated_at: "2026-10-28", repository_url: "https://api.github.com/repos/antoniogsouzaag/orbita" },
+      ], total_count: 2 });
+    });
+    vi.stubGlobal("fetch", request);
+    const result = await githubInbox({ force: true });
+    expect(result.extraRepo).toBe("antoniogsouzaag/orbita");
+    expect(result.items.map(item => item.repo)).toEqual(["orbita", "antoniogsouzaag/orbita"]);
+    expect(result.warning).toContain("não inclui outros repositórios da conta pessoal");
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("não aceita repositório inesperado e não inclui a conta pessoal em outra organização", async () => {
+    credentials("unexpected-repo");
+    const request = vi.fn(async (url: string) => {
+      expect(new URL(url).searchParams.get("q")).not.toContain("repo:antoniogsouzaag/orbita");
+      return Response.json({ items: [{ title: "Outro", html_url: "https://github.com/other/app/issues/1", number: 1, updated_at: "2026-10-28", repository_url: "https://api.github.com/repos/other/app" }], total_count: 1 });
+    });
+    vi.stubGlobal("fetch", request);
+    expect(await githubInbox({ force: true })).toMatchObject({ items: [], error: expect.any(String), extraRepo: null });
+  });
+
+  it("lê corpo apenas da origem permitida e com dono correspondente à URL", async () => {
+    credentials("proposal-source");
+    vi.stubEnv("GITHUB_ORG", "aglabs-core");
+    const request = vi.fn(async () => Response.json({ number: 74, body: "Contexto da decisão" }));
+    vi.stubGlobal("fetch", request);
+    const item = { kind: "proposta" as const, title: "Teste", repo: "antoniogsouzaag/orbita", number: 74, url: "https://github.com/antoniogsouzaag/orbita/issues/74", updatedAt: "2026-10-28", author: "teste" };
+    expect(await githubProposalBody(item, "aglabs-core")).toBe("Contexto da decisão");
+    expect(request).toHaveBeenCalledWith("https://api.github.com/repos/antoniogsouzaag/orbita/issues/74", expect.any(Object));
+    expect(await githubProposalBody({ ...item, repo: "outra/orbita", url: "https://github.com/outra/orbita/issues/74" }, "aglabs-core")).toBeNull();
+    expect(await githubProposalBody({ ...item, url: "https://github.com/outra/orbita/issues/74" }, "aglabs-core")).toBeNull();
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it("consulta execução e decisão sem esconder aprovadas ainda abertas", async () => {
     credentials("fixture-triage");
     const request = vi.fn(async (url: string) => {

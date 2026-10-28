@@ -4,12 +4,12 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { agentTokens, tasks } from "@/db/schema";
-import { ANSWERED_TAG, githubSourceTag, replyText, type ProposalSource } from "@/lib/proposals";
+import { ANSWERED_TAG, githubRepoPattern, githubSourceTag, replyText, type ProposalSource } from "@/lib/proposals";
 import { agentSlug } from "@/lib/team";
 import { githubInbox, githubProposalBody } from "./github-inbox";
 
 export const proposalReplySchema = z.object({
-  source: z.discriminatedUnion("kind", [z.object({ kind: z.literal("github"), repo: z.string().regex(/^[a-zA-Z0-9_.-]{1,100}$/), number: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) }), z.object({ kind: z.literal("task"), id: z.uuid() })]),
+  source: z.discriminatedUnion("kind", [z.object({ kind: z.literal("github"), repo: z.string().regex(githubRepoPattern), number: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) }), z.object({ kind: z.literal("task"), id: z.uuid() })]),
   requestId: z.uuid(), message: z.string().trim().min(2).max(4000).refine(v => !v.includes("<!-- orbita-reply:")),
   agent: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100),
 });
@@ -38,7 +38,8 @@ export async function proposalSource(source: ProposalSource, details = false) {
   const sourceTag = githubSourceTag(item.url);
   if (!sourceTag) return null;
   const body = details ? await githubProposalBody(item, inbox.org) : null;
-  return { title: item.title, notes: body ?? `${inbox.org}/${item.repo} #${item.number} · proposta de ${item.author}. Abra a origem para ler o conteúdo completo.`, url: item.url, task: null, sourceTag };
+  const repo = item.repo.includes("/") ? item.repo : `${inbox.org}/${item.repo}`;
+  return { title: item.title, notes: body ?? `${repo} #${item.number} · proposta de ${item.author}. Abra a origem para ler o conteúdo completo.`, url: item.url, task: null, sourceTag };
 }
 
 function githubTaskId(source: string) {

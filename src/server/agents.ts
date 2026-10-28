@@ -172,12 +172,12 @@ export function buildMcpServer(agent: AgentIdentity) {
   if (can("status")) {
     server.registerTool(
       "pendencias_github",
-      { title: "PRs e issues pendentes", description: "Lê PRs e issues abertas da organização, separando execução, decisão de Antonio e itens a classificar. Exclui issues recusadas. Não aprova, executa, mescla nem altera nada.", inputSchema: {} },
+      { title: "PRs e issues pendentes", description: "Lê PRs e issues abertas da organização e, para aglabs-core, do repositório antoniogsouzaag/orbita. Separa execução, decisão de Antonio e itens a classificar. Exclui issues recusadas. Não aprova, executa, mescla nem altera nada.", inputSchema: {} },
       async () => run("pendencias_github", "consultou PRs e issues", async () => {
         const inbox = await githubInbox();
         if (!inbox.configured) return text("GitHub não configurado na Órbita.", true);
         if (inbox.error) return text(inbox.error, true);
-        return text([`Organização: ${inbox.org}. ${inbox.items.length} de ${inbox.total} resultados${inbox.truncated ? " (consulta parcial)" : ""}.`, inbox.warning, ...inbox.items.map((item) => `- ${stageLabel(item)}: ${item.repo} #${item.number} — ${item.title}\n  ${item.url}`)].join("\n"));
+        return text([`Organização: ${inbox.org}${inbox.extraRepo ? `; repositório adicional: ${inbox.extraRepo}` : ""}. ${inbox.items.length} de ${inbox.total} resultados${inbox.truncated ? " (consulta parcial)" : ""}.`, inbox.warning, ...inbox.items.map((item) => `- ${stageLabel(item)}: ${item.repo} #${item.number} — ${item.title}\n  ${item.url}`)].join("\n"));
       }),
     );
     server.registerTool(

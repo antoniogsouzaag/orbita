@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { MessageSquareText, ArrowUpRight } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
-import { ANSWERED_TAG, awaitsOwner, githubSourceTag, type ProposalSource } from "@/lib/proposals";
+import { ANSWERED_TAG, awaitsOwner, githubRepoPattern, githubSourceTag, type ProposalSource } from "@/lib/proposals";
 import { githubInbox } from "@/server/github-inbox";
 import { proposalSource, proposalTasks, replyAgents } from "@/server/proposals";
 import { ProposalReply } from "@/components/empresa/proposal-reply";
@@ -24,7 +24,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     ...asks.map(task => ({ key: task.id, title: task.title, meta: agentName(task.tags.find(tag => tag.startsWith("agente:"))?.slice(7)), href: `/propostas?task=${task.id}#resposta`, source: { kind: "task" as const, id: task.id } })),
   ] : tasks.filter(task => task.tags.includes(ANSWERED_TAG) && (tab === "concluidas" ? task.status === "done" : task.status !== "done")).map(task => ({ key: task.id, title: task.title, meta: `${agentName(task.tags.find(tag => tag.startsWith("agente:"))?.slice(7))} · ${task.status === "doing" ? "em andamento" : task.status === "done" ? "concluída" : "na fila"}`, href: `/propostas?fila=${tab}&task=${task.id}#resposta`, source: { kind: "task" as const, id: task.id } }));
   const selected = typeof params.task === "string" && /^[a-f0-9-]{36}$/i.test(params.task) ? { kind: "task" as const, id: params.task }
-    : typeof params.repo === "string" && /^[a-zA-Z0-9_.-]{1,100}$/.test(params.repo) && typeof params.issue === "string" && /^[1-9]\d*$/.test(params.issue) && Number.isSafeInteger(Number(params.issue)) ? { kind: "github" as const, repo: params.repo, number: Number(params.issue) } : null;
+    : typeof params.repo === "string" && githubRepoPattern.test(params.repo) && typeof params.issue === "string" && /^[1-9]\d*$/.test(params.issue) && Number.isSafeInteger(Number(params.issue)) ? { kind: "github" as const, repo: params.repo, number: Number(params.issue) } : null;
   const source: ProposalSource | undefined = selected ?? rows[0]?.source;
   const detail = source ? await proposalSource(source, true).catch(() => null) : null;
   const sourceTag = detail ? githubSourceTag(detail.url) : null;
