@@ -23,7 +23,7 @@ afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("diagnóstico das integrações", () => {
   it("avisa quando a API n8n retorna inventário parcial", async () => {
     vi.mocked(n8nInstances).mockReturnValue([{ name: "vps", url: "https://n8n.example", apiKey: "secret" }]);
-    vi.mocked(n8nOverview).mockResolvedValue({ configured: true, documented: [], instances: [{ name: "vps", url: "https://n8n.example", ok: true, workflows: [], errors: [], workflowsPartial: true }] });
+    vi.mocked(n8nOverview).mockResolvedValue({ configured: true, documented: [], documentationAvailable: true, instances: [{ name: "vps", url: "https://n8n.example", ok: true, workflows: [], errors: [], workflowsPartial: true }] });
     const rows = await checkIntegrationHealth();
     expect(rows.find(row => row.id === "n8n")).toMatchObject({ state: "warning", detail: expect.stringContaining("inventário incompleto") });
     vi.mocked(n8nInstances).mockReturnValue([]);

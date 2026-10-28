@@ -102,13 +102,15 @@ export async function appRegistry(): Promise<AppRepo[]> {
 
 export type DocumentedAutomation = { name: string; id: string | null; description: string; schedule: string; where: string };
 
-export async function documentedAutomations(): Promise<DocumentedAutomation[]> {
+async function readDocumentedAutomations(): Promise<DocumentedAutomation[] | null> {
   const note = await noteByName("Automações Ativas");
-  if (!note) return [];
+  if (!note) return null;
   const out: DocumentedAutomation[] = [];
+  let recognized = false;
   for (const t of parseTables(note.body)) {
     const n = col(t, "automacao", "tarefa", "rotina");
     if (n < 0) continue;
+    recognized = true;
     const [i, fn, ex, onde] = [col(t, "id"), col(t, "funcao"), col(t, "execucao"), col(t, "onde")];
     const where = t.headings.find((h) => /n8n|claude|codex|aplica|clientes/i.test(h)) ?? t.headings.at(-1) ?? "";
     for (const r of t.rows)
@@ -120,7 +122,11 @@ export async function documentedAutomations(): Promise<DocumentedAutomation[]> {
         where: onde >= 0 ? plainText(r[onde] ?? "") : where.replace(/\s*\(.*\)$/, ""),
       });
   }
-  return out;
+  return recognized ? out : null;
+}
+
+export async function documentedAutomations(): Promise<DocumentedAutomation[]> {
+  return (await readDocumentedAutomations()) ?? [];
 }
 
 /* ───────────── Checagem de disponibilidade ───────────── */
@@ -184,7 +190,8 @@ class N8nHttpError extends Error {
 
 export async function n8nOverview() {
   const instances = n8nInstances();
-  const docs = await documentedAutomations().catch((): DocumentedAutomation[] => []);
+  const source = await readDocumentedAutomations().catch(() => null);
+  const docs = source ?? [];
   const byId = new Map(docs.filter((d) => d.id).map((d) => [d.id!, d]));
   const results = await Promise.all(
     instances.map(async (inst) => {
@@ -210,5 +217,5 @@ export async function n8nOverview() {
       }
     }),
   );
-  return { configured: instances.length > 0, instances: results, documented: docs };
+  return { configured: instances.length > 0, instances: results, documented: docs, documentationAvailable: source !== null };
 }
