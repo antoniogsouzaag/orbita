@@ -104,7 +104,7 @@ export async function agentActivityByDay(days = 14) {
 /** Tarefas que os agentes abriram para Antonio (tag "agente:<nome>"). */
 export async function agentTasks(agent?: string) {
   const db = await getDb();
-  const cond = agent ? sql`(${`agente:${slug(agent)}`} = any(${tasks.tags}) or ${tasks.assignee} = ${agent})` : sql`exists (select 1 from unnest(${tasks.tags}) t where t like 'agente:%')`;
+  const cond = agent ? sql`(${`agente:${slug(agent)}`} = any(${tasks.tags}) or ${tasks.assignee} = ${agent})` : sql`exists (select 1 from unnest(${tasks.tags}) t where t like 'agente:%') and not ('pedido:orbe' = any(${tasks.tags})) and (${tasks.assignee} is null or ${tasks.assignee} = 'Antonio') and not ('resposta:antonio' = any(${tasks.tags}))`;
   return db.select().from(tasks).where(and(eq(tasks.scope, "empresa"), cond)).orderBy(sql`case when ${tasks.status} = 'done' then 1 else 0 end`, sql`case when 'resposta:antonio' = any(${tasks.tags}) then 0 else 1 end`, desc(tasks.createdAt)).limit(100);
 }
 

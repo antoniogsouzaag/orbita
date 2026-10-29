@@ -104,3 +104,12 @@ Projeto Vercel `prj_Tc8KxzT1UHc3aqpoNYb5NfwxMbAT`, equipe `team_YyEI6KlTzQMqFslA
 A revisão automática bloqueou inicialmente o download por criar cópia local de credencial. Antonio autorizou explicitamente a cópia temporária protegida, transferência à Vercel e exclusão posterior. O arquivo foi obtido pelo download do painel autenticado Hermes sem abrir o valor, restringido ao usuário local e importado na Vercel como Secret, somente Production. Metadados conferidos pelo conector sem decrypt. O arquivo temporário e a cópia em Downloads foram excluídos; existência negativa confirmada. Nenhuma credencial entrou em chat, Git ou argumentos. A credencial local da CLI recebeu 403, então a gravação foi feita pelo painel já autenticado.
 
 Prova independente assinada a partir deste computador: diagnostics.read retornou 202 accepted e result.read retornou 200 com request_id correlacionado. Isso verifica o receptor, não a execução pela versão publicada da Órbita. O lembrete consultado retorna scheduled antes do vencimento; esse estado agora é aceito pelo adaptador e coberto por teste.
+
+
+## Continuidade da ORBE — 29/10/2026
+
+`pedir_a_agente` encaminha Hermes Oracle por `dispatchWork` com identidade autenticada do proprietário, em vez de apenas gravar uma tarefa que dependeria de outro ciclo. `tarefa_id` reutiliza uma tarefa Empresa existente. A reserva, o gate persistido, a assinatura e a idempotência continuam no fluxo comum; envio incerto não é repetido. O pedido explícito autoriza o mesmo escopo sem nova confirmação. Cloudflare/DNS já configurados não são incluídos por inferência em um pedido de monitores, vault e backlinks.
+
+`status_agentes` consulta até três despachos Hermes pendentes por chamada, informa IDs de tarefa/despacho e evidências, e mantém explícita a indisponibilidade do receptor. Conclusão continua exigindo o recibo nativo correlacionado e tarefa em done. A lista geral de pedidos para Antonio exclui tarefas delegadas pela ORBE, atribuídas a outros agentes e já respondidas; a lista específica do agente continua mostrando seu trabalho.
+
+Validação automatizada cobre envio task.dispatch, preservação do contexto, reutilização da tarefa, retry sem segundo envio, gate fechado, modo leitura e distinção entre execução delegada e decisão do proprietário. Esses testes não substituem a verificação real do runtime nem dos efeitos nos monitores.

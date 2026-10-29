@@ -22,13 +22,13 @@ export async function replyAgents() {
 
 export async function proposalTasks() {
   const db = await getDb();
-  return db.select().from(tasks).where(and(eq(tasks.scope, "empresa"), sql`exists (select 1 from unnest(${tasks.tags}) tag where tag like 'agente:%')`)).orderBy(desc(tasks.createdAt)).limit(200);
+  return db.select().from(tasks).where(and(eq(tasks.scope, "empresa"), sql`exists (select 1 from unnest(${tasks.tags}) tag where tag like 'agente:%') and not ('pedido:orbe' = any(${tasks.tags}))`)).orderBy(desc(tasks.createdAt)).limit(200);
 }
 
 export async function proposalSource(source: ProposalSource, details = false) {
   if (source.kind === "task") {
     const db = await getDb();
-    const [task] = await db.select().from(tasks).where(and(eq(tasks.id, source.id), eq(tasks.scope, "empresa"), sql`exists (select 1 from unnest(${tasks.tags}) tag where tag like 'agente:%')`));
+    const [task] = await db.select().from(tasks).where(and(eq(tasks.id, source.id), eq(tasks.scope, "empresa"), sql`exists (select 1 from unnest(${tasks.tags}) tag where tag like 'agente:%') and not ('pedido:orbe' = any(${tasks.tags}))`));
     return task ? { title: task.title, notes: task.notes ?? "", url: `/tarefas?escopo=empresa&task=${task.id}`, task, sourceTag: null } : null;
   }
   const inbox = await githubInbox();

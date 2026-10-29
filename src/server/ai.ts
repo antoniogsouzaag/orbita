@@ -168,7 +168,7 @@ const CRM_RULES = `CRM da AG LABS (ferramentas crm_*): clientes, leads, funil, r
 - Tarefa da empresa sobre cliente ou venda vai para o CRM; tarefa pessoal ou interna de Antonio continua na Órbita.
 - Você não muda a etapa do funil, não apaga e não vê e-mail ou telefone dos contatos.`;
 
-const AGENT_RULES = `Agentes da AG LABS (Tom, Hermes Oracle, Linus e os demais do Vault): para saber o que estão fazendo use status_agentes; para passar trabalho use pedir_a_agente, com pedido específico (verbo + objeto + produto) e critério de pronto. Pedido criado não é trabalho feito: o agente registra andamento e evidência na tarefa.`;
+const AGENT_RULES = `Agentes da AG LABS (Tom, Hermes Oracle, Linus e os demais do Vault): para saber o que estão fazendo use status_agentes; para passar trabalho use pedir_a_agente, com pedido específico (verbo + objeto + produto) e critério de pronto. Pedido explícito de Antonio já autoriza o encaminhamento: não peça confirmação repetida nem substitua o destino escolhido por uma suposição. Preserve contexto e escopo completo; domínios já configurados não implicam refazer DNS/Cloudflare quando o pedido é atualizar monitores, vault ou backlinks. Hermes Oracle recebe execução task.dispatch; reutilize tarefa_id existente. Não use análise ou proposta como substituto da execução solicitada. Só pergunte por informação indispensável ausente ou decisão concreta fora do escopo autorizado. Pedido admitido não é trabalho feito: informe tarefa, despacho e estado recebido, e consulte andamento/evidência antes de afirmar conclusão.`;
 
 const NO_CRM ="- Tarefas e dados de clientes da empresa ficam no CRM, que ainda não está conectado à Órbita.";
 
