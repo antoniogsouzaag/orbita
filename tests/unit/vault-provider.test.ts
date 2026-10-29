@@ -87,7 +87,7 @@ describe("GitHub vault coverage and public errors", () => {
   it("does not report a cached snapshot as healthy after a failed forced refresh", async () => {
     const { getVaultIndex, vaultHealth, fetcher } = await github(Response.json({ sha: "initial", truncated: false, tree: [] }));
     await getVaultIndex();
-    fetcher.mockResolvedValue(Response.json({ sha: "partial", truncated: true, tree: [] }));
+    fetcher.mockImplementation(async () => Response.json({ sha: "partial", truncated: true, tree: [] }));
     await expect(getVaultIndex(true)).rejects.toThrow("incompleto ou inválido");
     expect(await vaultHealth()).toMatchObject({ ok: false, error: expect.stringContaining("incompleto ou inválido") });
   });
