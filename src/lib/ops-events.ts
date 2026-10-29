@@ -11,7 +11,7 @@ export function canResolveOpsEvent(kind: string) {
 }
 
 export function opsEventLabel(kind: string) {
-  return kind === "site_down" ? "Queda de site" : kind === "workflow_error" ? "Falha de automação" : "Alerta operacional";
+  return kind === "site_target_replaced" ? "Endereço substituído" : kind === "site_down" ? "Queda de site" : kind === "workflow_error" ? "Falha de automação" : "Alerta operacional";
 }
 
 /** Cada tipo de evento pertence a uma única série histórica; tipos novos não somem do gráfico. */

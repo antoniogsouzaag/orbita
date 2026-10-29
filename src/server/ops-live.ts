@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { agentActivity, opsDomains, opsEvents, opsHeartbeats, opsStatus } from "@/db/schema";
 import { getRawSetting, setRawSetting } from "./security-store";
 import { monitorTargets } from "./ops";
+import { reconcileMonitorTargets, reconcileStoredMonitorTargets } from "./monitor-target-replacements";
 
 /* ───────────── Limpeza automática (sem acumular histórico velho) ───────────── */
 
@@ -131,6 +132,8 @@ export async function ingest(p: IngestPayload) {
     counters.links++;
   }
 
+  if (p.links?.length) counters.events += await reconcileMonitorTargets(p.source, p.links.map(l => l.url), now);
+
   for (const d of p.domains ?? []) {
     const expires = d.expiresAt ? new Date(d.expiresAt) : null;
     const row = { domain: d.domain, depends: d.depends, expiresAt: expires && !Number.isNaN(expires.getTime()) ? expires : null, error: d.error, source: p.source, checkedAt: now };
@@ -173,6 +176,7 @@ export async function liveOps() {
     db.select().from(opsHeartbeats),
     db.select().from(opsDomains),
   ]);
+  if (await reconcileStoredMonitorTargets(status, Date.now())) return liveOps();
   const events = [...new Map([...recentEvents, ...pendingEvents].map(event => [event.id, event])).values()].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const now = Date.now();
   const monitors: MonitorHealth[] = beats.map((b) => {
