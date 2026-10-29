@@ -19,12 +19,20 @@ it("generic gate disables only work, not maintenance or analysis",async()=>{
  expect([...host.querySelectorAll("button")].find(b=>b.textContent==="Executar manutenção")!.disabled).toBe(false);
  expect(executeWork).not.toHaveBeenCalled();
 });
+it("card do diretor oferece um único canal e informa quando é apenas análise",async()=>{
+ await act(async()=>mounted.render(React.createElement(HermesIntegration,{config:{...config,taskDispatchEnabled:false},initial:[],variant:"action"})));
+ expect([...host.querySelectorAll("button")].map(b=>b.textContent)).toEqual(["Mensagem"]);
+ await act(async()=>host.querySelector("button")!.click());
+ expect(host.querySelectorAll("textarea")).toHaveLength(1);
+ expect(host.textContent).toContain("Somente análise");
+ expect(host.textContent).not.toContain("Consultar receptor");
+});
 it("trabalho genérico é primário, não duplica e conserva pedido incerto",async()=>{
  vi.mocked(executeWork).mockRejectedValue(new Error("network"));
  await act(async()=>mounted.render(React.createElement(HermesIntegration,{config,initial:[]})));
- expect(host.querySelector("button")?.textContent).toBe("Encaminhar trabalho");
+ expect(host.querySelector("button")?.textContent).toBe("Mensagem");
  await act(async()=>host.querySelector("button")!.click());
- for (const [label,value] of [["Título do trabalho","Investigar VPS03"],["Brief do trabalho","Investigue o problema"],["Critério de aceite","Teste real"]]) {
+ for (const [label,value] of [["Mensagem para Hermes Oracle","Investigue o problema"]]) {
   const field=host.querySelector(`[aria-label="${label}"]`)!;
   await act(async()=>{Object.getOwnPropertyDescriptor(field.tagName === "INPUT" ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype,"value")!.set!.call(field,value);field.dispatchEvent(new Event("input",{bubbles:true}));});
  }
@@ -34,11 +42,11 @@ it("trabalho genérico é primário, não duplica e conserva pedido incerto",asy
  await act(async()=>form.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
  expect(executeWork).toHaveBeenCalledTimes(2);
  expect(vi.mocked(executeWork).mock.calls[0]).toEqual(vi.mocked(executeWork).mock.calls[1]);
- expect(executeWork).toHaveBeenCalledWith({title:"Investigar VPS03",brief:"Investigue o problema",acceptance:"Teste real"});
- expect(host.textContent).toContain("não aprova negócio, despesa ou destruição");
- const reset=[...host.querySelectorAll("button")].find(b=>b.textContent==="Iniciar outro trabalho explicitamente");expect(reset).toBeDefined();
+ expect(executeWork).toHaveBeenCalledWith({title:"Investigue o problema",brief:"Investigue o problema",acceptance:"Atender ao pedido dentro do escopo autorizado, verificar o resultado e registrar evidências e eventuais pendências na tarefa."});
+ expect(host.textContent).toContain("não autoriza despesas");
+ const reset=[...host.querySelectorAll("button")].find(b=>b.textContent==="Iniciar outra mensagem");expect(reset).toBeDefined();
  await act(async()=>reset!.click());
- expect((host.querySelector('input[aria-label="Título do trabalho"]') as HTMLInputElement).value).toBe("");
+ expect((host.querySelector('textarea[aria-label="Mensagem para Hermes Oracle"]') as HTMLTextAreaElement).value).toBe("");
  expect(host.querySelector("fieldset")!.disabled).toBe(false);
 });
 it("oferece manutenção separada, exige tarefa explícita e conserva UUID em retry incerto",async()=>{
