@@ -12,6 +12,7 @@ import { githubInbox } from "./github-inbox";
 import { stageLabel } from "@/lib/github-triage";
 import { n8nOverview } from "./ops";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
+import { opsEventSummary } from "@/lib/ops-events";
 import { getVaultIndexSafe, vaultHealth } from "./vault";
 import { assistantTools, runAssistantTool } from "./assistant";
 import { TARGET_LABEL, isSilent, listDispatches, reportDispatchResult, resultInput } from "./dispatch";
@@ -193,7 +194,7 @@ export function buildMcpServer(agent: AgentIdentity) {
     );
     server.registerTool(
       "status_ao_vivo",
-      { title: "Status ao vivo", description: "Endereços fora do ar, incidentes abertos, domínios perto de vencer e saúde dos monitores.", inputSchema: {} },
+      { title: "Status ao vivo", description: "Endereços fora do ar, amostra de quedas, falhas e outros alertas, domínios perto de vencer e saúde dos monitores.", inputSchema: {} },
       async () =>
         run("status_ao_vivo", "consultou o status ao vivo", async () => {
           const live = await liveOps();
@@ -203,7 +204,7 @@ export function buildMcpServer(agent: AgentIdentity) {
             `Endereços: ${snapshot.current.length ? `${snapshot.up.length}/${snapshot.current.length} no ar com verificação recente` : "nenhuma verificação recente"}; ${snapshot.stale.length} sem verificação recente.`,
             ...snapshot.stale.map((s) => `- Sem verificação recente: ${s.name} (${s.url}), último registro ${s.checkedAt.toISOString()}.`),
             ...down.map((d) => `- ❌ ${d.name} (${d.url}) desde ${d.changedAt.toISOString()} — ${d.statusCode ?? d.error ?? ""}`),
-            `Incidentes abertos (amostra): ${live.events.filter((e) => e.severity !== "info" && !e.resolvedAt).length}`,
+            ...opsEventSummary(live.events, live.generatedAt),
             `Monitores: ${live.monitors.map((m) => `${m.label} ${m.silent ? "⚠️ em silêncio" : "ok"} (última batida ${m.lastSeen.toISOString()})`).join("; ") || "nenhum"}`,
             `Domínios < 45 dias: ${live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - Date.now() < 45 * 86_400_000).map((d) => `${d.domain} (${d.expiresAt!.toISOString().slice(0, 10)})`).join(", ") || "nenhum"}`,
           ];
