@@ -274,7 +274,7 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
         ))}
         <div>
           <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-faint">Geral</div>
-          {SHARED.filter((i) => i.href !== "/documentacao").map((i) => <NavLink key={i.href} item={{ ...i, href: navigationHref(i.href, space) }} active={isActive(pathname, i.href, escopo)} />)}
+          {SHARED.filter((i) => i.href !== "/documentacao").map((i) => <NavLink key={i.href} item={{ ...i, href: navigationHref(i.href, space) }} active={isActive(pathname, navigationHref(i.href, space), escopo)} />)}
         </div>
       </nav>
       <div className="border-t border-border p-3">
@@ -305,7 +305,7 @@ function Dock({ pathname, hidden, onQuick }: { pathname: string; hidden: boolean
         <div className="mx-0.5 h-6 w-px bg-border" />
         <div className="no-scrollbar flex max-w-[calc(100vw-190px)] items-center gap-0.5 overflow-x-auto">
           {items.map((i) => {
-            const active = isActive(pathname, i.href, escopo);
+            const active = isActive(pathname, navigationHref(i.href, space), escopo);
             return (
               <Link
                 key={i.href}
@@ -350,7 +350,7 @@ function AllApps({ pathname, onOpen }: { pathname: string; onOpen: () => void })
                     key={i.href}
                     href={navigationHref(i.href, space)}
                     onClick={() => setOpen(false)}
-                    className={cn("flex flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-center text-[12px] transition", isActive(pathname, i.href, escopo) ? "bg-surface-3 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")}
+                    className={cn("flex flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-center text-[12px] transition", isActive(pathname, navigationHref(i.href, space), escopo) ? "bg-surface-3 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")}
                   >
                     <i.icon className="size-5" />
                     {i.label}

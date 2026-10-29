@@ -49,6 +49,8 @@ describe("navegação entre os espaços", () => {
   it("preserva o contexto da IA e de detalhes de projeto", () => {
     expect(navigationHref("/ia", "empresa")).toBe("/ia?escopo=empresa");
     expect(navigationHref("/ia", "pessoal")).toBe("/ia");
+    expect(isActive("/ia", navigationHref("/ia", "empresa"), "empresa")).toBe(true);
+    expect(isActive("/ia", navigationHref("/ia", "pessoal"), null)).toBe(true);
     expect(spaceOf("/projetos/qualquer-id", "empresa")).toBe("empresa");
     expect(spaceOf("/metas", "empresa")).toBe("empresa");
   });

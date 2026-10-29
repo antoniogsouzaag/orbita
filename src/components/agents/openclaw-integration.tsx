@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { toast } from "sonner";
-import { MessageSquare, RefreshCw, Send, Stethoscope } from "lucide-react";
+import { MessageSquare, RefreshCw, Send } from "lucide-react";
 import { refreshOpenclaw, sendOpenclaw } from "@/app/actions/openclaw";
 import type { DispatchStatus } from "@/db/schema";
 import type { DispatchView } from "@/server/dispatch";
@@ -9,7 +9,7 @@ import type { openclawConfiguration, OpenclawCommand } from "@/server/openclaw";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Input, Textarea } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/input";
 import { Chip } from "@/components/ui/misc";
 
 const ACTION_LABEL: Record<string, string> = { "diagnostics.read": "Diagnóstico do VPS-02", "incident.diagnose": "Diagnóstico de incidente", "request.tom": "Pedido ao Tom" };
@@ -32,8 +32,6 @@ export function OpenclawIntegration({ config, initial, history: controlledHistor
  const setHistory = onHistoryChange ?? setLocalHistory;
   const [pending, start] = React.useTransition();
   const [texto, setTexto] = React.useState("");
-  const [assunto, setAssunto] = React.useState("");
-  const [detalhe, setDetalhe] = React.useState("");
   const ready = config.enabled && config.endpointConfigured && config.tokenConfigured;
 
   function send(command: OpenclawCommand, reset?: () => void) {
@@ -58,29 +56,19 @@ export function OpenclawIntegration({ config, initial, history: controlledHistor
         <Chip color={config.tokenConfigured ? "var(--success)" : "var(--warning)"}>Token {config.tokenConfigured ? "configurado" : "pendente"}</Chip>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div>
         <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); send({ action: "request.tom", params: { texto } }, () => setTexto("")); }}>
           <label htmlFor="pedido-tom" className="text-xs font-medium text-muted">Pedido ao Tom</label>
           <Textarea id="pedido-tom" required minLength={3} maxLength={2000} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="O que o Tom deve analisar ou propor para o VPS-02 e os agentes do OpenClaw" />
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={!ready || pending}><Send className="size-4" />Enviar pedido</Button>
-            <Button size="sm" type="button" variant="outline" disabled={!ready || pending} onClick={() => send({ action: "diagnostics.read", params: {} })}><Stethoscope className="size-4" />Diagnóstico do VPS-02</Button>
-          </div>
-        </form>
-        <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); send({ action: "incident.diagnose", params: { assunto, ...(detalhe.trim() ? { detalhe } : {}) } }, () => { setAssunto(""); setDetalhe(""); }); }}>
-          <label htmlFor="incidente-assunto" className="text-xs font-medium text-muted">Diagnóstico de incidente (somente leitura)</label>
-          <Input id="incidente-assunto" required minLength={3} maxLength={200} value={assunto} onChange={(e) => setAssunto(e.target.value)} placeholder="Assunto, ex.: lembrete whats barberias falhando" />
-          <Textarea aria-label="Detalhe do incidente" maxLength={2000} value={detalhe} onChange={(e) => setDetalhe(e.target.value)} className="min-h-16" placeholder="Detalhe opcional: workflow, horário, mensagem de erro" />
-          <Button size="sm" variant="outline" disabled={!ready || pending}>Pedir diagnóstico</Button>
+          <Button size="sm" disabled={!ready || pending}><Send className="size-4" />Enviar mensagem</Button>
         </form>
       </div>
-      <p className="text-xs text-muted">Diagnósticos são somente leitura; pedidos livres retornam análise e proposta, sem mudanças automáticas. Recebido significa só que o gateway aceitou o pedido. Execução e resultado aparecem quando o Tom registra. Envio incerto não é repetido sozinho: confira antes de reenviar.</p>
+      <p className="text-xs text-muted">Este canal retorna análise e proposta, sem mudanças automáticas. Recebido significa que o gateway aceitou o pedido; acompanhe o resultado no histórico. Se o envio for incerto, confira antes de reenviar.</p>
 
       </DialogContent></Dialog>
   );
   if (variant === "action") return <>
     <Button size="sm" onClick={() => setOpen(true)}><MessageSquare />Mensagem</Button>
-    <Button size="sm" variant="ghost" disabled={pending} onClick={refresh} aria-label="Atualizar pedidos do Tom" title="Atualizar pedidos"><RefreshCw className={pending ? "animate-spin" : undefined} /></Button>
     {dialog}
   </>;
 
