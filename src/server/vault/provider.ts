@@ -1,6 +1,20 @@
 import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { z } from "zod";
+
+/** Only adapter-owned messages may leave the vault boundary. */
+export class VaultProviderError extends Error {}
+
+const treeSchema = z.object({
+  sha: z.string().min(1),
+  truncated: z.literal(false),
+  tree: z.array(z.object({
+    path: z.string().min(1), type: z.string().min(1), sha: z.string().min(1),
+    size: z.number().nonnegative().optional(),
+  })),
+});
 
 export type VaultEntry = { path: string; sha: string; size: number };
 
@@ -18,6 +32,10 @@ export interface VaultProvider {
 
 const IGNORED = /(^|\/)(\.git|\.obsidian|\.trash|node_modules)(\/|$)/;
 
+function localSha(relativePath: string, stat: { mtimeMs: number; ctimeMs: number; size: number }) {
+  return createHash("sha256").update(JSON.stringify([relativePath, stat.mtimeMs, stat.ctimeMs, stat.size])).digest("hex");
+}
+
 class LocalProvider implements VaultProvider {
   kind = "local" as const;
   constructor(private root: string) {}
@@ -31,7 +49,6 @@ class LocalProvider implements VaultProvider {
   }
   async list() {
     const entries: VaultEntry[] = [];
-    let latest = 0;
     const walk = async (dir: string) => {
       for (const d of await fs.readdir(dir, { withFileTypes: true })) {
         const full = path.join(dir, d.name);
@@ -40,13 +57,17 @@ class LocalProvider implements VaultProvider {
         if (d.isDirectory()) await walk(full);
         else {
           const st = await fs.stat(full);
-          latest = Math.max(latest, st.mtimeMs);
-          entries.push({ path: rel, sha: `${st.mtimeMs}-${st.size}`, size: st.size });
+          // Different paths can have identical timestamps and sizes. Include
+          // ctime as well so ordinary writes with restored mtime are detected.
+          const sha = localSha(rel, st);
+          entries.push({ path: rel, sha, size: st.size });
         }
       }
     };
     await walk(this.root);
-    return { version: `${entries.length}-${latest}`, entries };
+    entries.sort((a, b) => a.path.localeCompare(b.path, "en"));
+    const version = createHash("sha256").update(JSON.stringify(entries)).digest("hex");
+    return { version, entries };
   }
   async read(p: string) {
     return fs.readFile(this.abs(p), "utf8");
@@ -59,7 +80,7 @@ class LocalProvider implements VaultProvider {
     await fs.mkdir(path.dirname(full), { recursive: true });
     await fs.writeFile(full, content, "utf8");
     const st = await fs.stat(full);
-    return { sha: `${st.mtimeMs}-${st.size}` };
+    return { sha: localSha(path.relative(this.root, full).split(path.sep).join("/"), st) };
   }
   async remove(p: string) {
     await fs.unlink(this.abs(p));
@@ -99,10 +120,10 @@ class GitHubProvider implements VaultProvider {
         ...(init.headers ?? {}),
       },
       signal: AbortSignal.timeout(20_000),
+      redirect: "error",
     });
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(githubHint(res.status, this.repo) ?? `GitHub ${res.status}: ${body.slice(0, 200)}`);
+      throw new VaultProviderError(githubHint(res.status, this.repo) ?? `GitHub indisponível (HTTP ${res.status}). Tente novamente mais tarde.`);
     }
     return res;
   }
@@ -111,7 +132,9 @@ class GitHubProvider implements VaultProvider {
   }
   async list() {
     const res = await this.api(`/repos/${this.repo}/git/trees/${encodeURIComponent(this.branch)}?recursive=1`);
-    const json = (await res.json()) as { sha: string; tree: { path: string; type: string; sha: string; size?: number }[] };
+    const result = treeSchema.safeParse(await res.json());
+    if (!result.success) throw new VaultProviderError("Inventário do vault incompleto ou inválido; não é possível confirmar a cobertura das notas.");
+    const json = result.data;
     const entries = json.tree.filter((t) => t.type === "blob" && !IGNORED.test(t.path)).map((t) => ({ path: t.path, sha: t.sha, size: t.size ?? 0 }));
     return { version: json.sha, entries };
   }

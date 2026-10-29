@@ -2,7 +2,7 @@ import "server-only";
 import matter from "gray-matter";
 import { normalize } from "@/lib/text";
 import { basename, createResolver, extractTags, extractWikiLinks } from "@/lib/wikilinks";
-import { getVaultProvider, type VaultEntry } from "./provider";
+import { getVaultProvider, VaultProviderError, type VaultEntry } from "./provider";
 
 export type VaultNote = {
   path: string;
@@ -117,7 +117,12 @@ async function build(): Promise<VaultIndex> {
 
 export async function getVaultIndex(force = false): Promise<VaultIndex> {
   if (!force && cached && Date.now() - cached.builtAt < TTL) return cached;
-  building ??= build().finally(() => (building = null));
+  building ??= build().catch((error) => {
+    // A failed forced refresh must not make the preceding snapshot look
+    // healthy on the next ordinary read while its original TTL is valid.
+    if (cached) cached.builtAt = 0;
+    throw error;
+  }).finally(() => (building = null));
   return building;
 }
 
@@ -131,7 +136,7 @@ export async function getVaultIndexSafe(): Promise<VaultIndex | null> {
     lastError = null;
     return idx;
   } catch (e) {
-    lastError = { message: e instanceof Error ? e.message : String(e), at: Date.now() };
+    lastError = { message: e instanceof VaultProviderError ? e.message : "Não foi possível consultar o vault. Tente novamente mais tarde.", at: Date.now() };
     console.error("[vault]", lastError.message);
     return null;
   }
@@ -158,29 +163,51 @@ export function rememberBlob(sha: string, content: string) {
 }
 
 export type SearchHit = { path: string; title: string; folder: string; snippet: string; score: number };
+const searchText = new WeakMap<VaultNote, { title: string; body: string; tags: string[] }>();
+
+function searchable(note: VaultNote) {
+  let text = searchText.get(note);
+  if (!text) {
+    text = { title: normalize(note.title), body: normalize(note.body), tags: note.tags.map(normalize) };
+    searchText.set(note, text);
+  }
+  return text;
+}
+
+function countOccurrences(text: string, term: string) {
+  let count = 0;
+  let start = 0;
+  while (count < 10) {
+    const at = text.indexOf(term, start);
+    if (at < 0) break;
+    count++;
+    start = at + term.length;
+  }
+  return count;
+}
 
 export async function searchVault(q: string, limit = 20): Promise<SearchHit[]> {
+  const nq = normalize(q).replace(/\s+/g, " ");
+  if (!nq) return [];
   if (!getVaultProvider()) return [];
   const idx = await getVaultIndex();
-  const nq = normalize(q);
-  const terms = nq.split(/\s+/).filter(Boolean);
+  const terms = nq.split(" ");
   const hits: SearchHit[] = [];
   for (const n of idx.notes.values()) {
-    const title = normalize(n.title);
-    const body = normalize(n.body);
+    const { title, body, tags } = searchable(n);
     let score = 0;
     if (title === nq) score += 100;
     else if (title.includes(nq)) score += 40;
     for (const t of terms) {
       if (title.includes(t)) score += 10;
-      const occurrences = body.split(t).length - 1;
+      const occurrences = countOccurrences(body, t);
       if (!occurrences) {
         score = terms.length > 1 ? score : 0;
         if (terms.length > 1 && !title.includes(t)) score -= 15;
       }
       score += Math.min(occurrences, 10) * 2;
     }
-    if (n.tags.some((t) => t.includes(nq))) score += 8;
+    if (tags.some((t) => t.includes(nq))) score += 8;
     if (score <= 0) continue;
     const pos = body.indexOf(terms[0] ?? nq);
     const snippet = pos >= 0 ? n.body.slice(Math.max(0, pos - 60), pos + 120).replace(/\s+/g, " ").trim() : n.body.slice(0, 160).replace(/\s+/g, " ");
