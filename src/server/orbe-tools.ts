@@ -1,8 +1,8 @@
 import "server-only";
-import { desc } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { agentActivity, ORBE_MEMORY_SCOPES } from "@/db/schema";
+import { agentActivity, ORBE_MEMORY_SCOPES, tasks } from "@/db/schema";
 import { OWNER_NAME, assigneeLabel, elapsed } from "@/lib/task-assignee";
 import { taskHref } from "@/lib/task-scope";
 import { listDispatches, isSilent, TARGET_LABEL } from "./dispatch";
@@ -95,6 +95,10 @@ export const pedirAgente = {
         brief: `${v.pedido}${v.detalhe ? `\n\n${v.detalhe}` : ""}`,
         acceptance: "Executar o escopo solicitado por Antonio, verificar os efeitos na origem e registrar andamento e conclusão com evidência na tarefa Empresa. Informar bloqueios concretos; não pedir novamente autorização para o mesmo trabalho já solicitado.",
       });
+      if (operation.taskId && (v.prioridade || v.prazo)) {
+        const db = await getDb();
+        await db.update(tasks).set({ ...(v.prioridade ? { priority: PRIORIDADE[v.prioridade] } : {}), ...(v.prazo ? { dueDate: v.prazo } : {}) }).where(and(eq(tasks.id, operation.taskId), eq(tasks.scope, "empresa"), eq(tasks.assignee, "Hermes Oracle")));
+      }
       return { text: `Trabalho para Hermes Oracle: tarefa ${operation.taskId}, despacho ${operation.id}, estado ${operation.status}. ${operation.detail} Admissão não comprova início nem conclusão.`, action: { label: `Trabalho → Hermes Oracle: ${v.pedido}`, href: taskHref("empresa", operation.taskId) } };
     }
     if (v.tarefa_id) throw new ToolRefusal("O encaminhamento de tarefa existente por esta ferramenta está disponível para Hermes Oracle.");

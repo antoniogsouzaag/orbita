@@ -26,7 +26,7 @@ it("ORBE despacha execução preservando contexto e repete sem duplicar tarefa o
     return Response.json({request_id:body.request_id, action:body.action, status:"accepted"}, {status:202});
   });
   vi.stubGlobal("fetch", fetcher);
-  const input = {agente:"Hermes Oracle", pedido:"Atualizar domínios", detalhe:"Cloudflare já alterado; atualizar monitores e backlinks."};
+  const input = {agente:"Hermes Oracle", pedido:"Atualizar domínios", detalhe:"Cloudflare já alterado; atualizar monitores e backlinks.", prioridade:"alta" as const, prazo:"2026-11-01"};
   const first = await pedirAgente.run(input);
   expect(first.text).toContain("accepted");
   expect(first.text).toContain("Admissão não comprova");
@@ -34,6 +34,7 @@ it("ORBE despacha execução preservando contexto e repete sem duplicar tarefa o
   expect(fetcher).toHaveBeenCalledTimes(1);
   const db = await getDb();
   expect(await db.select().from(tasks)).toHaveLength(1);
+  expect((await db.select().from(tasks))[0]).toMatchObject({priority:3,dueDate:"2026-11-01"});
   const [dispatch] = await db.select().from(dispatches);
   expect(dispatch.origin).toMatchObject({kind:"ui", id:"owner", name:"Antonio"});
 });
