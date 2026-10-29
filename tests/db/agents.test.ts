@@ -128,6 +128,10 @@ describe("central dos agentes (MCP)", () => {
     expect(adminNames).not.toContain("orbita_buscar");
     expect(adminNames).toContain("orbita_listar_metas");
     expect(adminNames).toContain("orbita_consultar_tarefa");
+    expect(adminNames).toContain("orbita_consultar_nota");
+    expect(adminNames).toContain("orbita_vincular_nota_projeto");
+    expect(names).not.toContain("orbita_consultar_nota");
+    expect(names).not.toContain("orbita_vincular_nota_projeto");
     expect(names).not.toContain("orbita_consultar_tarefa");
     expect(adminNames).toContain("diagnostico_integracoes");
     expect(names).not.toContain("diagnostico_integracoes");
@@ -140,6 +144,8 @@ describe("central dos agentes (MCP)", () => {
     const [task] = await db.insert(tasks).values({ title: "Evidência MCP", scope: "empresa", notes: "Relato sintético de conclusão", assignee: "Outro agente" }).returning();
     const limited = await createAgentToken("Leitor de tarefas", ["tarefas"]);
     expect(await toolNames(limited)).not.toContain("orbita_consultar_tarefa");
+    expect(await toolNames(limited)).not.toContain("orbita_consultar_nota");
+    expect(await toolNames(limited)).not.toContain("orbita_vincular_nota_projeto");
     expect(JSON.stringify((await rpc(limited, "tools/call", { name: "orbita_consultar_tarefa", arguments: { id: task.id, escopo: "empresa" } })).body)).not.toContain("Relato sintético");
     const admin = await createAgentToken("Leitura administrativa", ["admin"]);
     const result = await rpc(admin, "tools/call", { name: "orbita_consultar_tarefa", arguments: { id: task.id, escopo: "empresa" } });
