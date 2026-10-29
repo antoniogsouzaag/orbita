@@ -4,6 +4,12 @@ export const OPS_EVENT_COVERAGE = "Amostra: até 80 eventos dos últimos 14 dias
 type Event = { kind: string; severity: string; resolvedAt: Date | null; createdAt: Date; subject: string };
 const DAY = 86_400_000;
 
+/** Native monitor events are reconciled only by their collectors. */
+export const MANUALLY_RESOLVABLE_OPS_EVENTS = ["workflow_error", "agente_alerta", "agente_incidente"] as const;
+export function canResolveOpsEvent(kind: string) {
+  return MANUALLY_RESOLVABLE_OPS_EVENTS.some((allowed) => allowed === kind);
+}
+
 export function opsEventLabel(kind: string) {
   return kind === "site_down" ? "Queda de site" : kind === "workflow_error" ? "Falha de automação" : "Alerta operacional";
 }

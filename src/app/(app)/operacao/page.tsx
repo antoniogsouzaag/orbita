@@ -10,7 +10,7 @@ import { WidgetBoard } from "@/components/ui/widget-board";
 import { cn } from "@/lib/utils";
 import { BUSINESS_REGISTERED_DOMAINS } from "@/lib/business-models";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
-import { classifyOpsEvents, countOpsHistory, opsHistoryGroup } from "@/lib/ops-events";
+import { canResolveOpsEvent, classifyOpsEvents, countOpsHistory, opsHistoryGroup } from "@/lib/ops-events";
 import { monitorTargets } from "@/server/ops";
 import { coherence, liveOps, opsEventsByDay } from "@/server/ops-live";
 import { VaultBanner } from "@/components/vault/vault-banner";
@@ -57,7 +57,8 @@ export default async function Page() {
     return { url: s.url, name: s.name, group: v?.group ?? s.group ?? "Fora da nota do vault", ok: s.ok, stale: staleUrls.has(s.url), unstable: s.ok && s.fails > 0, status: s.statusCode, error: s.error, ms: s.latencyMs, checkedAt: s.checkedAt.toISOString(), since: s.changedAt.toISOString(), source: live.monitors.find((m) => m.source === s.source)?.label ?? s.source };
   });
   const groupOrder = [...new Set((targets ?? []).map((t) => t.group))];
-  const { siteIncidents: openIncidents, pendingWorkflows, recentWorkflows: wf24 } = classifyOpsEvents(live.events, live.generatedAt);
+  const { siteIncidents: openIncidents, pendingWorkflows, recentWorkflows: wf24, otherAlerts } = classifyOpsEvents(live.events, live.generatedAt);
+  const agentAlerts = otherAlerts.filter((event) => canResolveOpsEvent(event.kind));
   const pendingDomains = BUSINESS_REGISTERED_DOMAINS.filter(unit => !live.domains.some(domain => domain.domain === unit.domain) && targets?.some(target => { try { return new URL(target.url).hostname === unit.domain; } catch { return false; } }));
   const soonDomains = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - live.generatedAt < 45 * 86_400_000);
   const silent = live.monitors.filter((m) => m.silent);
@@ -70,6 +71,7 @@ export default async function Page() {
     ...(snapshot.stale.length ? [{ title: `${snapshot.stale.length} endereço(s) sem verificação recente`, detail: "Os últimos resultados não confirmam o estado atual.", href: "#disponibilidade", tone: "warn" as Tone }] : []),
     ...(down.length ? [{ title: `${down.length} endereço(s) com falha`, detail: "Priorize os produtos afetados.", href: "#disponibilidade", tone: "err" as Tone }] : []),
     ...(pendingWorkflows.length ? [{ title: `${pendingWorkflows.length} falha(s) de workflow sem resolução`, detail: "Inclui pendências antigas. Registre a correção e a evidência antes de encerrar.", href: "#incidentes", tone: "warn" as Tone }] : []),
+    ...(agentAlerts.length ? [{ title: `${agentAlerts.length} alerta(s) de agentes sem resolução`, detail: "Confira a origem e registre a evidência da correção antes de encerrar.", href: "#incidentes", tone: "warn" as Tone }] : []),
     ...(wf24.length ? [{ title: `${wf24.length} falha(s) de workflow em 24h`, detail: "Inspecione a execução antes de repetir efeitos.", href: "/operacao/automacoes", tone: "warn" as Tone }] : []),
     ...(soonDomains.length ? [{ title: `${soonDomains.length} domínio(s) perto do vencimento`, detail: "Confira responsabilidade na origem antes de renovar.", href: "#dominios", tone: "warn" as Tone }] : []),
     ...(coh?.notMonitored.length || coh?.notInVault.length ? [{ title: "Inventário e coleta diferentes", detail: "Revise vínculos entre vault e monitor.", href: "#coerencia", tone: "warn" as Tone }] : []),
@@ -193,7 +195,7 @@ export default async function Page() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2 text-[12.5px]"><span className="truncate font-medium">{e.subject}</span>{e.resolvedAt && <span className="shrink-0 text-[11px] text-faint">resolvido</span>}{e.source.startsWith("agente:") && <Link href={`/agentes/${e.source.slice(7)}`} className="shrink-0 text-[11px] text-accent hover:underline">{String((e.detail as { agent?: string }).agent ?? e.source.slice(7))} ↗</Link>}</div>
                   <div className="truncate text-[11.5px] text-faint">{st.label}{(d.message ?? d.error ?? (d.status ? `HTTP ${d.status}` : null)) ? ` · ${d.message ?? d.error ?? `HTTP ${d.status}`}` : ""}{d.node ? ` · nó ${d.node}` : ""}</div>
-                  {e.kind === "workflow_error" && !e.resolvedAt && <IncidentResolution id={e.id} />}
+                  {canResolveOpsEvent(e.kind) && !e.resolvedAt && <IncidentResolution id={e.id} />}
                   {e.resolvedAt && typeof e.detail.resolution === "string" && <p className="mt-1 text-[11px] text-muted">Resolução: {e.detail.resolution}</p>}
                 </div>
                 <div className="shrink-0 text-right text-[11px] tabular-nums text-faint">

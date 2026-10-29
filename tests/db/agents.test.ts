@@ -127,10 +127,24 @@ describe("central dos agentes (MCP)", () => {
     expect(adminNames).toContain("buscar");
     expect(adminNames).not.toContain("orbita_buscar");
     expect(adminNames).toContain("orbita_listar_metas");
+    expect(adminNames).toContain("orbita_consultar_tarefa");
+    expect(names).not.toContain("orbita_consultar_tarefa");
     expect(adminNames).toContain("diagnostico_integracoes");
     expect(names).not.toContain("diagnostico_integracoes");
     const restricted = await rpc(token, "tools/call", { name: "diagnostico_integracoes", arguments: {} });
     expect(JSON.stringify(restricted.body)).toMatch(/not found|error/i);
+  });
+
+  it("leitura completa de notas exige admin; grant tarefas não acessa a ferramenta administrativa", async () => {
+    const db = await getDb();
+    const [task] = await db.insert(tasks).values({ title: "Evidência MCP", scope: "empresa", notes: "Relato sintético de conclusão", assignee: "Outro agente" }).returning();
+    const limited = await createAgentToken("Leitor de tarefas", ["tarefas"]);
+    expect(await toolNames(limited)).not.toContain("orbita_consultar_tarefa");
+    expect(JSON.stringify((await rpc(limited, "tools/call", { name: "orbita_consultar_tarefa", arguments: { id: task.id, escopo: "empresa" } })).body)).not.toContain("Relato sintético");
+    const admin = await createAgentToken("Leitura administrativa", ["admin"]);
+    const result = await rpc(admin, "tools/call", { name: "orbita_consultar_tarefa", arguments: { id: task.id, escopo: "empresa" } });
+    expect(JSON.stringify(result.body.result)).toContain("Relato sintético de conclusão");
+    await db.delete(tasks).where(eq(tasks.id, task.id));
   });
 
   it("agente abre tarefa para Antonio e registra evento, tudo com log", async () => {

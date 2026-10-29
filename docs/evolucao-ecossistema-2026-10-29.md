@@ -28,3 +28,7 @@ Os testes isolados usam diretórios temporários e respostas sintéticas, sem da
 | Conhecimento dos agentes | Maia tem índice próprio e precedência explícita de política/produto/processo; status de agente não comprova disponibilidade | Conferir a montagem e versão realmente utilizadas por cada runtime antes de alegar alinhamento integral |
 
 Não foram criadas responsabilidades, novas políticas comerciais, despachos, tarefas duplicadas ou mensagens a terceiros. Este relatório fica no repositório por conter evidências transitórias e continuidade técnica; não foi copiado para o vault canônico. Resultados finais de validação, revisão e publicação ficam no PR desta alteração.
+
+## Continuação após o PR #79
+
+A [avaliação supervisionada e reconciliação](./orbe-avaliacao-2026-10-29.md) atualiza o estado acima: Barberias #147 já está integrado e a versão do fluxo foi conferida publicada. A ORBE foi avaliada em somente leitura e uma lacuna de consulta das notas de tarefas foi confirmada e corrigida. O relato de correção do Members foi encontrado na tarefa concluída, preservando a distinção entre relato e leitura independente da base. Os pontos já implementados não devem ser retomados como bugs novos com base na tabela inicial desta rodada.
