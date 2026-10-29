@@ -11,6 +11,8 @@ import { addMemory, removeMemory, replaceMemory } from "./orbe-memory";
 import { searchConversations } from "./orbe-conversations";
 import { assigneeOptions, companyQueue } from "./task-claim";
 import { insertTask } from "./task-write";
+import { dispatchWork } from "./hermes-work";
+import { readHermesResult } from "./hermes";
 
 /** Ferramentas próprias da ORBE (não viram orbita_* no MCP: agentes têm as suas). */
 
@@ -75,6 +77,7 @@ const PRIORIDADE = { baixa: 1, media: 2, alta: 3 } as const;
 
 export const pedirAgenteSchema = z.object({
   agente: z.string().trim().min(2).max(80).describe("Nome do agente (ex.: Tom, Hermes Oracle, Linus)"),
+  tarefa_id: z.uuid().optional().describe("Tarefa Empresa existente para encaminhar ao Hermes Oracle; reutilize o ID quando já houver tarefa"),
   pedido: z.string().trim().min(5).max(200).describe("Título curto e acionável: verbo + objeto + produto"),
   detalhe: z.string().trim().max(3000).nullish().describe("Contexto, critério de pronto e limites combinados com Antonio"),
   prioridade: z.enum(["baixa", "media", "alta"]).nullish(),
@@ -86,6 +89,15 @@ export const pedirAgente = {
   async run(v: z.infer<typeof pedirAgenteSchema>): Promise<ActionResult> {
     const agent = await resolveAgent(v.agente);
     if (!("name" in agent)) throw new ToolRefusal(`Agente “${v.agente}” não encontrado. Agentes com acesso à Órbita: ${agent.options.join(", ") || "nenhum"}. Confirme o nome com Antonio.`);
+    if (agent.name === "Hermes Oracle") {
+      const operation = await dispatchWork({ kind: "ui", id: "owner", name: "Antonio", scopes: ["admin"] }, {
+        ...(v.tarefa_id ? { task_id: v.tarefa_id } : { title: v.pedido }),
+        brief: `${v.pedido}${v.detalhe ? `\n\n${v.detalhe}` : ""}`,
+        acceptance: "Executar o escopo solicitado por Antonio, verificar os efeitos na origem e registrar andamento e conclusão com evidência na tarefa Empresa. Informar bloqueios concretos; não pedir novamente autorização para o mesmo trabalho já solicitado.",
+      });
+      return { text: `Trabalho para Hermes Oracle: tarefa ${operation.taskId}, despacho ${operation.id}, estado ${operation.status}. ${operation.detail} Admissão não comprova início nem conclusão.`, action: { label: `Trabalho → Hermes Oracle: ${v.pedido}`, href: taskHref("empresa", operation.taskId) } };
+    }
+    if (v.tarefa_id) throw new ToolRefusal("O encaminhamento de tarefa existente por esta ferramenta está disponível para Hermes Oracle.");
     const notes = `Pedido de ${OWNER_NAME} pela ORBE em ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC.${v.detalhe ? `\n\n${v.detalhe}` : ""}\n\nRegistre andamento e conclusão com atualizar_minha_tarefa, com evidência.`;
     const id = await insertTask({ title: v.pedido, notes, scope: "empresa", assignee: agent.name, priority: v.prioridade ? PRIORIDADE[v.prioridade] : 2, dueDate: v.prazo ?? null, tags: [`agente:${slug(agent.name)}`, "pedido:orbe"] });
     let extra = " O agente vê o pedido em minhas_tarefas/fila_empresa no próximo ciclo dele.";
@@ -104,13 +116,17 @@ export const statusAgentes = {
   schema: statusAgentesSchema,
   async run(v: z.infer<typeof statusAgentesSchema>): Promise<ActionResult> {
     const db = await getDb();
-    const [queue, dispatches, activity] = await Promise.all([
+    const [queue, recentDispatches, activity] = await Promise.all([
       companyQueue(80),
       listDispatches({ limit: 15 }),
       db.select().from(agentActivity).orderBy(desc(agentActivity.createdAt)).limit(40),
     ]);
     const only = v.agente ? fold(v.agente) : null;
     const match = (name: string | null) => !only || (!!name && fold(name).includes(only));
+    const pending = recentDispatches.filter(d => d.target === "hermes" && d.action === "task.dispatch" && ["sending", "accepted", "running", "unknown"].includes(d.status) && match(TARGET_LABEL.hermes)).slice(0, 3);
+    const refreshed = await Promise.allSettled(pending.map(d => readHermesResult(d.id)));
+    const dispatches = pending.length ? await listDispatches({ limit: 15 }) : recentDispatches;
+    const unavailable = refreshed.flatMap((r, i) => r.status === "rejected" ? [`- Despacho ${pending[i].id}: consulta ao receptor indisponível; estado persistido não comprova situação atual.`] : []);
     const owned = queue.filter((t) => t.assignee && t.assignee !== OWNER_NAME && match(t.assignee));
     const free = only ? [] : queue.filter((t) => !t.assignee).slice(0, 8);
     const lines = [
@@ -118,7 +134,8 @@ export const statusAgentes = {
       ...owned.map((t) => `- ${t.title} (id ${t.id}) · ${assigneeLabel(t)}${t.dueDate ? ` · prazo ${t.dueDate}` : ""}`),
       ...(only ? [] : [`\n## Livres na fila (${queue.filter((t) => !t.assignee).length}, mostrando ${free.length})`, ...free.map((t) => `- ${t.title} (id ${t.id})`)]),
       `\n## Pedidos diretos recentes`,
-      ...dispatches.filter((d) => match(TARGET_LABEL[d.target])).map((d) => `- ${TARGET_LABEL[d.target]} · ${d.action} · ${d.status}${isSilent(d) ? " (sem retorno)" : ""} · há ${elapsed(d.createdAt)}${d.summary ? ` — ${d.summary.slice(0, 200)}` : ""}`),
+      ...dispatches.filter((d) => match(TARGET_LABEL[d.target])).map((d) => `- ${TARGET_LABEL[d.target]} · despacho ${d.id}${typeof d.params.task_id === "string" ? ` · tarefa ${d.params.task_id}` : ""} · ${d.action} · ${d.status}${isSilent(d) ? " (sem retorno)" : ""} · há ${elapsed(d.createdAt)}${d.summary ? ` — ${d.summary.slice(0, 2000)}` : ""}${d.evidence ? ` · evidência: ${d.evidence.slice(0, 4000)}` : ""}`),
+      ...unavailable,
       `\n## Atividade recente no MCP`,
       ...activity.filter((a) => match(a.agent)).slice(0, 15).map((a) => `- ${a.agent} · ${a.summary}${a.ok ? "" : " (erro)"} · há ${elapsed(a.createdAt)}`),
     ];
