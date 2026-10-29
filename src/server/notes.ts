@@ -1,7 +1,8 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
-import { getDb } from "@/db";
-import { notes, type TaskScope } from "@/db/schema";
+import { getDb, withDbTransaction } from "@/db";
+import { notes, projects, type Note, type TaskScope } from "@/db/schema";
 import { getProject } from "./projects";
 import { projectScope } from "@/lib/task-scope";
 import { ARCHIVED_NOTE_TAG, COMPANY_NOTE_TAG, noteTags } from "@/lib/note-scope";
@@ -32,10 +33,32 @@ export async function getNote(id: string, scope: TaskScope = "pessoal") {
   return n ?? null;
 }
 
+export function noteVersion(note: Note) {
+  return createHash("sha256").update(JSON.stringify([note.id, note.title, note.content, note.tags, note.pinned, note.updatedAt.toISOString()])).digest("hex");
+}
+
+/** Link existing work without copying it or overwriting concurrent edits. */
+export async function linkNoteProject(id: string, scope: TaskScope, projectId: string | null, version: string) {
+  return withDbTransaction(async (db) => {
+    const [note] = await db.select().from(notes).where(and(eq(notes.id, id), noteScopeCondition(scope))).for("update");
+    if (!note || note.tags.includes(ARCHIVED_NOTE_TAG)) throw new Error("Nota ativa não encontrada neste espaço.");
+    if (noteVersion(note) !== version) throw new Error("A nota mudou. Releia antes de vincular.");
+    if (projectId) {
+      const [project] = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, projectId), eq(projects.archived, false), scope === "empresa" ? eq(projects.area, "empresa") : sql`${projects.area} <> 'empresa'`)).for("share");
+      if (!project) throw new Error("Projeto ativo não encontrado neste espaço.");
+    }
+    const tags = note.tags.filter(tag => !tag.startsWith("p:"));
+    if (projectId) tags.push(`p:${projectId}`);
+    if (JSON.stringify(tags) === JSON.stringify(note.tags)) return note;
+    const [updated] = await db.update(notes).set({ tags, updatedAt: new Date() }).where(eq(notes.id, id)).returning();
+    return updated;
+  });
+}
+
 export async function insertNote(title: string, content: string, scope: TaskScope, projectId?: string) {
   if (projectId) {
     const project = await getProject(projectId);
-    if (!project || projectScope(project.area) !== scope) throw new Error("Projeto não encontrado neste espaço.");
+    if (!project || project.archived || projectScope(project.area) !== scope) throw new Error("Projeto ativo não encontrado neste espaço.");
   }
   const db = await getDb();
   const [row] = await db.insert(notes).values({ title, content, tags: noteTags(projectId ? [`p:${projectId}`] : [], scope) }).returning({ id: notes.id });
