@@ -18,7 +18,8 @@ export function IncidentResolution({ id }: { id: string }) {
       });
     }}>
       <label className="block text-muted">Correção verificada e evidência<Textarea className="mt-1.5 min-h-16 py-2 text-[13px]" value={evidence} onChange={event => setEvidence(event.target.value)} required minLength={10} maxLength={1000} rows={2} placeholder="O que foi corrigido e onde foi verificado" /></label>
-      <Button size="sm" disabled={pending || evidence.trim().length < 10}>{pending ? "Registrando…" : "Encerrar incidente"}</Button>
+      <p className="text-faint">Encerra este registro com sua evidência. Não executa a correção nem encerra ocorrências futuras.</p>
+      <Button size="sm" disabled={pending || evidence.trim().length < 10}>{pending ? "Registrando…" : "Encerrar ocorrência"}</Button>
     </form>
   </details>;
 }

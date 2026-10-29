@@ -5,6 +5,7 @@ import type { TraceNode } from "@/components/ui/ai-agent-response";
 /** [em andamento, concluída] para cada ferramenta da ORBE. */
 const LABELS: Record<string, [string, string]> = {
   listar_tarefas: ["Consultando tarefas", "Consultou tarefas"],
+  consultar_tarefa: ["Lendo histórico da tarefa", "Leu histórico da tarefa"],
   criar_tarefa: ["Criando tarefa", "Criou tarefa"],
   atualizar_tarefa: ["Atualizando tarefa", "Atualizou tarefa"],
   ver_agenda: ["Consultando agenda", "Consultou agenda"],
