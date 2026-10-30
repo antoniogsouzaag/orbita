@@ -24,6 +24,7 @@ const LABELS: Record<string, [string, string]> = {
   metricas_produto: ["Consultando métricas do produto", "Consultou métricas do produto"],
   crm_resumo: ["Consultando resumo do CRM", "Consultou resumo do CRM"],
   crm_prioridades: ["Analisando prioridades comerciais", "Analisou prioridades comerciais"],
+  crm_feedback: ["Lendo feedback dos apps", "Leu feedback dos apps"],
   crm_funil_emails: ["Consultando funil de e-mails", "Consultou funil de e-mails"],
   crm_tarefas: ["Consultando tarefas do CRM", "Consultou tarefas do CRM"],
   crm_buscar_contatos: ["Buscando contatos", "Buscou contatos"],
