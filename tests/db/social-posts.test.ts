@@ -21,3 +21,11 @@ describe("pipeline de posts", () => {
     await expect(createSocialPost({ ...base, mediaUrl: "javascript:alert(1)" })).rejects.toThrow();
   });
 });
+import { duplicateSocialPost } from "@/server/social-posts";
+describe("adaptação", () => {
+  it("duplica para outra rede em rascunho sem herdar revisão", async () => {
+    const post = await createSocialPost({ ...complete });
+    const copy = await duplicateSocialPost(post.id, "tiktok");
+    expect(copy).toMatchObject({ network: "tiktok", stage: "rascunho", hook: complete.hook, checks: {} });
+  });
+});

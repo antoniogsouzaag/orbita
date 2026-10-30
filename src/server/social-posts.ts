@@ -75,3 +75,15 @@ export async function deleteSocialPost(id: string) {
   const db = await getDb();
   await db.delete(socialPosts).where(eq(socialPosts.id, z.string().uuid().parse(id)));
 }
+
+/** Cria adaptação do post para outra rede, voltando para rascunho e exigindo nova revisão. */
+export async function duplicateSocialPost(id: string, network: SocialNetwork) {
+  const src = await current(id);
+  const to = z.enum(SOCIAL_NETWORKS).parse(network);
+  const db = await getDb();
+  const [row] = await db.insert(socialPosts).values({
+    brand: src.brand, network: to, format: src.format, stage: "rascunho", title: src.title, hook: src.hook, caption: src.caption, cta: src.cta,
+    mediaUrl: src.mediaUrl, referenceUrl: src.referenceUrl, scheduledAt: src.scheduledAt, checks: {}, notes: `Adaptado de ${src.network} (${src.id}).`,
+  }).returning();
+  return row;
+}

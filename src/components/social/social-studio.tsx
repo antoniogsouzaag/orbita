@@ -3,7 +3,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle, CalendarDays, CheckCircle2, Circle, LayoutGrid, Plus, Sun, BarChart3, Trash2 } from "lucide-react";
-import { createSocialPostAction, deleteSocialPostAction, moveSocialPostAction, updateSocialPostAction } from "@/app/actions/social";
+import { createSocialPostAction, deleteSocialPostAction, duplicateSocialPostAction, moveSocialPostAction, updateSocialPostAction } from "@/app/actions/social";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -37,7 +37,7 @@ export function SocialStudio({ posts, metrics, initialTab = "hoje", dbError }: {
         {TABS.map(t => <button key={t.key} role="tab" type="button" aria-selected={tab === t.key} onClick={() => select(t.key)} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs ${tab === t.key ? "bg-accent/15 text-accent" : "text-muted hover:text-fg"}`}>{t.icon}{t.label}</button>)}
       </nav>
       {tab !== "metricas" && <div className="flex gap-2">
-        <Select aria-label="Marca" value={brand} onChange={e => setBrand(e.target.value as SocialBrand | "todas")} className="w-36"><option value="todas">Todas as marcas</option>{SOCIAL_BRANDS.map(b => <option key={b} value={b}>{BRAND_LABELS[b]}</option>)}</Select>
+        <Select aria-label="Marca" value={brand} onChange={e => setBrand(e.target.value as SocialBrand | "todas")} className="w-44"><option value="todas">Todas as marcas</option>{SOCIAL_BRANDS.map(b => <option key={b} value={b}>{BRAND_LABELS[b]}</option>)}</Select>
         <Button size="sm" onClick={() => setEditing("new")}><Plus />Novo post</Button>
       </div>}
     </div>
@@ -163,6 +163,7 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
         <p className="mt-3 text-[10px] text-faint">Itens obrigatórios bloqueiam Aprovado, Agendado e Publicado.</p>
       </Card>
       <Button className="w-full" disabled={pending || !f.title.trim()} onClick={save}>{pending ? "Salvando…" : "Salvar"}</Button>
+      {post && <Select aria-label="Adaptar para outra rede" value="" disabled={pending} onChange={e => { const to = e.target.value as SocialNetwork; if (to) start(async () => { const r = await duplicateSocialPostAction(post.id, to); if (!r.ok) toast.error(r.error); else { toast.success(`Adaptação para ${NETWORK_LABELS[to]} criada em Rascunho`); router.refresh(); onDone(); } }); }}><option value="">Adaptar para outra rede…</option>{SOCIAL_NETWORKS.filter(n => n !== post.network).map(n => <option key={n} value={n}>{NETWORK_LABELS[n]}</option>)}</Select>}
       {post && <Button className="w-full" variant="ghost" disabled={pending} onClick={remove}><Trash2 />Excluir</Button>}
     </aside>
   </div>;
