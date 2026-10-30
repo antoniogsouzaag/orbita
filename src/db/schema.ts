@@ -462,7 +462,7 @@ export const socialPosts = pgTable(
     referenceUrl: text("reference_url"),
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
     publishedUrl: text("published_url"),
-    checks: jsonb("checks").$type<{ brandReviewed?: boolean; ctaDeliverable?: boolean }>().notNull().default({}),
+    checks: jsonb("checks").$type<import("../lib/social-pipeline").SocialChecks>().notNull().default({}),
     notes: text("notes"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

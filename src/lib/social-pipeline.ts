@@ -17,6 +17,9 @@ export const SOCIAL_STAGES = ["ideia", "briefing", "rascunho", "revisao", "aprov
 export type SocialStage = (typeof SOCIAL_STAGES)[number];
 export const STAGE_LABELS: Record<SocialStage, string> = { ideia: "Ideia", briefing: "Briefing", rascunho: "Rascunho", revisao: "Revisão", aprovado: "Aprovado", agendado: "Agendado", publicado: "Publicado", falhou: "Falhou" };
 
+/** Checklist manual. `keyword` liga as entregas: n8n + página gratuita (+ biblioteca se for imagem/motion). */
+export type SocialChecks = { brandReviewed?: boolean; ctaDeliverable?: boolean; keyword?: string | null; libraryNeeded?: boolean; n8nDone?: boolean; pageDone?: boolean; libraryDone?: boolean };
+
 export type QualityInput = {
   network: SocialNetwork;
   hook?: string | null;
@@ -25,7 +28,7 @@ export type QualityInput = {
   mediaUrl?: string | null;
   referenceUrl?: string | null;
   scheduledAt?: Date | string | null;
-  checks?: { brandReviewed?: boolean; ctaDeliverable?: boolean } | null;
+  checks?: SocialChecks | null;
 };
 export type QualityCheck = { key: string; label: string; ok: boolean; required: boolean };
 
@@ -54,6 +57,18 @@ export function qualityScore(post: QualityInput) {
   return { score: Math.round((ok / checks.length) * 100), blocking: checks.filter(c => c.required && !c.ok), checks };
 }
 
+/** Entregas que precisam existir antes de o post ir ao ar (quem comentar a palavra-chave recebe o material). */
+export function deliveryChecks(post: Pick<QualityInput, "checks">): QualityCheck[] {
+  const c = post.checks ?? {};
+  if (!c.keyword?.trim()) return [];
+  const kw = c.keyword.trim().toUpperCase();
+  return [
+    { key: "n8nDone", label: `Palavra-chave ${kw} cadastrada na tabela do n8n`, ok: Boolean(c.n8nDone), required: true },
+    { key: "pageDone", label: "Página do conteúdo gratuito publicada", ok: Boolean(c.pageDone), required: true },
+    ...(c.libraryNeeded ? [{ key: "libraryDone", label: "Exemplo adicionado à biblioteca do app AG LABS", ok: Boolean(c.libraryDone), required: true }] : []),
+  ];
+}
+
 const AFTER_APPROVAL: SocialStage[] = ["aprovado", "agendado", "publicado"];
 
 /** Valida a mudança de etapa. Retorna mensagem de erro ou null. */
@@ -63,6 +78,10 @@ export function stageError(post: QualityInput, to: SocialStage): string | null {
     if (blocking.length) return `Falta para aprovar: ${blocking.map(c => c.label).join("; ")}.`;
   }
   if ((to === "agendado" || to === "publicado") && !post.scheduledAt) return "Defina data e hora antes de agendar.";
+  if (to === "agendado" || to === "publicado") {
+    const missing = deliveryChecks(post).filter(c => !c.ok);
+    if (missing.length) return `Falta entregar antes de ir ao ar: ${missing.map(c => c.label).join("; ")}.`;
+  }
   return null;
 }
 

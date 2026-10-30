@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarGaps, qualityScore, stageError } from "@/lib/social-pipeline";
+import { calendarGaps, deliveryChecks, qualityScore, stageError } from "@/lib/social-pipeline";
 
 const good = { network: "instagram" as const, hook: "Pare de perder 5h por semana", caption: "Legenda #ia #automacao", cta: 'Comente "GUIA"', mediaUrl: "https://cdn.example.com/a.mp4", referenceUrl: "https://example.com", scheduledAt: "2026-11-02T12:00:00-03:00", checks: { brandReviewed: true, ctaDeliverable: true } };
 
@@ -31,5 +31,24 @@ describe("social pipeline", () => {
     ], now, 7);
     expect(rows.find(r => r.brand === "aglabs")?.gaps).toBe(6);
     expect(rows.find(r => r.brand === "members")?.gaps).toBe(7);
+  });
+});
+
+describe("entregas do CTA", () => {
+  const base = { network: "instagram" as const, hook: "Gancho bem claro aqui", caption: "Legenda", cta: 'Comente "ROTINA"', mediaUrl: "https://x.com/a.jpg", scheduledAt: new Date(), checks: { brandReviewed: true, ctaDeliverable: true } };
+  it("sem palavra-chave não exige entregas", () => {
+    expect(deliveryChecks(base)).toEqual([]);
+    expect(stageError(base, "agendado")).toBeNull();
+  });
+  it("palavra-chave bloqueia agendar até n8n e página", () => {
+    const p = { ...base, checks: { ...base.checks, keyword: "rotina" } };
+    expect(stageError(p, "aprovado")).toBeNull();
+    expect(stageError(p, "agendado")).toMatch(/ROTINA.*n8n/);
+    expect(stageError({ ...p, checks: { ...p.checks, n8nDone: true, pageDone: true } }, "agendado")).toBeNull();
+  });
+  it("imagem/motion exige exemplo na biblioteca", () => {
+    const p = { ...base, checks: { ...base.checks, keyword: "X", n8nDone: true, pageDone: true, libraryNeeded: true } };
+    expect(stageError(p, "publicado")).toMatch(/biblioteca/);
+    expect(stageError({ ...p, checks: { ...p.checks, libraryDone: true } }, "publicado")).toBeNull();
   });
 });

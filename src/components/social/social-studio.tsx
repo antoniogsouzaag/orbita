@@ -11,7 +11,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import type { SocialPost } from "@/db/schema";
 import {
   BRAND_LABELS, CAPTION_LIMITS, NETWORK_LABELS, SOCIAL_BRANDS, SOCIAL_FORMATS, SOCIAL_NETWORKS, SOCIAL_STAGES, STAGE_LABELS,
-  calendarGaps, qualityScore, type SocialBrand, type SocialNetwork, type SocialStage,
+  calendarGaps, deliveryChecks, qualityScore, type SocialBrand, type SocialNetwork, type SocialStage,
 } from "@/lib/social-pipeline";
 
 type Tab = "hoje" | "producao" | "calendario" | "metricas";
@@ -125,11 +125,14 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
     title: post?.title ?? "", hook: post?.hook ?? "", caption: post?.caption ?? "", cta: post?.cta ?? "", mediaUrl: post?.mediaUrl ?? "",
     referenceUrl: post?.referenceUrl ?? "", publishedUrl: post?.publishedUrl ?? "", scheduledAt: toLocalInput(post?.scheduledAt ?? null), notes: post?.notes ?? "",
     brandReviewed: Boolean(post?.checks?.brandReviewed), ctaDeliverable: Boolean(post?.checks?.ctaDeliverable),
+    keyword: post?.checks?.keyword ?? "", libraryNeeded: Boolean(post?.checks?.libraryNeeded), n8nDone: Boolean(post?.checks?.n8nDone), pageDone: Boolean(post?.checks?.pageDone), libraryDone: Boolean(post?.checks?.libraryDone),
   });
+  const checks = { brandReviewed: f.brandReviewed, ctaDeliverable: f.ctaDeliverable, keyword: f.keyword.trim() || null, libraryNeeded: f.libraryNeeded, n8nDone: f.n8nDone, pageDone: f.pageDone, libraryDone: f.libraryDone };
+  const deliveries = deliveryChecks({ checks });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(s => ({ ...s, [k]: v }));
-  const q = qualityScore({ ...f, checks: { brandReviewed: f.brandReviewed, ctaDeliverable: f.ctaDeliverable } });
+  const q = qualityScore({ ...f, checks });
   const limit = CAPTION_LIMITS[f.network];
-  const payload = () => ({ brand: f.brand, network: f.network, format: f.format, title: f.title, hook: f.hook, caption: f.caption, cta: f.cta, mediaUrl: f.mediaUrl, referenceUrl: f.referenceUrl, publishedUrl: f.publishedUrl, notes: f.notes, scheduledAt: f.scheduledAt ? new Date(`${f.scheduledAt}:00-03:00`).toISOString() : null, checks: { brandReviewed: f.brandReviewed, ctaDeliverable: f.ctaDeliverable } });
+  const payload = () => ({ brand: f.brand, network: f.network, format: f.format, title: f.title, hook: f.hook, caption: f.caption, cta: f.cta, mediaUrl: f.mediaUrl, referenceUrl: f.referenceUrl, publishedUrl: f.publishedUrl, notes: f.notes, scheduledAt: f.scheduledAt ? new Date(`${f.scheduledAt}:00-03:00`).toISOString() : null, checks });
   const save = () => start(async () => {
     const r = post ? await updateSocialPostAction(post.id, payload()) : await createSocialPostAction(payload());
     if (!r.ok) return void toast.error(r.error);
@@ -161,6 +164,14 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
         <label className="mt-3 flex items-center gap-2 text-xs"><input type="checkbox" checked={f.brandReviewed} onChange={e => set("brandReviewed", e.target.checked)} />Revisei tom e marca</label>
         <label className="mt-1 flex items-center gap-2 text-xs"><input type="checkbox" checked={f.ctaDeliverable} onChange={e => set("ctaDeliverable", e.target.checked)} />Material do CTA existe e foi testado</label>
         <p className="mt-3 text-[10px] text-faint">Itens obrigatórios bloqueiam Aprovado, Agendado e Publicado.</p>
+      </Card>
+      <Card className="p-4"><p className="text-xs text-muted">Entregas do CTA</p>
+        <Input aria-label="Palavra-chave" className="mt-2 uppercase" value={f.keyword} onChange={e => set("keyword", e.target.value.replace(/\s/g, ""))} maxLength={40} placeholder="Palavra-chave (ex.: ROTINA)" />
+        {f.keyword.trim() ? <div className="mt-2 space-y-1 text-xs">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={f.libraryNeeded} onChange={e => set("libraryNeeded", e.target.checked)} />É de imagem ou motion</label>
+          {deliveries.map(c => <label key={c.key} className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={c.ok} onChange={e => set(c.key as "n8nDone" | "pageDone" | "libraryDone", e.target.checked)} /><span className={c.ok ? "text-muted line-through" : ""}>{c.label}</span></label>)}
+          <p className="pt-1 text-[10px] text-faint">Sem essas entregas o post não pode ser agendado.</p>
+        </div> : <p className="mt-2 text-[10px] text-faint">Sem palavra-chave, não há entregas.</p>}
       </Card>
       <Button className="w-full" disabled={pending || !f.title.trim()} onClick={save}>{pending ? "Salvando…" : "Salvar"}</Button>
       {post && <Select aria-label="Adaptar para outra rede" value="" disabled={pending} onChange={e => { const to = e.target.value as SocialNetwork; if (to) start(async () => { const r = await duplicateSocialPostAction(post.id, to); if (!r.ok) toast.error(r.error); else { toast.success(`Adaptação para ${NETWORK_LABELS[to]} criada em Rascunho`); router.refresh(); onDone(); } }); }}><option value="">Adaptar para outra rede…</option>{SOCIAL_NETWORKS.filter(n => n !== post.network).map(n => <option key={n} value={n}>{NETWORK_LABELS[n]}</option>)}</Select>}

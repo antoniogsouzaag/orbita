@@ -20,7 +20,11 @@ export const socialPostSchema = z.object({
   referenceUrl: optionalUrl,
   publishedUrl: optionalUrl,
   scheduledAt: z.string().datetime({ offset: true }).nullable().optional(),
-  checks: z.object({ brandReviewed: z.boolean().optional(), ctaDeliverable: z.boolean().optional() }).optional(),
+  checks: z.object({
+    brandReviewed: z.boolean().optional(), ctaDeliverable: z.boolean().optional(),
+    keyword: z.string().trim().max(40).regex(/^[\p{L}\d_-]*$/u, "Palavra-chave sem espaços.").transform(v => v.toUpperCase() || null).nullable().optional(),
+    libraryNeeded: z.boolean().optional(), n8nDone: z.boolean().optional(), pageDone: z.boolean().optional(), libraryDone: z.boolean().optional(),
+  }).optional(),
   notes: optionalText(5000),
 });
 export type SocialPostInput = z.input<typeof socialPostSchema>;
