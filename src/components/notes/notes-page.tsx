@@ -4,11 +4,12 @@ import { Archive, ArchiveRestore, Eye, NotebookPen, PencilLine, Pin, PinOff, Plu
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
-import { createNote, deleteNote, saveNote, setNoteArchived } from "@/app/actions/core";
+import { autosaveNote, createNote, deleteNote, saveNote, setNoteArchived } from "@/app/actions/core";
 import { MarkdownEditor } from "@/components/markdown/editor";
 import { MarkdownView } from "@/components/markdown/view";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState } from "@/components/ui/card";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/misc";
 import type { Note, TaskScope } from "@/db/schema";
@@ -22,6 +23,7 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
   const [title, setTitle] = React.useState(selected?.title ?? "");
   const [content, setContent] = React.useState(selected?.content ?? "");
   const [mode, setMode] = React.useState<"edit" | "view">("edit");
+  const [preview, setPreview] = React.useState<Note | null>(null);
   const [saved, setSaved] = React.useState(true);
   const [busy, start] = React.useTransition();
   const timer = React.useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -42,9 +44,10 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
     saving.current += 1;
     chain.current = chain.current.catch(() => {}).then(async () => {
       try {
-        await saveNote(payload.id, payload.patch, scope);
+        await autosaveNote(payload.id, payload.patch, scope);
         if (currentId.current === payload.id && !pending.current && saving.current === 1) setSaved(true);
-        router.refresh();
+        // Enquanto a nota segue aberta a lista usa o texto local; ao sair dela, sincroniza uma vez.
+        if (currentId.current !== payload.id) router.refresh();
       } catch {
         if (currentId.current === payload.id) {
           const current = pending.current as { id: string; patch: { title?: string; content?: string } } | null;
@@ -72,7 +75,8 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
     timer.current = setTimeout(flush, 700);
   }, [selected, flush]);
 
-  const filtered = notes.filter((n) => !q || `${n.title} ${n.content}`.toLowerCase().includes(q.toLowerCase()));
+  const live = React.useMemo(() => selected ? notes.map((n) => n.id === selected.id ? { ...n, title, content } : n) : notes, [notes, selected, title, content]);
+  const filtered = live.filter((n) => !q || `${n.title} ${n.content}`.toLowerCase().includes(q.toLowerCase()));
   const titles = notes.map((n) => n.title);
   const byTitle = new Map(notes.map((n) => [n.title.toLowerCase(), n.id]));
 
@@ -93,7 +97,7 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
         <div className="flex-1 overflow-y-auto p-2">
           {filtered.length === 0 && <p className="p-4 text-center text-[13px] text-muted">Nenhuma nota.</p>}
           {filtered.map((n) => (
-            <button key={n.id} onClick={() => router.push(href(n.id, archived))} className={cn("mb-0.5 block w-full rounded-xl px-3 py-2.5 text-left transition", selected?.id === n.id ? "bg-surface-3" : "hover:bg-surface-2")}>
+            <button key={n.id} onClick={() => setPreview(n)} className={cn("mb-0.5 block w-full rounded-xl px-3 py-2.5 text-left transition", selected?.id === n.id ? "bg-surface-3" : "hover:bg-surface-2")}>
               <div className="flex items-center gap-1.5 truncate text-[13.5px] font-medium">{n.pinned && <Pin className="size-3 shrink-0 text-accent" />}{n.title || "Sem título"}</div>
               <div className="mt-0.5 line-clamp-2 text-[12px] text-faint">{n.content.replace(/[#*`>\[\]]/g, "").slice(0, 120) || "Vazia"}</div>
               <div className="mt-1 text-[11px] text-faint">{new Date(n.updatedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}</div>
@@ -137,6 +141,20 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
       ) : (
         <Card className="hidden items-center justify-center lg:flex"><EmptyState icon={<NotebookPen />} title="Selecione ou crie uma nota" description={scope === "empresa" ? "Notas de trabalho em markdown, com [[links]] entre elas. Conhecimento canônico vai no Vault." : "Notas pessoais em markdown, com [[links]] entre elas."} /></Card>
       )}
+
+      <Dialog open={!!preview} onOpenChange={(open) => { if (!open) setPreview(null); }}>
+        {preview && (
+          <DialogContent wide title={preview.title || "Sem título"} description={`Atualizada em ${new Date(preview.updatedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}`}>
+            <div className="max-h-[60vh] overflow-y-auto">
+              <MarkdownView content={preview.content || "_Nota vazia_"} resolve={(t) => { const id = byTitle.get(t.toLowerCase()); return id ? href(id, archived) : null; }} />
+            </div>
+            <div className="mt-4 flex justify-end gap-2 border-t border-border pt-3">
+              <Button variant="ghost" onClick={() => setPreview(null)}>Fechar</Button>
+              <Button variant="primary" onClick={() => { const id = preview.id; setPreview(null); router.push(href(id, archived)); }}><PencilLine /> Editar</Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }

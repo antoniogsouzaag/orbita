@@ -200,6 +200,13 @@ export async function saveNote(id: string, data: { title?: string; content?: str
   revalidatePath("/notas");
 }
 
+/** Salvamento automático do editor: grava sem revalidar a página (a lista é atualizada no cliente). */
+export async function autosaveNote(id: string, data: { title?: string; content?: string }, scope: "pessoal" | "empresa" = "pessoal") {
+  await requireAuth();
+  const v = z.object({ title: z.string().trim().max(200).optional(), content: z.string().max(200000).optional() }).parse(data);
+  await patchNote(uuid.parse(id), v, z.enum(TASK_SCOPES).parse(scope));
+}
+
 export async function deleteNote(id: string, scope: "pessoal" | "empresa" = "pessoal") {
   await requireAuth();
   await removeNote(uuid.parse(id), z.enum(TASK_SCOPES).parse(scope));

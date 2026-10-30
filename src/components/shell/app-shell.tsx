@@ -142,7 +142,14 @@ export function AppShell({
     return () => { clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
   }, [refreshNotices]);
 
-  React.useEffect(() => { void refreshNotices(); }, [pathname, refreshNotices]);
+  // Troca de tela não precisa consultar avisos toda vez: no máximo a cada 30 s por espaço.
+  const lastRouteCheck = React.useRef<{ scope: Space; at: number } | null>(null);
+  React.useEffect(() => {
+    const last = lastRouteCheck.current;
+    if (last?.scope === space && Date.now() - last.at < 30_000) return;
+    lastRouteCheck.current = { scope: space, at: Date.now() };
+    void refreshNotices();
+  }, [pathname, space, refreshNotices]);
   React.useEffect(() => () => refreshingNotices.current?.controller.abort(), []);
 
   React.useEffect(() => {
