@@ -4,7 +4,7 @@ import { Archive, ArchiveRestore, Eye, NotebookPen, PencilLine, Pin, PinOff, Plu
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
-import { createNote, deleteNote, saveNote, setNoteArchived } from "@/app/actions/core";
+import { autosaveNote, createNote, deleteNote, saveNote, setNoteArchived } from "@/app/actions/core";
 import { MarkdownEditor } from "@/components/markdown/editor";
 import { MarkdownView } from "@/components/markdown/view";
 import { Button } from "@/components/ui/button";
@@ -44,9 +44,10 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
     saving.current += 1;
     chain.current = chain.current.catch(() => {}).then(async () => {
       try {
-        await saveNote(payload.id, payload.patch, scope);
+        await autosaveNote(payload.id, payload.patch, scope);
         if (currentId.current === payload.id && !pending.current && saving.current === 1) setSaved(true);
-        router.refresh();
+        // Enquanto a nota segue aberta a lista usa o texto local; ao sair dela, sincroniza uma vez.
+        if (currentId.current !== payload.id) router.refresh();
       } catch {
         if (currentId.current === payload.id) {
           const current = pending.current as { id: string; patch: { title?: string; content?: string } } | null;
@@ -74,7 +75,8 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
     timer.current = setTimeout(flush, 700);
   }, [selected, flush]);
 
-  const filtered = notes.filter((n) => !q || `${n.title} ${n.content}`.toLowerCase().includes(q.toLowerCase()));
+  const live = React.useMemo(() => selected ? notes.map((n) => n.id === selected.id ? { ...n, title, content } : n) : notes, [notes, selected, title, content]);
+  const filtered = live.filter((n) => !q || `${n.title} ${n.content}`.toLowerCase().includes(q.toLowerCase()));
   const titles = notes.map((n) => n.title);
   const byTitle = new Map(notes.map((n) => [n.title.toLowerCase(), n.id]));
 
