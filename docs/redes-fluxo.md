@@ -47,3 +47,16 @@ A auditoria é a ferramenta MCP `redes_auditar_entregas`, que só lê dados. Ela
 - Falhas só em canais secundários: Facebook (argon24, santoro) e LinkedIn (dicionario-motion, nano21, reuniao-agentes).
 - Faltavam linhas por post para bolsa, potes, splash e vigia (todos com `PROMPT`). As 4 linhas foram adicionadas com o `media_id` do Instagram.
 - `motion2` pede `MOTION` e recebe a página `/conteudos/motion` (6 prompts), mas o post fala em 5. É preciso confirmar se essa é a página certa.
+
+## Produção: do briefing à capa (AG LABS)
+
+1. **Briefing aprovado** (vem da rotina das 6h ou do Antonio) → quem produz move o post para Rascunho.
+2. **Foto da capa:** gerada pelo `gerar-imagem.mjs` do repo `marketing`.
+   - Rosto do Antonio: `gpt25` com as 4 referências de `_sistema/marca/avatar Antonio`, passadas como caminho local (viram data URI; não dependem de bucket).
+   - Produto ou cena: `nano`.
+   - O prompt pede o assunto nos 2/3 de cima e o terço de baixo mais calmo, para o texto.
+3. **Capa:** `producao/<slug>/build/slides.html` no padrão das capas recentes (foto sangrada, degradê escuro embaixo, título condensado em caixa alta, linha laranja em itálico e o selo @ag_labs). Render com `render.mjs`.
+4. **Envio para a Órbita:** botão **Enviar** no campo "Mídia principal" do post. Agentes usam `redes_anexar_midia` (por link) ou `POST /api/redes/midia` (multipart, token de agente com escopo tarefas/admin). O arquivo fica guardado na própria Órbita (tabela `social_media`) e o card mostra a prévia.
+5. **Revisão:** Antonio vê a capa no card. Aprovada a capa, seguem os slides internos, a página gratuita e a linha no n8n.
+
+> O bucket `carrosseis` do Supabase antigo não existe mais (o DNS não resolve desde 30/10). O armazenamento das mídias passou para a Órbita.

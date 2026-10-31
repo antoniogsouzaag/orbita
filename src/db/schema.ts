@@ -470,3 +470,19 @@ export const socialPosts = pgTable(
   (t) => [index("social_posts_stage_idx").on(t.stage, t.scheduledAt), index("social_posts_brand_idx").on(t.brand, t.scheduledAt)],
 );
 export type SocialPost = typeof socialPosts.$inferSelect;
+
+/** Mídias dos posts (capas, slides, vídeos curtos), servidas pela Órbita para Antonio, Claude e OpenClaw.
+ *  Conteúdo em base64 para funcionar igual no Postgres e no PGlite; limite de tamanho na rota de upload. */
+export const socialMedia = pgTable(
+  "social_media",
+  {
+    id: id(),
+    postId: uuid("post_id").references(() => socialPosts.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    data: text("data").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("social_media_post_idx").on(t.postId, t.createdAt)],
+);

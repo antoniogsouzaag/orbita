@@ -26,7 +26,7 @@ import { listTasks, type TaskView } from "./tasks";
 import { getVaultIndexSafe, getVaultProvider } from "./vault";
 import { searchKnowledge } from "./tool-search";
 import { editVault, editVaultSchema } from "./vault-edit";
-import { redesAtualizarPost, redesAuditarEntregas, redesCriarPost, redesListarPosts } from "./social-tools";
+import { redesAnexarMidia, redesAtualizarPost, redesAuditarEntregas, redesCriarPost, redesListarPosts } from "./social-tools";
 import { buscarConversas, memoria, pedirAgente, statusAgentes, ToolRefusal } from "./orbe-tools";
 
 /**
@@ -543,6 +543,7 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "redes_listar_posts", readOnly: true, description: "Lista posts do pipeline de redes (AG LABS, Members, MeCard, Barberias) com etapa, qualidade, palavra-chave, mídia e o que falta para aprovar. Use antes de criar ou atualizar para não duplicar.", ...redesListarPosts },
   { name: "redes_criar_post", description: "Cria post no pipeline de redes (etapa ideia a revisao). Informe marca, rede, formato, título e, quando houver, gancho, legenda, CTA, link da mídia (http) e referência. Palavra-chave do CTA vai em checks.keyword. Não aprova: aprovação é do Antonio.", ...redesCriarPost },
   { name: "redes_atualizar_post", description: "Atualiza campos de um post (mídia, legenda, entregas em checks, link publicado) e/ou move a etapa. Aprovar é bloqueado para agentes; agendar/publicar exige checklist e entregas (n8n, página, biblioteca) concluídas.", ...redesAtualizarPost },
+  { name: "redes_anexar_midia", description: "Anexa uma mídia (capa, slide ou vídeo curto) a um post do pipeline de redes a partir de um link https: a Órbita baixa e guarda o arquivo e devolve um link próprio. Use capa=true para trocar a mídia principal.", ...redesAnexarMidia },
   { name: "redes_auditar_entregas", readOnly: true, description: "Confere as entregas por palavra-chave da AG LABS nas tabelas do n8n (MSG POR POST e MSG INSTAGRAM): linha sem media_id, media_id duplicado, palavra-chave errada ou ausente, página repetida e link de conteúdo fora do ar. Só leitura; corrija na tabela e rode de novo.", ...redesAuditarEntregas },
   { name: "crm_registrar_atividade", description: "Registra na ficha do contato uma interação que já aconteceu. Não muda a etapa do funil.", requires: crmConfigured, ...crmRegistrarAtividade },
 ] as Tool[];
