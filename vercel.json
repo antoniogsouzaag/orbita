@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/orbe",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/midia",
+      "schedule": "30 7 * * *"
     }
   ]
 }

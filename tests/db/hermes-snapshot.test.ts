@@ -21,9 +21,16 @@ it("0009 snapshot matches schema and only creates social_posts",async()=>{
 it("0010 snapshot matches schema and only creates social_media",async()=>{
  const previous=read("0009"),snapshot=read("0010");
  expect(snapshot.prevId).toBe(previous.id);
- expect(await generateMigration(snapshot,generateDrizzleJson(schema,snapshot.id))).toEqual([]);
  const statements=await generateMigration(previous,snapshot);
  expect(statements.join(" ")).not.toMatch(/DROP |TRUNCATE|DELETE FROM/i);
  expect(statements.filter(s=>/ALTER TABLE/i.test(s)).every(s=>/"social_media" ADD CONSTRAINT/.test(s))).toBe(true);
  expect(Object.keys(snapshot.tables).filter(t=>!(t in previous.tables))).toEqual(["public.social_media"]);
+});
+it("0011 snapshot matches schema and only relaxes/extends social_media",async()=>{
+ const previous=read("0010"),snapshot=read("0011");
+ expect(snapshot.prevId).toBe(previous.id);
+ expect(await generateMigration(snapshot,generateDrizzleJson(schema,snapshot.id))).toEqual([]);
+ const statements=await generateMigration(previous,snapshot);
+ expect(statements.join(" ")).not.toMatch(/DROP TABLE|DROP COLUMN|TRUNCATE|DELETE FROM/i);
+ expect(statements.every(s=>/"social_media"/.test(s))).toBe(true);
 });

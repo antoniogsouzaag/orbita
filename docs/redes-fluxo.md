@@ -59,4 +59,8 @@ A auditoria é a ferramenta MCP `redes_auditar_entregas`, que só lê dados. Ela
 4. **Envio para a Órbita:** botão **Enviar** no campo "Mídia principal" do post. Agentes usam `redes_anexar_midia` (por link) ou `POST /api/redes/midia` (multipart, token de agente com escopo tarefas/admin). O arquivo fica guardado na própria Órbita (tabela `social_media`) e o card mostra a prévia.
 5. **Revisão:** Antonio vê a capa no card. Aprovada a capa, seguem os slides internos, a página gratuita e a linha no n8n.
 
-> O bucket `carrosseis` do Supabase antigo não existe mais (o DNS não resolve desde 30/10). O armazenamento das mídias passou para a Órbita.
+### Armazenamento e limpeza
+- **Supabase Storage (preferido):** quando `SUPABASE_MEDIA_URL`, `SUPABASE_MEDIA_KEY` (service role) e `SUPABASE_MEDIA_BUCKET` (bucket **público**, padrão `redes`) estão configurados na Vercel, o arquivo vai para o bucket e o post recebe o link público. O Postiz e o OpenClaw conseguem baixar direto.
+- **Sem essas variáveis:** o arquivo fica na própria Órbita (tabela `social_media`) e só abre com sessão ou token de agente.
+- **Limpeza diária** (`/api/cron/midia`, 07h30 UTC): apaga a mídia de post **publicado há mais de 7 dias** e o arquivo **avulso com mais de 3 dias**. Apagar o post apaga as mídias dele. O link continua no post como registro.
+- O bucket `carrosseis` do Supabase antigo não existe mais (o DNS não resolve desde 30/10).

@@ -88,12 +88,15 @@ function Board({ posts, onOpen }: { posts: SocialPost[]; onOpen: (p: SocialPost)
     const r = await moveSocialPostAction(p.id, stage);
     if (!r.ok) toast.error(r.error); else { toast.success(`Movido para ${STAGE_LABELS[stage]}`); router.refresh(); }
   });
-  return <div aria-busy={pending} className="flex gap-3 overflow-x-auto pb-2">{SOCIAL_STAGES.map((stage, i) => {
+  // "Falhou" só aparece quando tem post; as colunas dividem a largura e só rolam quando não cabem.
+  const stages = SOCIAL_STAGES.filter(stage => stage !== "falhou" || posts.some(p => p.stage === "falhou"));
+  return <div aria-busy={pending} className="board-scroll grid min-h-[calc(100dvh-15rem)] auto-cols-[minmax(10.5rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1">{stages.map(stage => {
+    const i = SOCIAL_STAGES.indexOf(stage);
     const items = posts.filter(p => p.stage === stage);
-    return <section key={stage} className="w-64 shrink-0 rounded-2xl border border-border bg-surface p-3"
+    return <section key={stage} className="flex min-w-0 flex-col rounded-2xl border border-border bg-surface p-2.5"
       onDragOver={e => e.preventDefault()} onDrop={e => { const p = posts.find(x => x.id === e.dataTransfer.getData("text/plain")); if (p && p.stage !== stage) move(p, stage); }}>
       <h3 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted">{STAGE_LABELS[stage]}<span className="tabular-nums">{items.length}</span></h3>
-      <div className="space-y-2">{items.map(p => { const q = quality(p); return <article key={p.id} draggable onDragStart={e => e.dataTransfer.setData("text/plain", p.id)} className="cursor-grab rounded-xl bg-surface-2 p-3">
+      <div className="flex-1 space-y-2">{!items.length && <p className="rounded-xl border border-dashed border-border px-2 py-4 text-center text-[11px] text-faint">Arraste um post para cá</p>}{items.map(p => { const q = quality(p); return <article key={p.id} draggable onDragStart={e => e.dataTransfer.setData("text/plain", p.id)} className="cursor-grab rounded-xl bg-surface-2 p-3">
         <button type="button" onClick={() => onOpen(p)} className="block w-full text-left">{p.mediaUrl && <MediaPreview url={p.mediaUrl} className="mb-2 aspect-[4/5] w-full" />}<p className="text-sm font-medium leading-snug">{p.title}</p><p className="mt-1 text-[11px] text-muted">{BRAND_LABELS[p.brand as SocialBrand]} · {NETWORK_LABELS[p.network as SocialNetwork]} · {p.format}</p><p className="mt-1 text-[11px] text-faint">{fmt(p.scheduledAt)}</p></button>
         <div className="mt-2 flex items-center justify-between"><span className={`text-[11px] font-medium ${q.blocking.length ? "text-warning" : "text-success"}`}>Qualidade {q.score}%</span>
           {i < SOCIAL_STAGES.length - 2 && <button type="button" disabled={pending} onClick={() => move(p, SOCIAL_STAGES[i + 1])} className="text-[11px] text-accent hover:underline">→ {STAGE_LABELS[SOCIAL_STAGES[i + 1]]}</button>}</div>
