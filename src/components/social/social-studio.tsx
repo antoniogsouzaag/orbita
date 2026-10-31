@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { AlertTriangle, CalendarDays, CheckCircle2, Circle, LayoutGrid, Plus, Sun, BarChart3, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarDays, CheckCircle2, Circle, LayoutGrid, Plus, Sun, BarChart3, Trash2, Upload } from "lucide-react";
 import { createSocialPostAction, deleteSocialPostAction, duplicateSocialPostAction, moveSocialPostAction, updateSocialPostAction } from "@/app/actions/social";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -133,6 +133,23 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
   const q = qualityScore({ ...f, checks });
   const limit = CAPTION_LIMITS[f.network];
   const payload = () => ({ brand: f.brand, network: f.network, format: f.format, title: f.title, hook: f.hook, caption: f.caption, cta: f.cta, mediaUrl: f.mediaUrl, referenceUrl: f.referenceUrl, publishedUrl: f.publishedUrl, notes: f.notes, scheduledAt: f.scheduledAt ? new Date(`${f.scheduledAt}:00-03:00`).toISOString() : null, checks });
+  const [uploading, setUploading] = React.useState(false);
+  /** Guarda o arquivo na Órbita e usa o link como mídia principal. */
+  const upload = async (file: File) => {
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      if (post) { body.set("postId", post.id); body.set("capa", "1"); }
+      const res = await fetch("/api/redes/midia", { method: "POST", body });
+      const json = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !json.url) throw new Error(json.error ?? "Falha no envio.");
+      set("mediaUrl", json.url);
+      toast.success("Mídia enviada");
+      if (post) router.refresh();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Falha no envio."); }
+    finally { setUploading(false); }
+  };
   const save = () => start(async () => {
     const r = post ? await updateSocialPostAction(post.id, payload()) : await createSocialPostAction(payload());
     if (!r.ok) return void toast.error(r.error);
@@ -152,7 +169,9 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
       <div className="grid grid-cols-2 gap-2">
         <Field label="CTA"><Input value={f.cta} onChange={e => set("cta", e.target.value)} placeholder='Ex.: Comente "GUIA"' /></Field>
         <Field label="Data e hora (Brasília)"><Input type="datetime-local" value={f.scheduledAt} onChange={e => set("scheduledAt", e.target.value)} /></Field>
-        <Field label="Link da mídia"><Input value={f.mediaUrl} onChange={e => set("mediaUrl", e.target.value)} placeholder="https://…" /></Field>
+        <Field label="Mídia principal (capa)"><div className="flex gap-2"><Input value={f.mediaUrl} onChange={e => set("mediaUrl", e.target.value)} placeholder="https://… ou envie o arquivo" />
+          <label className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-border px-3 text-xs hover:bg-surface-2 ${uploading ? "pointer-events-none opacity-60" : ""}`}><Upload className="size-3.5" />{uploading ? "Enviando…" : "Enviar"}
+            <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={uploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file); }} /></label></div></Field>
         <Field label="Referência / fonte"><Input value={f.referenceUrl} onChange={e => set("referenceUrl", e.target.value)} placeholder="https://…" /></Field>
       </div>
       {post?.stage === "publicado" && <Field label="Link do post publicado"><Input value={f.publishedUrl} onChange={e => set("publishedUrl", e.target.value)} /></Field>}

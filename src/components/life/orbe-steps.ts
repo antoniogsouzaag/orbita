@@ -7,6 +7,7 @@ const LABELS: Record<string, [string, string]> = {
   listar_tarefas: ["Consultando tarefas", "Consultou tarefas"],
   redes_listar_posts: ["Consultando posts", "Consultou posts"],
   redes_auditar_entregas: ["Conferindo entregas", "Conferiu entregas"],
+  redes_anexar_midia: ["Anexando mídia", "Anexou mídia"],
   redes_criar_post: ["Criando post", "Criou post"],
   redes_atualizar_post: ["Atualizando post", "Atualizou post"],
   consultar_tarefa: ["Lendo histórico da tarefa", "Leu histórico da tarefa"],

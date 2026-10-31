@@ -71,6 +71,13 @@
       "when": 1793396443562,
       "tag": "0009_social_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793414062041,
+      "tag": "0010_social_media",
+      "breakpoints": true
     }
   ]
 }

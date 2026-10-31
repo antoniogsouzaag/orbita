@@ -4,6 +4,7 @@ import { qualityScore, SOCIAL_BRANDS, SOCIAL_STAGES, type SocialNetwork, type So
 import { createSocialPost, listSocialPosts, moveSocialPost, socialPostSchema, updateSocialPost } from "./social-posts";
 import { ToolRefusal } from "./orbe-tools";
 import { runDeliveryAudit } from "./social-delivery";
+import { MEDIA_MAX_BYTES, saveSocialMedia } from "./social-media";
 
 type ActionResult = { text: string; action?: { label: string; href: string } };
 const href = "/redes?aba=producao";
@@ -78,5 +79,26 @@ export const redesAuditarEntregas = {
   schema: z.object({}),
   async run(): Promise<ActionResult> {
     return { text: JSON.stringify(await runDeliveryAudit()), action: { label: "Produção de redes", href } };
+  },
+};
+
+// Agentes (Claude na nuvem, OpenClaw) anexam mídia por URL: a Órbita baixa e guarda, para não depender de link externo.
+const attachSchema = z.object({
+  id: z.uuid().describe("Post que recebe a mídia"),
+  url: z.url().refine(u => /^https:\/\//.test(u), "Use um link https.").describe("Link público do arquivo (JPEG, PNG, WebP ou MP4 até 8 MB)"),
+  capa: z.boolean().optional().describe("true substitui a mídia principal do post"),
+});
+export const redesAnexarMidia = {
+  schema: attachSchema,
+  async run(v: z.infer<typeof attachSchema>): Promise<ActionResult> {
+    const origin = process.env.ORBITA_PUBLIC_URL ?? "https://orb.aglabs.api.br";
+    const res = await fetch(v.url, { redirect: "follow", signal: AbortSignal.timeout(20_000) }).catch(() => null);
+    if (!res?.ok) throw new ToolRefusal(`Não consegui baixar a mídia (${res?.status ?? "sem resposta"}).`);
+    const contentType = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+    const declared = Number(res.headers.get("content-length") ?? 0);
+    if (declared > MEDIA_MAX_BYTES) throw new ToolRefusal("Arquivo acima de 8 MB.");
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const saved = await guard(() => saveSocialMedia({ bytes, contentType, filename: new URL(v.url).pathname.split("/").pop() || "midia", postId: v.id, setCover: v.capa ?? false, origin }));
+    return { text: JSON.stringify({ anexada: { id: saved.id, url: saved.url, tamanho: saved.size, tipo: saved.contentType } }), action: { label: "Produção de redes", href } };
   },
 };
