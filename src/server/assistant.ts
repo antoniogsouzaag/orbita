@@ -26,6 +26,7 @@ import { listTasks, type TaskView } from "./tasks";
 import { getVaultIndexSafe, getVaultProvider } from "./vault";
 import { searchKnowledge } from "./tool-search";
 import { editVault, editVaultSchema } from "./vault-edit";
+import { redesAtualizarPost, redesAuditarEntregas, redesCriarPost, redesListarPosts } from "./social-tools";
 import { buscarConversas, memoria, pedirAgente, statusAgentes, ToolRefusal } from "./orbe-tools";
 
 /**
@@ -539,12 +540,16 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "buscar_conversas", orbeOnly: true, readOnly: true, description: "Busca em conversas anteriores com Antonio neste espaço, quando ele se referir a algo já conversado. Conversas expiram após algumas semanas.", ...buscarConversas },
   { name: "pedir_a_agente", orbeOnly: true, description: "Encaminha trabalho solicitado por Antonio. Hermes Oracle recebe execução task.dispatch com tarefa Empresa e recibo persistido; informe tarefa_id para reutilizar tarefa existente. Tom recebe tarefa e aviso direto quando ativo; demais agentes recebem tarefa na fila. Pedido explícito já autoriza encaminhar, sem reconfirmação do mesmo escopo. Preserve destino, contexto e critério de pronto. Admissão não comprova execução ou conclusão. Sempre Empresa, inclusive na conversa Pessoal.", ...pedirAgente },
   { name: "status_agentes", orbeOnly: true, readOnly: true, description: "O que os agentes estão fazendo: tarefas atribuídas e em andamento, fila livre, pedidos diretos ao Tom/Hermes com retorno e atividade recente no MCP.", ...statusAgentes },
+  { name: "redes_listar_posts", readOnly: true, description: "Lista posts do pipeline de redes (AG LABS, Members, MeCard, Barberias) com etapa, qualidade, palavra-chave, mídia e o que falta para aprovar. Use antes de criar ou atualizar para não duplicar.", ...redesListarPosts },
+  { name: "redes_criar_post", description: "Cria post no pipeline de redes (etapa ideia a revisao). Informe marca, rede, formato, título e, quando houver, gancho, legenda, CTA, link da mídia (http) e referência. Palavra-chave do CTA vai em checks.keyword. Não aprova: aprovação é do Antonio.", ...redesCriarPost },
+  { name: "redes_atualizar_post", description: "Atualiza campos de um post (mídia, legenda, entregas em checks, link publicado) e/ou move a etapa. Aprovar é bloqueado para agentes; agendar/publicar exige checklist e entregas (n8n, página, biblioteca) concluídas.", ...redesAtualizarPost },
+  { name: "redes_auditar_entregas", readOnly: true, description: "Confere as entregas por palavra-chave da AG LABS nas tabelas do n8n (MSG POR POST e MSG INSTAGRAM): linha sem media_id, media_id duplicado, palavra-chave errada ou ausente, página repetida e link de conteúdo fora do ar. Só leitura; corrija na tabela e rode de novo.", ...redesAuditarEntregas },
   { name: "crm_registrar_atividade", description: "Registra na ficha do contato uma interação que já aconteceu. Não muda a etapa do funil.", requires: crmConfigured, ...crmRegistrarAtividade },
 ] as Tool[];
 
 /** Ferramentas disponíveis agora (as do CRM só aparecem com o CRM conectado). */
 export function assistantTools(scope?: TaskScope, options: { readOnly?: boolean } = {}) {
-  return ASSISTANT_TOOLS.filter((t) => (!options.readOnly || t.readOnly === true) && (!t.requires || t.requires()) && !(scope === "pessoal" && (t.name.startsWith("crm_") || t.name === "metricas_produto")) && !(scope === "empresa" && ["registrar_lancamento", "ver_agenda", "criar_evento"].includes(t.name)));
+  return ASSISTANT_TOOLS.filter((t) => (!options.readOnly || t.readOnly === true) && (!t.requires || t.requires()) && !(scope === "pessoal" && (t.name.startsWith("crm_") || t.name.startsWith("redes_") || t.name === "metricas_produto")) && !(scope === "empresa" && ["registrar_lancamento", "ver_agenda", "criar_evento"].includes(t.name)));
 }
 
 export function toolJsonSchema(t: Tool): Record<string, unknown> {
