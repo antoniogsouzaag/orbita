@@ -61,6 +61,7 @@ export const redesAtualizarPost = {
   schema: updateSchema,
   async run(v: z.infer<typeof updateSchema>, options: { allowApproval?: boolean } = {}): Promise<ActionResult> {
     if (v.etapa === "aprovado" && !options.allowApproval) throw new ToolRefusal("Aprovar é decisão do Antonio na tela de Produção. Mova para revisao.");
+    if (v.etapa === "agendado" || v.etapa === "publicado") throw new ToolRefusal("Agendado e Publicado vêm do Postiz: aprovar na Órbita agenda, e o fechamento diário marca publicado.");
     const row = await guard(async () => {
       const current = (await listSocialPosts()).find(p => p.id === v.id);
       if (!current) throw new Error("Post não encontrado (ou publicado há mais de 30 dias).");

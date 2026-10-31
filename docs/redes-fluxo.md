@@ -88,3 +88,14 @@ Ao mover para **Aprovado** no Órbita:
 3. Guarda o id do Postiz no post e muda para **Agendado**. Se o Postiz falhar, o post volta para Aprovado com o erro nas notas.
 4. O fechamento diário marca como **Publicado**, preenche o link e o `media_id` (vem do `releaseId` do Postiz) e roda a auditoria de entregas.
 Sem data marcada, o Órbita sugere o próximo horário livre da grade. Nada é publicado sem o seu clique em Aprovar.
+
+### Implementado (aprovar = agendar)
+- **Aprovar** no Órbita agenda no Postiz:
+  1. valida o checklist, a data e as entregas;
+  2. sobe as mídias do post na ordem do carrossel (`…-01`, `…-02`…);
+  3. cria o post no canal da marca e guarda o id em `checks.postiz`;
+  4. muda a etapa para **Agendado**.
+- **Se faltar algo**, o post fica em Aprovado com o motivo na notificação. O botão **Agendar no Postiz** tenta de novo.
+- **Fechamento** (`/api/cron/redes`, todo dia às 00h15 de Brasília): post publicado vira **Publicado**, com link e `media_id` (o `releaseId`); erro vira **Falhou**, com o motivo nas notas.
+- **Mudanças depois de agendado** não vão para o Postiz. Para trocar algo, edite no Postiz ou cancele e reaprove.
+- **Agentes** não marcam Agendado nem Publicado: esses estados vêm só do Postiz.

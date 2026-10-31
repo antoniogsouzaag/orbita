@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/midia",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/cron/redes",
+      "schedule": "15 3 * * *"
     }
   ]
 }

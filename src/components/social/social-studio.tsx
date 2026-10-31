@@ -3,7 +3,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle, CalendarDays, CheckCircle2, Circle, LayoutGrid, Plus, Sun, BarChart3, Trash2, Upload } from "lucide-react";
-import { createSocialPostAction, deleteSocialPostAction, duplicateSocialPostAction, moveSocialPostAction, updateSocialPostAction } from "@/app/actions/social";
+import { createSocialPostAction, deleteSocialPostAction, scheduleSocialPostAction, duplicateSocialPostAction, moveSocialPostAction, updateSocialPostAction } from "@/app/actions/social";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -87,7 +87,10 @@ function Board({ posts, onOpen }: { posts: SocialPost[]; onOpen: (p: SocialPost)
   const [stage, setStage] = React.useState<SocialStage | "todos">("todos");
   const move = (p: SocialPost, to: SocialStage) => start(async () => {
     const r = await moveSocialPostAction(p.id, to);
-    if (!r.ok) toast.error(r.error); else { toast.success(`Movido para ${STAGE_LABELS[to]}`); router.refresh(); }
+    if (!r.ok) return void toast.error(r.error);
+    if (r.data.aviso) toast.warning(r.data.aviso, { duration: 10_000 });
+    else toast.success(r.data.post.stage === "agendado" ? "Aprovado e agendado no Postiz" : `Movido para ${STAGE_LABELS[to]}`);
+    router.refresh();
   });
   const count = (s: SocialStage) => posts.filter(p => p.stage === s).length;
   const stages = SOCIAL_STAGES.filter(s => s !== "falhou" || count(s) > 0);
@@ -234,7 +237,9 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
           <Button size="sm" variant="ghost" disabled={pending} onClick={remove}><Trash2 />Excluir</Button>
         </div>}
       </div>}
+      {post?.checks?.postiz && <p className="text-[11px] text-muted">No Postiz para {fmt(post.checks.postiz.scheduledFor)}. Mudanças feitas aqui depois disso não vão para o Postiz.</p>}
       <div className="mt-auto flex justify-end gap-2 border-t border-border pt-3">
+        {post?.stage === "aprovado" && !post.checks?.postiz && <Button variant="ghost" disabled={pending} onClick={() => start(async () => { const r = await scheduleSocialPostAction(post.id); if (!r.ok) toast.error(r.error); else { toast.success("Agendado no Postiz"); router.refresh(); onDone(); } })}>Agendar no Postiz</Button>}
         <Button variant="ghost" onClick={onDone}>Cancelar</Button>
         <Button disabled={pending || !f.title.trim()} onClick={save}>{pending ? "Salvando…" : "Salvar"}</Button>
       </div>
