@@ -481,7 +481,10 @@ export const socialMedia = pgTable(
     filename: text("filename").notNull(),
     contentType: text("content_type").notNull(),
     size: integer("size").notNull(),
-    data: text("data").notNull(),
+    /** "db" guarda em base64 aqui; "supabase" guarda no bucket e `path` aponta o objeto. */
+    storage: text("storage").notNull().default("db"),
+    path: text("path"),
+    data: text("data"),
     createdAt: createdAt(),
   },
   (t) => [index("social_media_post_idx").on(t.postId, t.createdAt)],

@@ -10,6 +10,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params;
   const row = await getSocialMedia(id);
   if (!row) return NextResponse.json({ error: "Mídia não encontrada." }, { status: 404 });
+  if (row.publicUrl) return NextResponse.redirect(row.publicUrl, 302);
+  if (!row.data) return NextResponse.json({ error: "Arquivo fora do armazenamento configurado." }, { status: 410 });
   return new NextResponse(Buffer.from(row.data, "base64"), {
     headers: {
       "Content-Type": row.contentType, "Content-Length": String(row.size),
