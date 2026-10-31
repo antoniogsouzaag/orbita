@@ -46,14 +46,32 @@ const postizOf = (p: Pick<SocialPost, "checks">) => (p.checks as { postiz?: Post
  * Aprovar = agendar. Valida as mesmas regras de "agendado" (checklist, data e entregas do CTA), sobe as mídias,
  * cria o post no canal da marca e muda a etapa para Agendado. Idempotente: post que já tem id do Postiz não é recriado.
  */
+type RemotePostSummary = { id: string; state?: string; publishDate?: string; integration?: { id?: string } | null; integrationId?: string; deletedAt?: string | null };
+/** Posts do canal no Postiz nos próximos 60 dias, no formato que nextFreeSlot entende. Falha de leitura não bloqueia (conta só o Órbita). */
+async function occupiedInPostiz(integrationId: string, brand: string) {
+  try {
+    const start = new Date(Date.now() - 86_400_000).toISOString(), end = new Date(Date.now() + 60 * 86_400_000).toISOString();
+    const list = await postiz<{ posts?: RemotePostSummary[] } | RemotePostSummary[]>(`/posts?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`);
+    return (Array.isArray(list) ? list : list?.posts ?? [])
+      .filter(r => (r.integration?.id ?? r.integrationId) === integrationId && r.publishDate && r.state !== "ERROR" && !r.deletedAt)
+      .map(r => ({ id: `postiz:${r.id}`, brand, stage: "agendado", scheduledAt: new Date(r.publishDate!) }));
+  } catch { return []; }
+}
+
 export async function scheduleSocialPost(id: string) {
   const db = await getDb();
   const [post] = await db.select().from(socialPosts).where(eq(socialPosts.id, id));
   if (!post) throw new Error("Post não encontrado.");
   const existing = postizOf(post);
   if (existing) return { post, postiz: existing, already: true };
+  const channels = await postiz<PostizChannel[]>("/integrations");
+  const channel = pickChannel(channels, post.brand as SocialBrand, post.network as SocialNetwork);
+  if (!channel) throw new Error(`Nenhum canal ativo de ${post.brand} no ${post.network} no Postiz.`);
+
   // Data passada, muito em cima ou dia já ocupado por outro post da marca: vai para o próximo dia livre às 20h.
-  const outros = await db.select({ id: socialPosts.id, brand: socialPosts.brand, stage: socialPosts.stage, scheduledAt: socialPosts.scheduledAt }).from(socialPosts);
+  const proprios = await db.select({ id: socialPosts.id, brand: socialPosts.brand, stage: socialPosts.stage, scheduledAt: socialPosts.scheduledAt }).from(socialPosts);
+  // Dias já ocupados no Postiz pelo mesmo canal (posts criados fora do Órbita, como os do pipeline antigo) também contam.
+  const outros = [...proprios, ...(await occupiedInPostiz(channel.id, post.brand))];
   const day = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const clash = post.scheduledAt && outros.some(o => o.id !== post.id && o.brand === post.brand && o.stage !== "falhou" && o.scheduledAt && day(o.scheduledAt) === day(post.scheduledAt!));
   if (!post.scheduledAt || post.scheduledAt.getTime() < Date.now() + 2 * 3_600_000 || clash) {
@@ -69,10 +87,6 @@ export async function scheduleSocialPost(id: string) {
     const st = await fetch(page, { method: "GET", redirect: "follow", signal: AbortSignal.timeout(10_000) }).then(r => r.status, () => 0);
     if (st !== 200) throw new Error(`A página gratuita ainda não está no ar (${page} respondeu ${st || "sem resposta"}).`);
   }
-
-  const channels = await postiz<PostizChannel[]>("/integrations");
-  const channel = pickChannel(channels, post.brand as SocialBrand, post.network as SocialNetwork);
-  if (!channel) throw new Error(`Nenhum canal ativo de ${post.brand} no ${post.network} no Postiz.`);
 
   // Mídias do post na ordem do carrossel; o mesmo nome enviado de novo vale a versão mais recente.
   const all = await db.select({ id: socialMedia.id, filename: socialMedia.filename, contentType: socialMedia.contentType, createdAt: socialMedia.createdAt }).from(socialMedia).where(eq(socialMedia.postId, post.id));
