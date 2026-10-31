@@ -444,3 +444,29 @@ export const orbeConversations = pgTable(
 
 export type OrbeMemory = typeof orbeMemories.$inferSelect;
 export type OrbeConversation = typeof orbeConversations.$inferSelect;
+
+/** Pipeline editorial de redes sociais: uma linha por peça/adaptação por canal. */
+export const socialPosts = pgTable(
+  "social_posts",
+  {
+    id: id(),
+    brand: text("brand").notNull(),
+    network: text("network").notNull(),
+    format: text("format").notNull().default("reels"),
+    stage: text("stage").notNull().default("ideia"),
+    title: text("title").notNull(),
+    hook: text("hook"),
+    caption: text("caption"),
+    cta: text("cta"),
+    mediaUrl: text("media_url"),
+    referenceUrl: text("reference_url"),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    publishedUrl: text("published_url"),
+    checks: jsonb("checks").$type<import("../lib/social-pipeline").SocialChecks>().notNull().default({}),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("social_posts_stage_idx").on(t.stage, t.scheduledAt), index("social_posts_brand_idx").on(t.brand, t.scheduledAt)],
+);
+export type SocialPost = typeof socialPosts.$inferSelect;
