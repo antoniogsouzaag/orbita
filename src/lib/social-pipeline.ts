@@ -18,7 +18,9 @@ export type SocialStage = (typeof SOCIAL_STAGES)[number];
 export const STAGE_LABELS: Record<SocialStage, string> = { ideia: "Ideia", briefing: "Briefing", rascunho: "Rascunho", revisao: "Revisão", aprovado: "Aprovado", agendado: "Agendado", publicado: "Publicado", falhou: "Falhou" };
 
 /** Checklist manual. `keyword` liga as entregas: n8n + página gratuita (+ biblioteca se for imagem/motion). */
-export type SocialChecks = { brandReviewed?: boolean; ctaDeliverable?: boolean; keyword?: string | null; libraryNeeded?: boolean; n8nDone?: boolean; pageDone?: boolean; libraryDone?: boolean; mediaId?: string | null };
+export type SocialChecks = { brandReviewed?: boolean; ctaDeliverable?: boolean; keyword?: string | null; libraryNeeded?: boolean; n8nDone?: boolean; pageDone?: boolean; libraryDone?: boolean; mediaId?: string | null;
+  /** Gravado pela Órbita ao agendar no Postiz; nunca vem do formulário. */
+  postiz?: { postId: string; integrationId: string; scheduledFor: string; at: string } };
 
 export type QualityInput = {
   network: SocialNetwork;

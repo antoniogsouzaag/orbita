@@ -57,7 +57,8 @@ async function current(id: string) {
 export async function updateSocialPost(id: string, raw: unknown) {
   const before = await current(id);
   const data = socialPostSchema.parse(raw);
-  const next = { ...data, scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null, checks: data.checks ?? {} };
+  // O id do Postiz é da Órbita, não do formulário: editar o post nunca o apaga.
+  const next = { ...data, scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null, checks: { ...(data.checks ?? {}), ...(before.checks?.postiz ? { postiz: before.checks.postiz } : {}) } };
   // Editar um post já aprovado não pode deixá-lo sem os requisitos de qualidade.
   const error = stageError(asQuality({ ...before, ...next }), before.stage as SocialStage);
   if (error && ["aprovado", "agendado", "publicado"].includes(before.stage)) throw new Error(error);

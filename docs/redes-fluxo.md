@@ -64,3 +64,38 @@ A auditoria é a ferramenta MCP `redes_auditar_entregas`, que só lê dados. Ela
 - **Sem essas variáveis:** o arquivo fica na própria Órbita (tabela `social_media`) e só abre com sessão ou token de agente.
 - **Limpeza diária** (`/api/cron/midia`, 07h30 UTC): apaga a mídia de post **publicado há mais de 7 dias** e o arquivo **avulso com mais de 3 dias**. Apagar o post apaga as mídias dele. O link continua no post como registro.
 - O bucket `carrosseis` do Supabase antigo não existe mais (o DNS não resolve desde 30/10).
+
+## Quem faz o quê (automação)
+
+| Etapa | Quem | Quando | Gatilho |
+|---|---|---|---|
+| Pesquisa e 3 briefings | Rotina na nuvem "Redes AG LABS: pesquisa e briefings" | seg–sáb, 6h | horário |
+| Aprovar a ideia | Antonio, no Órbita | quando quiser | move de Briefing para Rascunho (ou exclui) |
+| Produção (capa, miolo, legenda, página gratuita) | Claude Code: AG LABS com o Claude; Members, MeCard e Barberias com o Fred | ao aprovar a ideia | card em Rascunho |
+| Revisão da arte | Antonio, no Órbita | quando quiser | Aprovado (ou volta com comentário nas notas) |
+| Agendamento no Postiz | **o próprio Órbita** | no clique em Aprovar | ver abaixo |
+| Fechamento e métricas | rotina diária | 7h30 | publicados do dia anterior |
+
+### Por que a produção não é uma segunda rotina (ainda)
+A produção roda na máquina: render em Chrome, Remotion, Replicate e as fontes da marca. Numa rotina na nuvem, cada execução teria que instalar tudo isso e receber as chaves. O plano:
+1. **Agora:** produção sob demanda, comigo, seguindo `marketing/_sistema/pipeline/PRODUCAO-PADRAO.md`.
+2. **Depois de cerca de 10 posts** passando pelos portões sem retrabalho: rotina de produção na nuvem às 8h, que pega os cards em Rascunho, produz e entrega em Revisão.
+
+### Aprovar = agendar (desenho)
+Ao mover para **Aprovado** no Órbita:
+1. Valida o checklist e as entregas do CTA (já existe).
+2. Envia as mídias do post para o Postiz (upload por URL) e cria o post no canal certo, na data marcada, com a legenda.
+3. Guarda o id do Postiz no post e muda para **Agendado**. Se o Postiz falhar, o post volta para Aprovado com o erro nas notas.
+4. O fechamento diário marca como **Publicado**, preenche o link e o `media_id` (vem do `releaseId` do Postiz) e roda a auditoria de entregas.
+Sem data marcada, o Órbita sugere o próximo horário livre da grade. Nada é publicado sem o seu clique em Aprovar.
+
+### Implementado (aprovar = agendar)
+- **Aprovar** no Órbita agenda no Postiz:
+  1. valida o checklist, a data e as entregas;
+  2. sobe as mídias do post na ordem do carrossel (`…-01`, `…-02`…);
+  3. cria o post no canal da marca e guarda o id em `checks.postiz`;
+  4. muda a etapa para **Agendado**.
+- **Se faltar algo**, o post fica em Aprovado com o motivo na notificação. O botão **Agendar no Postiz** tenta de novo.
+- **Fechamento** (`/api/cron/redes`, todo dia às 00h15 de Brasília): post publicado vira **Publicado**, com link e `media_id` (o `releaseId`); erro vira **Falhou**, com o motivo nas notas.
+- **Mudanças depois de agendado** não vão para o Postiz. Para trocar algo, edite no Postiz ou cancele e reaprove.
+- **Agentes** não marcam Agendado nem Publicado: esses estados vêm só do Postiz.
