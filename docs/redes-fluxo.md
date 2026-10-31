@@ -105,3 +105,18 @@ Sem data marcada, o Órbita sugere o próximo horário livre da grade. Nada é p
 - **1 post por dia por marca, às 20h.** A data entra sozinha na criação (próximo dia livre). Ao aprovar, se a data já passou, estiver a menos de 2 h ou o dia estiver ocupado, vai para o próximo dia livre.
 - **Ao aprovar:** o sistema confere se a página gratuita está no ar (precisa responder 200), agenda no Postiz e muda para Agendado.
 - **n8n:** o workflow "Órbita → entregas AG LABS" consulta `GET /api/redes/entregas` (Bearer `OPS_TOKEN`) a cada 30 min. Grava a linha do código em MSG INSTAGRAM (ao agendar; PROMPT não entra, porque é sempre por post) e a linha com `media_id` em MSG POR POST (ao publicar), e confirma com `POST /api/redes/entregas`.
+
+## Rotina única: pesquisa + produção (proposta)
+Com 1 post por dia, uma rotina na nuvem, às 6h, faz o ciclo inteiro e entrega **1 post pronto em Revisão**:
+1. **Pesquisa** (como hoje): repertório, sinal do momento, filtro e mix do ciclo de 6.
+2. **Produção:** foto ou arte pela regra do protagonista, slides no padrão do formato e, no reel, voz no ElevenLabs e render no Remotion. Tudo passa pelos portões do `PRODUCAO-PADRAO.md`.
+3. **Entrega:** página em `conteudos-gratuito` (push na `main`), legenda, CTA, palavra-chave, `pageUrl` e `deliveryMessage`.
+4. **Órbita:** cria o post em Revisão (com a data do próximo dia livre às 20h) e envia a capa e os slides para o storage.
+5. **Antonio aprova** → agenda no Postiz → o n8n grava as linhas → o fechamento marca Publicado.
+
+O que a rotina precisa no ambiente da nuvem (claude.ai → ambiente "padrao" → variáveis):
+- `REPLICATE_API_TOKEN` (gerar imagem), `MEDIA_S3_ACCESS_KEY_ID` e `MEDIA_S3_SECRET_ACCESS_KEY` (enviar as mídias para o storage do Neon);
+- acesso de escrita aos repos `aglabs-core/marketing` e `conteudos-gratuito` (o push da página publica o site);
+- conectores: Órbita, Postiz, n8na e ElevenLabs.
+
+Até isso estar pronto, a produção roda aqui, comigo, a partir dos briefings das 6h.
