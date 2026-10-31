@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { socialMedia, socialPosts, type SocialPost } from "@/db/schema";
 import { buildSchedulePayload, orderMedia, pickChannel, type PostizChannel, type PostizMedia } from "@/lib/social-postiz";
-import { stageError, type SocialBrand, type SocialNetwork } from "@/lib/social-pipeline";
+import { nextFreeSlot, stageError, type SocialBrand, type SocialNetwork } from "@/lib/social-pipeline";
 import { getSocialMedia } from "./social-media";
 
 /* ───────────── cliente da API pública do Postiz (mesma configuração da aba Métricas) ───────────── */
@@ -52,10 +52,23 @@ export async function scheduleSocialPost(id: string) {
   if (!post) throw new Error("Post não encontrado.");
   const existing = postizOf(post);
   if (existing) return { post, postiz: existing, already: true };
+  // Data passada, muito em cima ou dia já ocupado por outro post da marca: vai para o próximo dia livre às 20h.
+  const outros = await db.select({ id: socialPosts.id, brand: socialPosts.brand, stage: socialPosts.stage, scheduledAt: socialPosts.scheduledAt }).from(socialPosts);
+  const day = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const clash = post.scheduledAt && outros.some(o => o.id !== post.id && o.brand === post.brand && o.stage !== "falhou" && o.scheduledAt && day(o.scheduledAt) === day(post.scheduledAt!));
+  if (!post.scheduledAt || post.scheduledAt.getTime() < Date.now() + 2 * 3_600_000 || clash) {
+    const slot = nextFreeSlot(outros, post.brand, new Date(), post.id);
+    await db.update(socialPosts).set({ scheduledAt: slot }).where(eq(socialPosts.id, post.id));
+    post.scheduledAt = slot;
+  }
   const error = stageError({ ...post, network: post.network as SocialNetwork }, "agendado");
   if (error) throw new Error(error);
-  if (!post.caption?.trim()) throw new Error("Legenda vazia.");
-  if (post.scheduledAt!.getTime() <= Date.now() + 5 * 60_000) throw new Error("A data do post já passou (ou é em menos de 5 minutos). Ajuste a data.");
+  // Quem comentar recebe o link: a página precisa estar no ar antes de o post sair.
+  const page = post.checks?.keyword ? post.checks?.pageUrl : null;
+  if (page) {
+    const st = await fetch(page, { method: "GET", redirect: "follow", signal: AbortSignal.timeout(10_000) }).then(r => r.status, () => 0);
+    if (st !== 200) throw new Error(`A página gratuita ainda não está no ar (${page} respondeu ${st || "sem resposta"}).`);
+  }
 
   const channels = await postiz<PostizChannel[]>("/integrations");
   const channel = pickChannel(channels, post.brand as SocialBrand, post.network as SocialNetwork);

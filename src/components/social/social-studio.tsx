@@ -153,10 +153,9 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
     brand: (post?.brand ?? defaultBrand) as SocialBrand, network: (post?.network ?? "instagram") as SocialNetwork, format: post?.format ?? "reels",
     title: post?.title ?? "", hook: post?.hook ?? "", caption: post?.caption ?? "", cta: post?.cta ?? "", mediaUrl: post?.mediaUrl ?? "",
     referenceUrl: post?.referenceUrl ?? "", publishedUrl: post?.publishedUrl ?? "", scheduledAt: toLocalInput(post?.scheduledAt ?? null), notes: post?.notes ?? "",
-    brandReviewed: Boolean(post?.checks?.brandReviewed), ctaDeliverable: Boolean(post?.checks?.ctaDeliverable),
-    keyword: post?.checks?.keyword ?? "", libraryNeeded: Boolean(post?.checks?.libraryNeeded), n8nDone: Boolean(post?.checks?.n8nDone), pageDone: Boolean(post?.checks?.pageDone), libraryDone: Boolean(post?.checks?.libraryDone), mediaId: post?.checks?.mediaId ?? "",
+    keyword: post?.checks?.keyword ?? "", pageUrl: post?.checks?.pageUrl ?? "", deliveryMessage: post?.checks?.deliveryMessage ?? "",
   });
-  const checks = { brandReviewed: f.brandReviewed, ctaDeliverable: f.ctaDeliverable, keyword: f.keyword.trim() || null, libraryNeeded: f.libraryNeeded, n8nDone: f.n8nDone, pageDone: f.pageDone, libraryDone: f.libraryDone, mediaId: f.mediaId.trim() || null };
+  const checks = { keyword: f.keyword.trim() || null, pageUrl: f.pageUrl.trim() || null, deliveryMessage: f.deliveryMessage.trim() || null, mediaId: post?.checks?.mediaId ?? null, n8nCodeDone: post?.checks?.n8nCodeDone, n8nPostDone: post?.checks?.n8nPostDone };
   const deliveries = deliveryChecks({ checks });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(s => ({ ...s, [k]: v }));
   const q = qualityScore({ ...f, checks });
@@ -200,7 +199,7 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
       <div className={`rounded-lg px-2.5 py-2 text-center text-xs ${q.blocking.length ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>Qualidade {q.score}%{q.blocking.length ? ` · faltam ${q.blocking.length}` : " · pronto"}</div>
     </aside>
     <div className="flex min-w-0 flex-col gap-3">
-      <div role="tablist" className="flex gap-1 border-b border-border pb-2">{tab("conteudo", "Conteúdo")}{tab("checklist", "Checklist", q.blocking.length ? String(q.blocking.length) : undefined)}{tab("mais", "Mais")}</div>
+      <div role="tablist" className="flex gap-1 border-b border-border pb-2">{tab("conteudo", "Conteúdo")}{tab("checklist", "Entregas", q.blocking.length ? String(q.blocking.length) : undefined)}{tab("mais", "Mais")}</div>
       {view === "conteudo" && <div className="space-y-3">
         <Field label="Título"><Input value={f.title} onChange={e => set("title", e.target.value)} maxLength={200} placeholder="Ex.: 3 automações que economizam 5h/semana" /></Field>
         <Field label="Gancho"><Input value={f.hook} onChange={e => set("hook", e.target.value)} maxLength={300} /></Field>
@@ -211,17 +210,23 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
         </div>
       </div>}
       {view === "checklist" && <div className="space-y-4">
-        <ul className="space-y-1.5 text-xs">{q.checks.map(c => <li key={c.key} className="flex gap-2">{c.ok ? <CheckCircle2 className="size-3.5 shrink-0 text-success" /> : c.required ? <AlertTriangle className="size-3.5 shrink-0 text-warning" /> : <Circle className="size-3.5 shrink-0 text-faint" />}<span className={c.ok ? "text-muted" : ""}>{c.label}{!c.required && " (opcional)"}</span></li>)}</ul>
-        <div className="space-y-1 text-xs"><label className="flex items-center gap-2"><input type="checkbox" checked={f.brandReviewed} onChange={e => set("brandReviewed", e.target.checked)} />Revisei tom e marca</label><label className="flex items-center gap-2"><input type="checkbox" checked={f.ctaDeliverable} onChange={e => set("ctaDeliverable", e.target.checked)} />Material do CTA existe e foi testado</label></div>
-        <div className="space-y-2 border-t border-border pt-3">
-          <p className="text-xs font-medium">Entregas do CTA</p>
-          <Input aria-label="Palavra-chave" className="uppercase" value={f.keyword} onChange={e => set("keyword", e.target.value.replace(/\s/g, ""))} maxLength={40} placeholder="Palavra-chave (ex.: ROTINA)" />
-          {f.keyword.trim() ? <div className="space-y-1 text-xs">
-            <label className="flex items-center gap-2"><input type="checkbox" checked={f.libraryNeeded} onChange={e => set("libraryNeeded", e.target.checked)} />É de imagem ou motion</label>
-            {deliveries.map(c => <label key={c.key} className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={c.ok} onChange={e => set(c.key as "n8nDone" | "pageDone" | "libraryDone", e.target.checked)} /><span className={c.ok ? "text-muted line-through" : ""}>{c.label}</span></label>)}
-            <Input aria-label="media_id do Instagram" inputMode="numeric" value={f.mediaId} onChange={e => set("mediaId", e.target.value.replace(/\D/g, ""))} placeholder="media_id do Instagram (após publicar)" />
-          </div> : <p className="text-[11px] text-faint">Sem palavra-chave, não há entregas.</p>}
+        <div className="space-y-2">
+          <Field label="Palavra-chave do CTA"><Input className="uppercase" value={f.keyword} onChange={e => set("keyword", e.target.value.replace(/\s/g, ""))} maxLength={40} placeholder="Ex.: ARQUIVO (vazio = sem entrega)" /></Field>
+          {f.keyword.trim() && <>
+            <Field label="Página do conteúdo gratuito"><Input value={f.pageUrl} onChange={e => set("pageUrl", e.target.value)} placeholder="https://conteudo.aglabs.ia.br/conteudos/…" /></Field>
+            <Field label="Mensagem da DM (com o link)"><Textarea rows={3} value={f.deliveryMessage} onChange={e => set("deliveryMessage", e.target.value)} /></Field>
+          </>}
         </div>
+        <div className="space-y-1.5 border-t border-border pt-3">
+          <p className="text-xs font-medium">Conferência automática</p>
+          <ul className="space-y-1.5 text-xs">{q.checks.map(c => <li key={c.key} className="flex gap-2">{c.ok ? <CheckCircle2 className="size-3.5 shrink-0 text-success" /> : c.required ? <AlertTriangle className="size-3.5 shrink-0 text-warning" /> : <Circle className="size-3.5 shrink-0 text-faint" />}<span className={c.ok ? "text-muted" : ""}>{c.label}{!c.required && " (opcional)"}</span></li>)}</ul>
+        </div>
+        {deliveries.length > 0 && <div className="space-y-1.5 border-t border-border pt-3">
+          <p className="text-xs font-medium">Entregas feitas pelo sistema</p>
+          <ul className="space-y-1.5 text-xs">{deliveries.map(c => <li key={c.key} className="flex gap-2">{c.ok ? <CheckCircle2 className="size-3.5 shrink-0 text-success" /> : <Circle className="size-3.5 shrink-0 text-faint" />}<span className={c.ok ? "text-muted" : ""}>{c.label}</span></li>)}</ul>
+          {post?.checks?.mediaId && <p className="text-[11px] text-faint">media_id {post.checks.mediaId}</p>}
+        </div>}
+        <p className="text-[11px] text-faint">Você só aprova. Ao aprovar: agenda no próximo dia livre às 20h, confere a página e grava as linhas do n8n.</p>
       </div>}
       {view === "mais" && <div className="space-y-3">
         <div className="grid grid-cols-3 gap-2">
