@@ -30,7 +30,7 @@ const publicUrl = objectUrl;
 
 async function bucketUpload(b: Bucket, path: string, bytes: Uint8Array, contentType: string) {
   const res = await b.client.fetch(objectUrl(b, path), {
-    method: "PUT", body: Buffer.from(bytes), signal: AbortSignal.timeout(30_000),
+    method: "PUT", body: new Uint8Array(bytes), signal: AbortSignal.timeout(12_000),
     headers: { "content-type": contentType, "cache-control": "public, max-age=31536000, immutable" },
   });
   if (!res.ok) throw new Error(`Storage respondeu ${res.status}.`);
@@ -61,9 +61,10 @@ export async function saveSocialMedia(input: { bytes: Uint8Array; filename: stri
   const b = mediaBucket();
   let url: string;
   let stored: { storage: string; path: string | null; data: string | null };
-  if (b) {
-    const path = `${postId ?? "avulsa"}/${id}-${filename.replace(/\s+/g, "-")}`;
-    await bucketUpload(b, path, input.bytes, type);
+  const path = `${postId ?? "avulsa"}/${id}-${filename.replace(/\s+/g, "-")}`;
+  // Storage indisponível ou lento não pode perder o envio: cai para o banco e registra o motivo no log.
+  const sent = b ? await bucketUpload(b, path, input.bytes, type).then(() => true, (e: unknown) => { console.error(`[redes/midia] storage falhou, guardando no banco: ${e instanceof Error ? `${e.name}: ${e.message}` : e}`); return false; }) : false;
+  if (b && sent) {
     stored = { storage: "s3", path, data: null };
     url = publicUrl(b, path);
   } else {
