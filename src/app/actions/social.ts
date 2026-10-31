@@ -22,7 +22,11 @@ export async function moveSocialPostAction(id: string, stage: SocialStage) {
   return run(async () => {
     const moved = await moveSocialPost(id, stage);
     if (stage !== "aprovado") return { post: moved, aviso: null as string | null };
-    try { const s = await scheduleSocialPost(id); return { post: s.post, aviso: null }; }
+    try {
+      const s = await scheduleSocialPost(id);
+      const falhas = "falhas" in s ? s.falhas ?? [] : [];
+      return { post: s.post, aviso: falhas.length ? `Agendado, mas falhou em: ${falhas.join(", ")}. Abra o post e use "Agendar nas outras redes".` : null };
+    }
     catch (e) { return { post: moved, aviso: `Aprovado, mas não agendado no Postiz: ${e instanceof Error ? e.message : "erro"}` }; }
   });
 }

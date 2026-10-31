@@ -32,3 +32,23 @@ describe("agendamento no Postiz", () => {
     expect(orderMedia([{ filename: "AG-03.jpg", createdAt: d }, { filename: "AG-01.jpg", createdAt: d }, { filename: "AG-02.jpg", createdAt: d }]).map(m => m.filename)).toEqual(["AG-01.jpg", "AG-02.jpg", "AG-03.jpg"]);
   });
 });
+
+import { captionFor, fanoutNetworks } from "@/lib/social-postiz";
+describe("várias redes por post", () => {
+  const cap = "Gancho forte 🚀\n\nParágrafo um.\n\nComenta ARQUIVO que eu te mando\n\n#ia #automacao #negocios #gemini";
+  it("AG LABS vai para Instagram, Facebook, LinkedIn e Threads; YouTube só com vídeo", () => {
+    expect(fanoutNetworks("aglabs", "instagram", false)).toEqual(["instagram", "facebook", "linkedin", "threads"]);
+    expect(fanoutNetworks("aglabs", "instagram", true)).toContain("youtube");
+    expect(fanoutNetworks("mecard", "instagram", false)).toEqual(["instagram"]);
+  });
+  it("fora do Instagram tira o CTA da palavra-chave e usa o link da página", () => {
+    const url = "https://conteudo.aglabs.ia.br/conteudos/arquivo";
+    expect(captionFor("instagram", cap).content).toContain("Comenta ARQUIVO");
+    const fb = captionFor("facebook", cap, { pageUrl: url }).content;
+    expect(fb).not.toContain("Comenta ARQUIVO"); expect(fb).toContain(url); expect(fb).not.toContain("#gemini");
+    const li = captionFor("linkedin", cap, { pageUrl: url });
+    expect(li.content).not.toMatch(/#|🚀|Comenta/); expect(li.comment).toBe(url);
+    const th = captionFor("threads", cap + "\n\n" + "x".repeat(600), { pageUrl: url }).content;
+    expect(th.length).toBeLessThanOrEqual(500); expect(th).toContain(url);
+  });
+});

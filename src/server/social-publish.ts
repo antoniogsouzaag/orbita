@@ -2,8 +2,8 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { socialMedia, socialPosts, type SocialPost } from "@/db/schema";
-import { buildSchedulePayload, orderMedia, pickChannel, type PostizChannel, type PostizMedia } from "@/lib/social-postiz";
-import { nextFreeSlot, stageError, type SocialBrand, type SocialNetwork } from "@/lib/social-pipeline";
+import { buildSchedulePayload, captionFor, fanoutNetworks, orderMedia, pickChannel, type PostizChannel, type PostizMedia } from "@/lib/social-postiz";
+import { NETWORK_LABELS, nextFreeSlot, stageError, type SocialBrand, type SocialNetwork } from "@/lib/social-pipeline";
 import { getSocialMedia } from "./social-media";
 
 /* ───────────── cliente da API pública do Postiz (mesma configuração da aba Métricas) ───────────── */
@@ -39,7 +39,24 @@ async function uploadToPostiz(mediaId: string): Promise<PostizMedia> {
   return { id: out.id, path: out.path };
 }
 
-type PostizState = { postId: string; integrationId: string; scheduledFor: string; at: string };
+type PostizChannelState = { postId: string; integrationId: string };
+/** postId/integrationId = canal principal (Instagram), usado no fechamento. canais = todas as redes já agendadas. */
+type PostizState = { postId: string; integrationId: string; scheduledFor: string; at: string; canais?: Record<string, PostizChannelState>; erros?: Record<string, string> };
+
+/** Tela final das outras redes (sem automação de palavra-chave): substitui o último slide fora do Instagram. */
+const FINAL_SCREEN: Partial<Record<SocialBrand, string>> = { aglabs: "/redes/aglabs-tela-final.jpg" };
+async function uploadFinalScreen(brand: SocialBrand): Promise<PostizMedia | null> {
+  const path = FINAL_SCREEN[brand];
+  if (!path) return null;
+  const origin = process.env.ORBITA_PUBLIC_URL ?? "https://orb.aglabs.api.br";
+  const res = await fetch(`${origin}${path}`, { signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error(`Tela final indisponível (${res.status}).`);
+  const form = new FormData();
+  form.set("file", new Blob([Buffer.from(await res.arrayBuffer())], { type: "image/jpeg" }), path.split("/").pop()!);
+  const out = await postiz<{ id?: string; path?: string }>("/upload", { method: "POST", body: form });
+  if (!out?.id || !out.path) throw new Error("Upload da tela final sem id/path.");
+  return { id: out.id, path: out.path };
+}
 const postizOf = (p: Pick<SocialPost, "checks">) => (p.checks as { postiz?: PostizState } | null)?.postiz ?? null;
 
 /**
@@ -63,7 +80,10 @@ export async function scheduleSocialPost(id: string) {
   const [post] = await db.select().from(socialPosts).where(eq(socialPosts.id, id));
   if (!post) throw new Error("Post não encontrado.");
   const existing = postizOf(post);
-  if (existing) return { post, postiz: existing, already: true };
+  const wantsVideo = post.format === "reels" || post.format === "video";
+  const networks = fanoutNetworks(post.brand as SocialBrand, post.network as SocialNetwork, wantsVideo);
+  const done: Record<string, PostizChannelState> = existing ? { [post.network]: { postId: existing.postId, integrationId: existing.integrationId }, ...existing.canais } : {};
+  if (existing && networks.every(n => done[n] || existing.erros?.[n] === "sem canal")) return { post, postiz: existing, already: true };
   const channels = await postiz<PostizChannel[]>("/integrations");
   const channel = pickChannel(channels, post.brand as SocialBrand, post.network as SocialNetwork);
   if (!channel) throw new Error(`Nenhum canal ativo de ${post.brand} no ${post.network} no Postiz.`);
@@ -74,7 +94,8 @@ export async function scheduleSocialPost(id: string) {
   const outros = [...proprios, ...(await occupiedInPostiz(channel.id, post.brand))];
   const day = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const clash = post.scheduledAt && outros.some(o => o.id !== post.id && o.brand === post.brand && o.stage !== "falhou" && o.scheduledAt && day(o.scheduledAt) === day(post.scheduledAt!));
-  if (!post.scheduledAt || post.scheduledAt.getTime() < Date.now() + 2 * 3_600_000 || clash) {
+  if (existing) post.scheduledAt = new Date(existing.scheduledFor);
+  else if (!post.scheduledAt || post.scheduledAt.getTime() < Date.now() + 2 * 3_600_000 || clash) {
     const slot = nextFreeSlot(outros, post.brand, new Date(), post.id);
     await db.update(socialPosts).set({ scheduledAt: slot }).where(eq(socialPosts.id, post.id));
     post.scheduledAt = slot;
@@ -91,7 +112,6 @@ export async function scheduleSocialPost(id: string) {
   // Mídias do post na ordem do carrossel; o mesmo nome enviado de novo vale a versão mais recente.
   const all = await db.select({ id: socialMedia.id, filename: socialMedia.filename, contentType: socialMedia.contentType, createdAt: socialMedia.createdAt }).from(socialMedia).where(eq(socialMedia.postId, post.id));
   // Reel/vídeo vai só com o vídeo (a capa em JPG viraria carrossel); carrossel e imagem vão só com imagens.
-  const wantsVideo = post.format === "reels" || post.format === "video";
   const rows = all.filter(r => r.contentType.startsWith("video/") === wantsVideo);
   if (wantsVideo && rows.length !== 1) throw new Error(rows.length ? "Reel precisa de um único vídeo." : "Envie o MP4 do reel antes de aprovar.");
   const latest = new Map<string, (typeof rows)[number]>();
@@ -102,13 +122,35 @@ export async function scheduleSocialPost(id: string) {
 
   const media: PostizMedia[] = [];
   for (const m of ordered) media.push(await uploadToPostiz(m.id));
-  const payload = buildSchedulePayload({ channel, caption: post.caption!, media, date: post.scheduledAt!, title: post.title });
-  const result = await postiz<Array<{ postId?: string; id?: string }>>("/posts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-  const postId = result?.[0]?.postId ?? result?.[0]?.id;
-  if (!postId) throw new Error("O Postiz não devolveu o id do post.");
-  const state: PostizState = { postId, integrationId: channel.id, scheduledFor: post.scheduledAt!.toISOString(), at: new Date().toISOString() };
+  // Fora do Instagram não há automação da palavra-chave: o último slide (CTA "comenta X") vira a tela final.
+  const keyword = post.checks?.keyword;
+  const needsFinal = Boolean(keyword) && !wantsVideo && media.length > 1 && networks.some(n => n !== "instagram" && !done[n]);
+  const finalScreen = needsFinal ? await uploadFinalScreen(post.brand as SocialBrand).catch(() => null) : null;
+
+  const erros: Record<string, string> = {};
+  for (const network of networks) {
+    if (done[network]) continue;
+    const ch = network === post.network ? channel : pickChannel(channels, post.brand as SocialBrand, network);
+    if (!ch) { erros[network] = "sem canal"; continue; }
+    const { content, comment } = captionFor(network, post.caption!, { pageUrl: keyword ? post.checks?.pageUrl : null });
+    const files = network !== "instagram" && finalScreen ? [...media.slice(0, -1), finalScreen] : media;
+    try {
+      const payload = buildSchedulePayload({ channel: ch, caption: content, comment, media: files, date: post.scheduledAt!, title: post.title, isVideo: wantsVideo });
+      const result = await postiz<Array<{ postId?: string; id?: string }>>("/posts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+      const postId = result?.[0]?.postId ?? result?.[0]?.id;
+      if (!postId) throw new Error("o Postiz não devolveu o id do post");
+      done[network] = { postId, integrationId: ch.id };
+    } catch (e) {
+      // O canal principal precisa sair; os outros ficam anotados e são tentados de novo no próximo "Agendar no Postiz".
+      if (network === post.network) throw e;
+      erros[network] = e instanceof Error ? e.message.slice(0, 200) : "falhou";
+    }
+  }
+  const main = done[post.network];
+  const state: PostizState = { postId: main.postId, integrationId: main.integrationId, scheduledFor: post.scheduledAt!.toISOString(), at: existing?.at ?? new Date().toISOString(), canais: done, ...(Object.keys(erros).length ? { erros } : {}) };
+  const falhas = Object.entries(erros).filter(([, m]) => m !== "sem canal").map(([n]) => NETWORK_LABELS[n as SocialNetwork] ?? n);
   const [row] = await db.update(socialPosts).set({ stage: "agendado", checks: { ...post.checks, postiz: state }, updatedAt: new Date() }).where(eq(socialPosts.id, post.id)).returning();
-  return { post: row, postiz: state, already: false };
+  return { post: row, postiz: state, already: false, falhas };
 }
 
 type RemotePost = { id: string; state?: string; publishDate?: string; releaseURL?: string | null; releaseId?: string | null; error?: string | null };
