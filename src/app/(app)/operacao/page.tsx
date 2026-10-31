@@ -10,7 +10,7 @@ import { WidgetBoard } from "@/components/ui/widget-board";
 import { cn } from "@/lib/utils";
 import { BUSINESS_REGISTERED_DOMAINS } from "@/lib/business-models";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
-import { canResolveOpsEvent, classifyOpsEvents, countOpsHistory, opsHistoryGroup } from "@/lib/ops-events";
+import { canResolveOpsEvent, classifyOpsEvents, countOpsHistory, opsEventLabel, opsHistoryGroup } from "@/lib/ops-events";
 import { monitorTargets } from "@/server/ops";
 import { coherence, liveOps, opsEventsByDay } from "@/server/ops-live";
 import { VaultBanner } from "@/components/vault/vault-banner";
@@ -31,6 +31,7 @@ function ago(d: Date) {
 const EVENT_STYLE: Record<string, { icon: typeof XCircle; tone: string; label: string }> = {
   site_down: { icon: XCircle, tone: "text-danger", label: "Fora do ar" },
   site_up: { icon: CheckCircle2, tone: "text-success", label: "Voltou" },
+  site_target_replaced: { icon: Activity, tone: "text-muted", label: opsEventLabel("site_target_replaced") },
   workflow_error: { icon: AlertTriangle, tone: "text-warning", label: "Falha no workflow" },
   agente_info: { icon: Bot, tone: "text-muted", label: "Agente" },
   agente_alerta: { icon: AlertTriangle, tone: "text-warning", label: "Alerta de agente" },
