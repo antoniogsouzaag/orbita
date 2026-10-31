@@ -60,7 +60,7 @@ A auditoria é a ferramenta MCP `redes_auditar_entregas`, que só lê dados. Ela
 5. **Revisão:** Antonio vê a capa no card. Aprovada a capa, seguem os slides internos, a página gratuita e a linha no n8n.
 
 ### Armazenamento e limpeza
-- **Supabase Storage (preferido):** quando `SUPABASE_MEDIA_URL`, `SUPABASE_MEDIA_KEY` (service role) e `SUPABASE_MEDIA_BUCKET` (bucket **público**, padrão `redes`) estão configurados na Vercel, o arquivo vai para o bucket e o post recebe o link público. O Postiz e o OpenClaw conseguem baixar direto.
+- **Neon Object Storage (preferido):** projeto Neon `orbita-midia` (org ag labs, us-east-1, porque o storage ainda não existe em São Paulo), bucket `redes` com leitura pública. Na Vercel: `MEDIA_S3_ENDPOINT`, `MEDIA_S3_REGION`, `MEDIA_S3_BUCKET` e, como Sensitive, `MEDIA_S3_ACCESS_KEY_ID` (token_id) e `MEDIA_S3_SECRET_ACCESS_KEY`, de uma credencial com escopo storage:read/write. O post recebe o link público (`endpoint/redes/<arquivo>`), que o Postiz e o OpenClaw abrem direto. Grátis até 5 GB.
 - **Sem essas variáveis:** o arquivo fica na própria Órbita (tabela `social_media`) e só abre com sessão ou token de agente.
 - **Limpeza diária** (`/api/cron/midia`, 07h30 UTC): apaga a mídia de post **publicado há mais de 7 dias** e o arquivo **avulso com mais de 3 dias**. Apagar o post apaga as mídias dele. O link continua no post como registro.
 - O bucket `carrosseis` do Supabase antigo não existe mais (o DNS não resolve desde 30/10).
