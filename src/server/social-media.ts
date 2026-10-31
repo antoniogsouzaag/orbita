@@ -29,10 +29,14 @@ const objectUrl = (b: Pick<Bucket, "endpoint" | "bucket">, path: string) => `${b
 const publicUrl = objectUrl;
 
 async function bucketUpload(b: Bucket, path: string, bytes: Uint8Array, contentType: string) {
-  const res = await b.client.fetch(objectUrl(b, path), {
-    method: "PUT", body: new Uint8Array(bytes), signal: AbortSignal.timeout(12_000),
+  // Assina e envia com o corpo inteiro (Content-Length). Via Request o corpo vira stream "chunked",
+  // e o storage do Neon trava em arquivos acima de ~0,5 MB.
+  const body = new Uint8Array(bytes);
+  const signed = await b.client.sign(objectUrl(b, path), {
+    method: "PUT", body,
     headers: { "content-type": contentType, "cache-control": "public, max-age=31536000, immutable" },
   });
+  const res = await fetch(signed.url, { method: "PUT", headers: signed.headers, body, signal: AbortSignal.timeout(25_000) });
   if (!res.ok) throw new Error(`Storage respondeu ${res.status}.`);
 }
 async function bucketRemove(b: Bucket, paths: string[]) {
