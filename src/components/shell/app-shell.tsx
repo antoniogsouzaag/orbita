@@ -394,25 +394,39 @@ function Notifications({ items, read, unread, open, onOpenChange, onRead, onRefr
             {unread > 0 && <button onClick={() => onRead(items.map((n) => n.id))} className="rounded-lg p-1.5 text-muted hover:bg-surface-2" aria-label="Marcar todas como lidas"><CheckCheck className="size-4" /></button>}
           </div>
           {error && <p role="status" className="px-2 pb-2 text-xs text-warning">Não foi possível atualizar. Tente novamente.</p>}
-          {items.length === 0 ? (
-            <p className="px-2 pb-3 text-[13px] text-muted">{error ? "Avisos indisponíveis no momento." : checkedAt ? "Tudo em dia. 🎉" : "Consultando seus avisos…"}</p>
-          ) : (
-            <div className="max-h-80 overflow-y-auto">
-              {items.map((n) => (
-                <Link key={n.id} href={n.href} onClick={() => { onRead([n.id]); onOpenChange(false); }} className={cn("flex gap-2.5 rounded-xl px-2 py-2 hover:bg-surface-2", read.includes(n.id) && "opacity-60")}>
-                  <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.tone === "danger" ? "bg-danger" : n.tone === "warning" ? "bg-warning" : "bg-accent")} />
-                  <span className="min-w-0">
-                    <span className="block truncate text-[13px]">{n.title}</span>
-                    {n.detail && <span className="block truncate text-[12px] text-muted">{n.detail}</span>}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
+          <NoticeList items={items} read={read} error={error} checkedAt={checkedAt} onPick={(id) => { onRead([id]); onOpenChange(false); }} />
           <p className="border-t border-border px-2 pt-2 text-[10.5px] text-faint">{checkedAt ? `Atualizado às ${new Date(checkedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} · atualização automática` : "Verificando avisos…"}</p>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
+  );
+}
+
+/** Avisos lidos saem da lista; ficam acessíveis em "Ver lidos" até sumirem da origem. */
+function NoticeList({ items, read, error, checkedAt, onPick }: { items: ShellNotification[]; read: string[]; error: boolean; checkedAt: string | null; onPick: (id: string) => void }) {
+  const [showRead, setShowRead] = React.useState(false);
+  const pending = items.filter((n) => !read.includes(n.id));
+  const done = items.length - pending.length;
+  const visible = showRead ? items : pending;
+  return (
+    <>
+      {visible.length === 0 ? (
+        <p className="px-2 pb-3 text-[13px] text-muted">{error ? "Avisos indisponíveis no momento." : checkedAt ? "Tudo em dia. 🎉" : "Consultando seus avisos…"}</p>
+      ) : (
+        <div className="max-h-80 overflow-y-auto">
+          {visible.map((n) => (
+            <Link key={n.id} href={n.href} onClick={() => onPick(n.id)} className={cn("flex gap-2.5 rounded-xl px-2 py-2 hover:bg-surface-2", read.includes(n.id) && "opacity-60")}>
+              <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.tone === "danger" ? "bg-danger" : n.tone === "warning" ? "bg-warning" : "bg-accent")} />
+              <span className="min-w-0">
+                <span className="block truncate text-[13px]">{n.title}</span>
+                {n.detail && <span className="block truncate text-[12px] text-muted">{n.detail}</span>}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+      {done > 0 && <button onClick={() => setShowRead((v) => !v)} className="mb-1 w-full rounded-lg px-2 py-1.5 text-left text-[12px] text-muted hover:bg-surface-2">{showRead ? "Ocultar lidos" : `Ver lidos (${done})`}</button>}
+    </>
   );
 }
 
