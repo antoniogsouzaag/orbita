@@ -68,6 +68,7 @@ export function fanoutNetworks(brand: SocialBrand, primary: SocialNetwork, isVid
 const CTA_LINE = /^.*\bComent[ae]\s+["“]?[A-Z0-9ÁÉÍÓÚÂÊÔÃÕÇ]{2,}\b.*$/gm;
 const HASHTAG = /#[\p{L}\p{N}_]+/gu;
 const EMOJI = /[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu;
+const THREADS_MAX = 420;
 const tidy = (t: string) => t.replace(/^[ \t]+|[ \t]+$/gm, "").replace(/ {2,}/g, " ").replace(/(\r?\n){3,}/g, "\n\n").trim();
 
 /** Legenda de cada rede, adaptada da legenda do Instagram (mesma regra do pipeline do marketing). */
@@ -85,12 +86,12 @@ export function captionFor(network: SocialNetwork, caption: string, opts: { page
     return link ? { content: `${c}\n\nLink no primeiro comentário.`, comment: link } : { content: c };
   }
   if (network === "threads") {
-    // Threads aceita 500 caracteres: parágrafos inteiros até caber, sem hashtags, e o link no fim.
+    // Threads aceita 500, mas o Postiz conta emoji e quebras a mais: margem de 80 caracteres.
     const tail = link ? `\n\nMaterial: ${link}` : "";
     const paras = tidy(caption.replace(CTA_LINE, "").replace(HASHTAG, "")).split(/\n{2,}/);
     let out = "";
-    for (const p of paras) { const next = out ? `${out}\n\n${p}` : p; if (next.length + tail.length > 500) break; out = next; }
-    if (!out) out = paras[0].slice(0, 497 - tail.length).trimEnd() + "…";
+    for (const p of paras) { const next = out ? `${out}\n\n${p}` : p; if (next.length + tail.length > THREADS_MAX) break; out = next; }
+    if (!out) out = paras[0].slice(0, THREADS_MAX - 3 - tail.length).trimEnd() + "…";
     return { content: out + tail };
   }
   if (network === "youtube") {
