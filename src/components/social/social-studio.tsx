@@ -196,6 +196,7 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
       <label className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-xs hover:bg-surface-2 ${uploading ? "pointer-events-none opacity-60" : ""}`}><Upload className="size-3.5" />{uploading ? "Enviando…" : hasMedia ? "Trocar capa" : "Enviar capa"}
         <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={uploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file); }} /></label>
       {hasMedia && <a href={f.mediaUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-[11px] text-muted hover:text-fg">Abrir em tamanho real</a>}
+      {post && <PostMediaList postId={post.id} />}
       <div className={`rounded-lg px-2.5 py-2 text-center text-xs ${q.blocking.length ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>Qualidade {q.score}%{q.blocking.length ? ` · faltam ${q.blocking.length}` : " · pronto"}</div>
     </aside>
     <div className="flex min-w-0 flex-col gap-3">
@@ -257,4 +258,44 @@ function MediaPreview({ url, className = "", controls = false, fit = "cover" }: 
     ? <video src={url} className={box} controls={controls} muted playsInline preload="metadata" onError={() => setBroken(true)} />
     // eslint-disable-next-line @next/next/no-img-element -- mídias vêm do storage de mídia e de links externos; next/image exigiria lista fixa de domínios
     : <img src={url} alt="" loading="lazy" className={box} onError={() => setBroken(true)} />;
+}
+
+type MediaItem = { id: string; filename: string; contentType: string; url: string };
+async function fetchPostMedia(postId: string): Promise<MediaItem[]> {
+  const res = await fetch(`/api/redes/midia?postId=${postId}`, { cache: "no-store" });
+  const json = (await res.json()) as { midias?: MediaItem[] };
+  const n = (f: string) => Number(/(\d+)\.[a-z0-9]+$/i.exec(f)?.[1] ?? 999);
+  return (json.midias ?? []).filter((m, i, all) => all.findIndex(o => o.filename === m.filename) === i).sort((a, b) => n(a.filename) - n(b.filename));
+}
+/** Slides e vídeo do post: é o que vai para o Postiz ao aprovar, na ordem do número no nome (…-01, …-02). */
+function PostMediaList({ postId }: { postId: string }) {
+  const [items, setItems] = React.useState<MediaItem[] | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [version, setVersion] = React.useState(0);
+  React.useEffect(() => {
+    let alive = true;
+    void fetchPostMedia(postId).then(list => { if (alive) setItems(list); });
+    return () => { alive = false; };
+  }, [postId, version]);
+  const send = async (files: FileList) => {
+    setBusy(true);
+    try {
+      for (const file of Array.from(files)) {
+        const body = new FormData();
+        body.set("file", file); body.set("postId", postId);
+        const res = await fetch("/api/redes/midia", { method: "POST", body });
+        if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? `Falha em ${file.name}`);
+      }
+      toast.success(`${files.length} arquivo(s) enviado(s)`);
+      setVersion(v => v + 1);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Falha no envio."); }
+    finally { setBusy(false); }
+  };
+  return <div className="space-y-1.5 border-t border-border pt-2">
+    <p className="flex items-center justify-between text-[11px] text-muted">Slides e vídeo <span className="tabular-nums">{items?.length ?? "…"}/10</span></p>
+    {!!items?.length && <div className="grid grid-cols-4 gap-1">{items.map(m => <a key={m.id} href={m.url} target="_blank" rel="noopener noreferrer" title={m.filename} className="block aspect-[4/5] overflow-hidden rounded border border-border bg-surface-2">
+      {m.contentType.startsWith("video/") ? <span className="grid size-full place-items-center text-[9px] text-muted">MP4</span> : <MediaPreview url={m.url} className="size-full rounded-none" />}</a>)}</div>}
+    <label className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-1.5 text-[11px] text-muted hover:bg-surface-2 ${busy ? "pointer-events-none opacity-60" : ""}`}><Upload className="size-3" />{busy ? "Enviando…" : "Enviar slides/vídeo"}
+      <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={busy} onChange={e => { const fl = e.target.files; if (fl?.length) void send(fl); e.target.value = ""; }} /></label>
+  </div>;
 }
