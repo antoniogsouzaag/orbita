@@ -3,7 +3,7 @@ import { asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { socialPosts, type SocialPost } from "@/db/schema";
-import { SOCIAL_BRANDS, SOCIAL_FORMATS, SOCIAL_NETWORKS, SOCIAL_STAGES, stageError, type SocialNetwork, type SocialStage } from "@/lib/social-pipeline";
+import { nextFreeSlot, SOCIAL_BRANDS, SOCIAL_FORMATS, SOCIAL_NETWORKS, SOCIAL_STAGES, stageError, type SocialNetwork, type SocialStage } from "@/lib/social-pipeline";
 
 const optionalText = (max: number) => z.string().trim().max(max).transform(v => v || null).nullable().optional();
 const optionalUrl = z.string().trim().max(2000).transform(v => v || null).nullable().optional().refine(v => !v || /^https?:\/\//.test(v), "Use um link http(s).");
@@ -21,9 +21,9 @@ export const socialPostSchema = z.object({
   publishedUrl: optionalUrl,
   scheduledAt: z.string().datetime({ offset: true }).nullable().optional(),
   checks: z.object({
-    brandReviewed: z.boolean().optional(), ctaDeliverable: z.boolean().optional(),
     keyword: z.string().trim().max(40).regex(/^[\p{L}\d_-]*$/u, "Palavra-chave sem espaços.").transform(v => v.toUpperCase() || null).nullable().optional(),
-    libraryNeeded: z.boolean().optional(), n8nDone: z.boolean().optional(), pageDone: z.boolean().optional(), libraryDone: z.boolean().optional(),
+    pageUrl: optionalUrl,
+    deliveryMessage: optionalText(1000),
     mediaId: z.string().trim().regex(/^\d{0,30}$/, "media_id do Instagram é numérico.").transform(v => v || null).nullable().optional(),
   }).optional(),
   notes: optionalText(5000),
@@ -43,7 +43,9 @@ export async function listSocialPosts(): Promise<SocialPost[]> {
 export async function createSocialPost(raw: unknown) {
   const data = socialPostSchema.parse(raw);
   const db = await getDb();
-  const [row] = await db.insert(socialPosts).values({ ...data, scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null, checks: data.checks ?? {} }).returning();
+  // Sem data, entra no próximo dia livre da marca às 20h (1 post por dia).
+  const scheduledAt = data.scheduledAt ? new Date(data.scheduledAt) : nextFreeSlot(await db.select({ id: socialPosts.id, brand: socialPosts.brand, stage: socialPosts.stage, scheduledAt: socialPosts.scheduledAt }).from(socialPosts), data.brand);
+  const [row] = await db.insert(socialPosts).values({ ...data, scheduledAt, checks: data.checks ?? {} }).returning();
   return row;
 }
 
@@ -57,8 +59,9 @@ async function current(id: string) {
 export async function updateSocialPost(id: string, raw: unknown) {
   const before = await current(id);
   const data = socialPostSchema.parse(raw);
-  // O id do Postiz é da Órbita, não do formulário: editar o post nunca o apaga.
-  const next = { ...data, scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null, checks: { ...(data.checks ?? {}), ...(before.checks?.postiz ? { postiz: before.checks.postiz } : {}) } };
+  // Campos gravados pelo sistema (Postiz, n8n) nunca são apagados por uma edição do post.
+  const sys = Object.fromEntries((["postiz", "n8nCodeDone", "n8nPostDone"] as const).filter(k => before.checks?.[k] !== undefined).map(k => [k, before.checks![k]]));
+  const next = { ...data, scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : before.scheduledAt, checks: { ...(data.checks ?? {}), ...sys } };
   // Editar um post já aprovado não pode deixá-lo sem os requisitos de qualidade.
   const error = stageError(asQuality({ ...before, ...next }), before.stage as SocialStage);
   if (error && ["aprovado", "agendado", "publicado"].includes(before.stage)) throw new Error(error);

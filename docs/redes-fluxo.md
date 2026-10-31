@@ -99,3 +99,9 @@ Sem data marcada, o Órbita sugere o próximo horário livre da grade. Nada é p
 - **Fechamento** (`/api/cron/redes`, todo dia às 00h15 de Brasília): post publicado vira **Publicado**, com link e `media_id` (o `releaseId`); erro vira **Falhou**, com o motivo nas notas.
 - **Mudanças depois de agendado** não vão para o Postiz. Para trocar algo, edite no Postiz ou cancele e reaprove.
 - **Agentes** não marcam Agendado nem Publicado: esses estados vêm só do Postiz.
+
+## Piloto automático (31/10/2026)
+- **Sem checklist manual.** A aprovação do Antonio é o único ponto humano. O sistema confere sozinho: gancho, legenda, CTA e mídia; com palavra-chave, também se a legenda pede a palavra, se há página e se a mensagem da DM tem o link.
+- **1 post por dia por marca, às 20h.** A data entra sozinha na criação (próximo dia livre). Ao aprovar, se a data já passou, estiver a menos de 2 h ou o dia estiver ocupado, vai para o próximo dia livre.
+- **Ao aprovar:** o sistema confere se a página gratuita está no ar (precisa responder 200), agenda no Postiz e muda para Agendado.
+- **n8n:** o workflow "Órbita → entregas AG LABS" consulta `GET /api/redes/entregas` (Bearer `OPS_TOKEN`) a cada 30 min. Grava a linha do código em MSG INSTAGRAM (ao agendar; PROMPT não entra, porque é sempre por post) e a linha com `media_id` em MSG POR POST (ao publicar), e confirma com `POST /api/redes/entregas`.
