@@ -1,5 +1,6 @@
 import "server-only";
 import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
+import { AwsClient } from "aws4fetch";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { socialMedia, socialPosts } from "@/db/schema";
@@ -11,36 +12,40 @@ export const MEDIA_RETENTION = { publishedDays: 7, orphanDays: 3 } as const;
 
 export const mediaPath = (id: string) => `/api/redes/midia/${id}`;
 
-/* ───────────── Supabase Storage (preferido quando configurado) ───────────── */
+/* ───────────── Object storage S3 (Neon Object Storage) ───────────── */
 
-type Bucket = { url: string; key: string; bucket: string };
-/** SUPABASE_MEDIA_URL + SUPABASE_MEDIA_KEY (service role) + SUPABASE_MEDIA_BUCKET (público, padrão "redes"). */
+type Bucket = { endpoint: string; region: string; bucket: string; client: AwsClient };
+/** MEDIA_S3_ENDPOINT + MEDIA_S3_REGION + MEDIA_S3_BUCKET (public_read) + MEDIA_S3_ACCESS_KEY_ID + MEDIA_S3_SECRET_ACCESS_KEY. */
 export function mediaBucket(): Bucket | null {
-  const url = process.env.SUPABASE_MEDIA_URL?.replace(/\/$/, "");
-  const key = process.env.SUPABASE_MEDIA_KEY;
-  return url && key ? { url, key, bucket: process.env.SUPABASE_MEDIA_BUCKET || "redes" } : null;
+  const endpoint = process.env.MEDIA_S3_ENDPOINT?.replace(/\/$/, "");
+  const accessKeyId = process.env.MEDIA_S3_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.MEDIA_S3_SECRET_ACCESS_KEY;
+  if (!endpoint || !accessKeyId || !secretAccessKey) return null;
+  const region = process.env.MEDIA_S3_REGION || "us-east-1";
+  return { endpoint, region, bucket: process.env.MEDIA_S3_BUCKET || "redes", client: new AwsClient({ accessKeyId, secretAccessKey, service: "s3", region }) };
 }
-const publicUrl = (b: Bucket, path: string) => `${b.url}/storage/v1/object/public/${b.bucket}/${path}`;
+// Endereçamento por caminho (force_path_style): endpoint/bucket/chave. Bucket public_read abre sem assinatura.
+const objectUrl = (b: Pick<Bucket, "endpoint" | "bucket">, path: string) => `${b.endpoint}/${b.bucket}/${path.split("/").map(encodeURIComponent).join("/")}`;
+const publicUrl = objectUrl;
 
 async function bucketUpload(b: Bucket, path: string, bytes: Uint8Array, contentType: string) {
-  const res = await fetch(`${b.url}/storage/v1/object/${b.bucket}/${path}`, {
-    method: "POST", body: Buffer.from(bytes), signal: AbortSignal.timeout(30_000),
-    headers: { authorization: `Bearer ${b.key}`, apikey: b.key, "content-type": contentType, "cache-control": "31536000", "x-upsert": "false" },
+  const res = await b.client.fetch(objectUrl(b, path), {
+    method: "PUT", body: Buffer.from(bytes), signal: AbortSignal.timeout(30_000),
+    headers: { "content-type": contentType, "cache-control": "public, max-age=31536000, immutable" },
   });
   if (!res.ok) throw new Error(`Storage respondeu ${res.status}.`);
 }
 async function bucketRemove(b: Bucket, paths: string[]) {
-  if (!paths.length) return;
-  const res = await fetch(`${b.url}/storage/v1/object/${b.bucket}`, {
-    method: "DELETE", body: JSON.stringify({ prefixes: paths }), signal: AbortSignal.timeout(30_000),
-    headers: { authorization: `Bearer ${b.key}`, apikey: b.key, "content-type": "application/json" },
-  });
-  if (!res.ok) throw new Error(`Storage respondeu ${res.status} ao apagar.`);
+  for (const path of paths) {
+    const res = await b.client.fetch(objectUrl(b, path), { method: "DELETE", signal: AbortSignal.timeout(15_000) });
+    // 404 = já não existe; segue a limpeza.
+    if (!res.ok && res.status !== 404) throw new Error(`Storage respondeu ${res.status} ao apagar.`);
+  }
 }
 
 /* ───────────── API ───────────── */
 
-/** Guarda a mídia (bucket se houver; senão no banco) e, se o post ainda não tem mídia principal, usa esta como capa. */
+/** Guarda a mídia (Neon Object Storage se configurado; senão no banco) e, se o post ainda não tem mídia principal, usa esta como capa. */
 export async function saveSocialMedia(input: { bytes: Uint8Array; filename: string; contentType: string; postId?: string | null; origin: string; setCover?: boolean }) {
   const type = z.enum(MEDIA_TYPES).parse(input.contentType);
   if (!input.bytes.byteLength) throw new Error("Arquivo vazio.");
@@ -59,7 +64,7 @@ export async function saveSocialMedia(input: { bytes: Uint8Array; filename: stri
   if (b) {
     const path = `${postId ?? "avulsa"}/${id}-${filename.replace(/\s+/g, "-")}`;
     await bucketUpload(b, path, input.bytes, type);
-    stored = { storage: "supabase", path, data: null };
+    stored = { storage: "s3", path, data: null };
     url = publicUrl(b, path);
   } else {
     stored = { storage: "db", path: null, data: Buffer.from(input.bytes).toString("base64") };
@@ -81,7 +86,7 @@ export async function getSocialMedia(id: string) {
   const [row] = await db.select().from(socialMedia).where(eq(socialMedia.id, parsed.data));
   if (!row) return null;
   const b = mediaBucket();
-  return { ...row, publicUrl: row.storage === "supabase" && row.path && b ? publicUrl(b, row.path) : null };
+  return { ...row, publicUrl: row.storage !== "db" && row.path && b ? publicUrl(b, row.path) : null };
 }
 
 export async function listPostMedia(postId: string, origin: string) {
@@ -89,7 +94,7 @@ export async function listPostMedia(postId: string, origin: string) {
   const b = mediaBucket();
   const rows = await db.select({ id: socialMedia.id, filename: socialMedia.filename, contentType: socialMedia.contentType, size: socialMedia.size, storage: socialMedia.storage, path: socialMedia.path, createdAt: socialMedia.createdAt })
     .from(socialMedia).where(eq(socialMedia.postId, z.uuid().parse(postId))).orderBy(desc(socialMedia.createdAt));
-  return rows.map(({ path, ...r }) => ({ ...r, url: r.storage === "supabase" && path && b ? publicUrl(b, path) : new URL(mediaPath(r.id), origin).toString() }));
+  return rows.map(({ path, ...r }) => ({ ...r, url: r.storage !== "db" && path && b ? publicUrl(b, path) : new URL(mediaPath(r.id), origin).toString() }));
 }
 
 /** Limpeza diária: mídia de post publicado há mais de 7 dias e arquivo avulso com mais de 3. O link fica no post como registro. */
@@ -102,7 +107,7 @@ export async function cleanupSocialMedia(now = new Date()) {
     .where(or(inArray(socialMedia.postId, doneIds), and(isNull(socialMedia.postId), lt(socialMedia.createdAt, orphan))));
   if (!old.length) return { removed: 0 };
   const b = mediaBucket();
-  const paths = old.filter(m => m.storage === "supabase" && m.path).map(m => m.path!);
+  const paths = old.filter(m => m.storage !== "db" && m.path).map(m => m.path!);
   // Remove do bucket primeiro: se falhar, as linhas ficam e a próxima rodada tenta de novo.
   if (paths.length && b) await bucketRemove(b, paths);
   const removable = old.filter(m => m.storage === "db" || b).map(m => m.id);

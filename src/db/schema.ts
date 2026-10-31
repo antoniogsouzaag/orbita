@@ -481,7 +481,7 @@ export const socialMedia = pgTable(
     filename: text("filename").notNull(),
     contentType: text("content_type").notNull(),
     size: integer("size").notNull(),
-    /** "db" guarda em base64 aqui; "supabase" guarda no bucket e `path` aponta o objeto. */
+    /** "db" guarda em base64 aqui; "s3" guarda no Neon Object Storage e `path` aponta o objeto. */
     storage: text("storage").notNull().default("db"),
     path: text("path"),
     data: text("data"),
