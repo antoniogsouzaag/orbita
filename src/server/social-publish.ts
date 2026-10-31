@@ -62,7 +62,11 @@ export async function scheduleSocialPost(id: string) {
   if (!channel) throw new Error(`Nenhum canal ativo de ${post.brand} no ${post.network} no Postiz.`);
 
   // Mídias do post na ordem do carrossel; o mesmo nome enviado de novo vale a versão mais recente.
-  const rows = await db.select({ id: socialMedia.id, filename: socialMedia.filename, createdAt: socialMedia.createdAt }).from(socialMedia).where(eq(socialMedia.postId, post.id));
+  const all = await db.select({ id: socialMedia.id, filename: socialMedia.filename, contentType: socialMedia.contentType, createdAt: socialMedia.createdAt }).from(socialMedia).where(eq(socialMedia.postId, post.id));
+  // Reel/vídeo vai só com o vídeo (a capa em JPG viraria carrossel); carrossel e imagem vão só com imagens.
+  const wantsVideo = post.format === "reels" || post.format === "video";
+  const rows = all.filter(r => r.contentType.startsWith("video/") === wantsVideo);
+  if (wantsVideo && rows.length !== 1) throw new Error(rows.length ? "Reel precisa de um único vídeo." : "Envie o MP4 do reel antes de aprovar.");
   const latest = new Map<string, (typeof rows)[number]>();
   for (const r of rows) { const cur = latest.get(r.filename); if (!cur || cur.createdAt < r.createdAt) latest.set(r.filename, r); }
   const ordered = orderMedia([...latest.values()]);
