@@ -9,3 +9,9 @@ A reconciliação exige recibo persistido do novo destino na mesma fonte. Não r
 Uma transação arquiva integralmente o estado anterior em `site_target_replaced`, retira apenas esse estado derivado da disponibilidade atual e encerra o incidente antigo com motivo `target_replaced` e URL substituta. Não registra `site_up` para a URL antiga. Falhas do novo destino continuam visíveis e seguem a regra de duas falhas consecutivas. Repetição não duplica o arquivamento. Outros monitores, fontes, URLs e incidentes são preservados.
 
 Testes cobrem histórico, idempotência, fontes distintas, URLs ainda recebidas, recibo inexistente/futuro e falha real no novo endereço. Não exige migration nem alteração de credencial ou workflow.
+
+## Apresentação do AG LABS App — 30/10/2026
+
+A tarefa Empresa `1c0cf997-5e0e-49ca-b1a5-e90999830df0` autoriza substituir a antiga LP por `https://aglabs.app.br/sobre` nos monitores e nas referências do vault. A lista explícita agora inclui `https://lp.aglabs.app.br/` → `https://aglabs.app.br/sobre`, com as mesmas proteções de fonte, recibo persistido, rodada e histórico. A página raiz do app continua sendo um alvo independente; não se infere equivalência entre URLs do mesmo domínio.
+
+A matriz de testes de banco executa os cenários de histórico, idempotência, fonte incorreta, ausência de recibo, presença simultânea dos dois destinos, falha real e recibo anterior ao deploy também para essa substituição. O seed demonstrativo aponta para `/sobre`.

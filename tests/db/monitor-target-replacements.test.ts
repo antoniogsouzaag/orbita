@@ -1,11 +1,14 @@
-import { beforeEach, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "@/db";
 import { opsEvents, opsStatus, opsHeartbeats } from "@/db/schema";
 import { ingest, IngestSchema, liveOps } from "@/server/ops-live";
 import { reconcileStoredMonitorTargets } from "@/server/monitor-target-replacements";
 import { reconcileMonitorTargets } from "@/server/monitor-target-replacements";
 
-const oldUrl = "https://pack-canva.pages.dev/", newUrl = "https://pack.lojalabs.com.br/";
+describe.each([
+ ["https://pack-canva.pages.dev/", "https://pack.lojalabs.com.br/"],
+ ["https://lp.aglabs.app.br/", "https://aglabs.app.br/sobre"],
+])("substituição autorizada %s → %s", (oldUrl, newUrl) => {
 const run = (urls: string[], source = "n8n-vps03-ping", status = 200) => ingest(IngestSchema.parse({source, links:urls.map(url=>({url,nome:"Pack Canva",status}))}));
 beforeEach(async () => {
  const db = await getDb(); await db.delete(opsEvents); await db.delete(opsStatus);
@@ -43,6 +46,16 @@ it("mantém falhas reais do novo destino sem reaproveitar o estado do antigo", a
  expect(events.find(e=>e.kind === "site_down" && e.detail.url === newUrl)?.resolvedAt).toBeNull();
 });
 
+it("preserva o monitor independente da raiz do app", async () => {
+ await run(["https://aglabs.app.br/"], undefined, 503);
+ await run(["https://aglabs.app.br/"], undefined, 503);
+ await run([newUrl]);
+ const status = await (await getDb()).select().from(opsStatus);
+ expect(status.find(s => s.url === "https://aglabs.app.br/")).toMatchObject({ok:false,fails:2});
+ expect(status.some(s => s.url === oldUrl)).toBe(false);
+ expect(status.some(s => s.url === newUrl)).toBe(true);
+});
+
 it("reconcilia receipt anterior ao deploy sem refazer check ou batida", async () => {
  const db=await getDb(), at=new Date(Date.now()+60_000), beats=await db.select().from(opsHeartbeats);
  await db.insert(opsStatus).values({url:newUrl,name:"Pack Canva",source:"n8n-vps03-ping",ok:true,checkedAt:at,changedAt:at});
@@ -54,4 +67,6 @@ it("reconcilia receipt anterior ao deploy sem refazer check ou batida", async ()
  expect((await db.select().from(opsStatus)).map(s=>s.url)).toEqual([newUrl]);
  expect((await db.select().from(opsStatus))[0].checkedAt).toEqual(at);
  expect(await db.select().from(opsHeartbeats)).toEqual(beats);
+});
+
 });
