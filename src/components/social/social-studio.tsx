@@ -47,7 +47,7 @@ export function SocialStudio({ posts, metrics, initialTab = "hoje", dbError }: {
     {tab === "calendario" && <Calendar posts={visible} brand={brand} onOpen={setEditing} />}
     {tab === "metricas" && metrics}
     <Dialog open={editing !== null} onOpenChange={o => !o && setEditing(null)}>
-      <DialogContent wide className="max-w-4xl" title={editing === "new" ? "Novo post" : "Editar post"}>{editing !== null && <PostForm post={editing === "new" ? null : editing} defaultBrand={brand === "todas" ? "aglabs" : brand} onDone={() => setEditing(null)} />}</DialogContent>
+      <DialogContent wide className="max-w-3xl" title={editing === "new" ? "Novo post" : "Editar post"}>{editing !== null && <PostForm post={editing === "new" ? null : editing} defaultBrand={brand === "todas" ? "aglabs" : brand} onDone={() => setEditing(null)} />}</DialogContent>
     </Dialog>
   </div>;
 }
@@ -84,25 +84,48 @@ function PostList({ title, posts, onOpen, empty }: { title: string; posts: Socia
 function Board({ posts, onOpen }: { posts: SocialPost[]; onOpen: (p: SocialPost) => void }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
-  const move = (p: SocialPost, stage: SocialStage) => start(async () => {
-    const r = await moveSocialPostAction(p.id, stage);
-    if (!r.ok) toast.error(r.error); else { toast.success(`Movido para ${STAGE_LABELS[stage]}`); router.refresh(); }
+  const [stage, setStage] = React.useState<SocialStage | "todos">("todos");
+  const move = (p: SocialPost, to: SocialStage) => start(async () => {
+    const r = await moveSocialPostAction(p.id, to);
+    if (!r.ok) toast.error(r.error); else { toast.success(`Movido para ${STAGE_LABELS[to]}`); router.refresh(); }
   });
-  // "Falhou" só aparece quando tem post; as colunas dividem a largura e só rolam quando não cabem.
-  const stages = SOCIAL_STAGES.filter(stage => stage !== "falhou" || posts.some(p => p.stage === "falhou"));
-  return <div aria-busy={pending} className="board-scroll grid min-h-[calc(100dvh-15rem)] auto-cols-[minmax(10.5rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1">{stages.map(stage => {
-    const i = SOCIAL_STAGES.indexOf(stage);
-    const items = posts.filter(p => p.stage === stage);
-    return <section key={stage} className="flex min-w-0 flex-col rounded-2xl border border-border bg-surface p-2.5"
-      onDragOver={e => e.preventDefault()} onDrop={e => { const p = posts.find(x => x.id === e.dataTransfer.getData("text/plain")); if (p && p.stage !== stage) move(p, stage); }}>
-      <h3 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted">{STAGE_LABELS[stage]}<span className="tabular-nums">{items.length}</span></h3>
-      <div className="flex-1 space-y-2">{!items.length && <p className="rounded-xl border border-dashed border-border px-2 py-4 text-center text-[11px] text-faint">Arraste um post para cá</p>}{items.map(p => { const q = quality(p); return <article key={p.id} draggable onDragStart={e => e.dataTransfer.setData("text/plain", p.id)} className="cursor-grab rounded-xl bg-surface-2 p-3">
-        <button type="button" onClick={() => onOpen(p)} className="block w-full text-left">{p.mediaUrl && <MediaPreview url={p.mediaUrl} className="mb-2 aspect-[4/5] w-full" />}<p className="text-sm font-medium leading-snug">{p.title}</p><p className="mt-1 text-[11px] text-muted">{BRAND_LABELS[p.brand as SocialBrand]} · {NETWORK_LABELS[p.network as SocialNetwork]} · {p.format}</p><p className="mt-1 text-[11px] text-faint">{fmt(p.scheduledAt)}</p></button>
-        <div className="mt-2 flex items-center justify-between"><span className={`text-[11px] font-medium ${q.blocking.length ? "text-warning" : "text-success"}`}>Qualidade {q.score}%</span>
-          {i < SOCIAL_STAGES.length - 2 && <button type="button" disabled={pending} onClick={() => move(p, SOCIAL_STAGES[i + 1])} className="text-[11px] text-accent hover:underline">→ {STAGE_LABELS[SOCIAL_STAGES[i + 1]]}</button>}</div>
-      </article>; })}</div>
-    </section>;
-  })}</div>;
+  const count = (s: SocialStage) => posts.filter(p => p.stage === s).length;
+  const stages = SOCIAL_STAGES.filter(s => s !== "falhou" || count(s) > 0);
+  const shown = stage === "todos" ? posts : posts.filter(p => p.stage === stage);
+  const chip = (active: boolean) => `shrink-0 rounded-full border px-3 py-1 text-xs transition ${active ? "border-accent/40 bg-accent/15 text-accent" : "border-border text-muted hover:text-fg"}`;
+  return <div aria-busy={pending} className="space-y-4">
+    <nav aria-label="Etapas" className="flex gap-1.5 overflow-x-auto pb-1">
+      <button type="button" aria-pressed={stage === "todos"} onClick={() => setStage("todos")} className={chip(stage === "todos")}>Todos <span className="tabular-nums opacity-70">{posts.length}</span></button>
+      {stages.map(s => <button key={s} type="button" aria-pressed={stage === s} onClick={() => setStage(s)} className={chip(stage === s)}>{STAGE_LABELS[s]} <span className="tabular-nums opacity-70">{count(s)}</span></button>)}
+    </nav>
+    {!shown.length ? <Card className="p-8 text-center text-sm text-muted">Nenhum post nesta etapa.</Card>
+      : <div className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4">{shown.map(p => <PostCard key={p.id} post={p} onOpen={() => onOpen(p)} onAdvance={to => move(p, to)} pending={pending} />)}</div>}
+  </div>;
+}
+
+function PostCard({ post: p, onOpen, onAdvance, pending }: { post: SocialPost; onOpen: () => void; onAdvance: (to: SocialStage) => void; pending: boolean }) {
+  const q = quality(p);
+  const i = SOCIAL_STAGES.indexOf(p.stage as SocialStage);
+  const next = i >= 0 && i < SOCIAL_STAGES.length - 2 ? SOCIAL_STAGES[i + 1] : null;
+  return <article className="overflow-hidden rounded-2xl border border-border bg-surface transition hover:border-accent/30">
+    <button type="button" onClick={onOpen} className="block w-full text-left">
+      <div className="relative aspect-[4/5] bg-surface-2">
+        {p.mediaUrl ? <MediaPreview url={p.mediaUrl} className="absolute inset-0 size-full rounded-none" /> : <div className="grid size-full place-items-center text-[11px] uppercase tracking-wider text-faint">{p.format} · sem capa</div>}
+        <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">{STAGE_LABELS[p.stage as SocialStage] ?? p.stage}</span>
+      </div>
+      <div className="space-y-1 p-3">
+        <p className="line-clamp-2 text-sm font-medium leading-snug">{p.title}</p>
+        <p className="text-[11px] text-muted">{BRAND_LABELS[p.brand as SocialBrand]} · {p.format} · {fmt(p.scheduledAt)}</p>
+      </div>
+    </button>
+    <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
+      <span className="flex items-center gap-1.5 text-[11px]" title={q.blocking.map(c => c.label).join("\n") || "Pronto para aprovar"}>
+        <span className="h-1 w-12 overflow-hidden rounded-full bg-surface-2"><span className={`block h-full ${q.blocking.length ? "bg-warning" : "bg-success"}`} style={{ width: `${q.score}%` }} /></span>
+        <span className={q.blocking.length ? "text-warning" : "text-success"}>{q.score}%</span>
+      </span>
+      {next && <button type="button" disabled={pending} onClick={() => onAdvance(next)} className="text-[11px] text-accent hover:underline">→ {STAGE_LABELS[next]}</button>}
+    </div>
+  </article>;
 }
 
 function Calendar({ posts, brand, onOpen }: { posts: SocialPost[]; brand: SocialBrand | "todas"; onOpen: (p: SocialPost) => void }) {
@@ -159,59 +182,74 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
     toast.success("Post salvo"); router.refresh(); onDone();
   });
   const remove = () => post && confirm("Excluir este post do pipeline?") && start(async () => { const r = await deleteSocialPostAction(post.id); if (!r.ok) toast.error(r.error); else { router.refresh(); onDone(); } });
-  return <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px]">
-    <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2">
-        <Field label="Marca"><Select value={f.brand} onChange={e => set("brand", e.target.value as SocialBrand)}>{SOCIAL_BRANDS.map(b => <option key={b} value={b}>{BRAND_LABELS[b]}</option>)}</Select></Field>
-        <Field label="Rede"><Select value={f.network} onChange={e => set("network", e.target.value as SocialNetwork)}>{SOCIAL_NETWORKS.map(n => <option key={n} value={n}>{NETWORK_LABELS[n]}</option>)}</Select></Field>
-        <Field label="Formato"><Select value={f.format} onChange={e => set("format", e.target.value)}>{SOCIAL_FORMATS.map(n => <option key={n} value={n}>{n}</option>)}</Select></Field>
+  const [view, setView] = React.useState<"conteudo" | "checklist" | "mais">("conteudo");
+  const tab = (k: typeof view, label: string, badge?: string) => <button type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} className={`rounded-md px-2.5 py-1 text-xs ${view === k ? "bg-surface-2 text-fg" : "text-muted hover:text-fg"}`}>{label}{badge && <span className="ml-1 text-warning">{badge}</span>}</button>;
+  const hasMedia = /^https?:\/\//.test(f.mediaUrl);
+  return <div className="grid gap-5 sm:grid-cols-[13rem_minmax(0,1fr)]">
+    <aside className="space-y-2">
+      <div className="grid aspect-[4/5] place-items-center overflow-hidden rounded-xl border border-border bg-surface-2">
+        {hasMedia ? <MediaPreview url={f.mediaUrl} controls fit="contain" className="size-full rounded-none" /> : <span className="px-4 text-center text-[11px] text-faint">Sem capa ainda</span>}
       </div>
-      <Field label="Título interno"><Input value={f.title} onChange={e => set("title", e.target.value)} maxLength={200} placeholder="Ex.: 3 automações que economizam 5h/semana" /></Field>
-      <Field label="Gancho (primeira linha / primeiros 3s)"><Input value={f.hook} onChange={e => set("hook", e.target.value)} maxLength={300} /></Field>
-      <Field label={`Legenda · ${f.caption.length.toLocaleString("pt-BR")}/${limit.toLocaleString("pt-BR")}`}><Textarea rows={6} value={f.caption} onChange={e => set("caption", e.target.value)} className={f.caption.length > limit ? "border-warning" : ""} /></Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="CTA"><Input value={f.cta} onChange={e => set("cta", e.target.value)} placeholder='Ex.: Comente "GUIA"' /></Field>
-        <Field label="Data e hora (Brasília)"><Input type="datetime-local" value={f.scheduledAt} onChange={e => set("scheduledAt", e.target.value)} /></Field>
-        <Field label="Mídia principal (capa)"><div className="flex gap-2"><Input value={f.mediaUrl} onChange={e => set("mediaUrl", e.target.value)} placeholder="https://… ou envie o arquivo" />
-          <label className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-border px-3 text-xs hover:bg-surface-2 ${uploading ? "pointer-events-none opacity-60" : ""}`}><Upload className="size-3.5" />{uploading ? "Enviando…" : "Enviar"}
-            <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={uploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file); }} /></label></div></Field>
-        <Field label="Referência / fonte"><Input value={f.referenceUrl} onChange={e => set("referenceUrl", e.target.value)} placeholder="https://…" /></Field>
-      </div>
-      {post?.stage === "publicado" && <Field label="Link do post publicado"><Input value={f.publishedUrl} onChange={e => set("publishedUrl", e.target.value)} /></Field>}
-      {f.mediaUrl && /^https?:\/\//.test(f.mediaUrl) && <MediaPreview url={f.mediaUrl} controls className="max-h-96 w-full" />}
-      <Field label="Notas"><Textarea rows={2} value={f.notes} onChange={e => set("notes", e.target.value)} /></Field>
-    </div>
-    <aside className="space-y-3">
-      <Card className="p-4"><p className="text-xs text-muted">Qualidade</p><p className={`text-3xl font-semibold ${q.blocking.length ? "text-warning" : "text-success"}`}>{q.score}%</p>
-        <ul className="mt-3 space-y-1.5 text-[11px]">{q.checks.map(c => <li key={c.key} className="flex gap-1.5">{c.ok ? <CheckCircle2 className="size-3.5 shrink-0 text-success" /> : c.required ? <AlertTriangle className="size-3.5 shrink-0 text-warning" /> : <Circle className="size-3.5 shrink-0 text-faint" />}<span className={c.ok ? "text-muted" : ""}>{c.label}{!c.required && " (opcional)"}</span></li>)}</ul>
-        <label className="mt-3 flex items-center gap-2 text-xs"><input type="checkbox" checked={f.brandReviewed} onChange={e => set("brandReviewed", e.target.checked)} />Revisei tom e marca</label>
-        <label className="mt-1 flex items-center gap-2 text-xs"><input type="checkbox" checked={f.ctaDeliverable} onChange={e => set("ctaDeliverable", e.target.checked)} />Material do CTA existe e foi testado</label>
-        <p className="mt-3 text-[10px] text-faint">Itens obrigatórios bloqueiam Aprovado, Agendado e Publicado.</p>
-      </Card>
-      <Card className="p-4"><p className="text-xs text-muted">Entregas do CTA</p>
-        <Input aria-label="Palavra-chave" className="mt-2 uppercase" value={f.keyword} onChange={e => set("keyword", e.target.value.replace(/\s/g, ""))} maxLength={40} placeholder="Palavra-chave (ex.: ROTINA)" />
-        {f.keyword.trim() ? <div className="mt-2 space-y-1 text-xs">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={f.libraryNeeded} onChange={e => set("libraryNeeded", e.target.checked)} />É de imagem ou motion</label>
-          {deliveries.map(c => <label key={c.key} className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={c.ok} onChange={e => set(c.key as "n8nDone" | "pageDone" | "libraryDone", e.target.checked)} /><span className={c.ok ? "text-muted line-through" : ""}>{c.label}</span></label>)}
-          <Input aria-label="media_id do Instagram" inputMode="numeric" className="mt-1" value={f.mediaId} onChange={e => set("mediaId", e.target.value.replace(/\D/g, ""))} placeholder="media_id do Instagram (após publicar)" />
-          <p className="pt-1 text-[10px] text-faint">Sem essas entregas o post não pode ser agendado. O media_id deixa a auditoria conferir a linha da tabela por post.</p>
-        </div> : <p className="mt-2 text-[10px] text-faint">Sem palavra-chave, não há entregas.</p>}
-      </Card>
-      <Button className="w-full" disabled={pending || !f.title.trim()} onClick={save}>{pending ? "Salvando…" : "Salvar"}</Button>
-      {post && <Select aria-label="Adaptar para outra rede" value="" disabled={pending} onChange={e => { const to = e.target.value as SocialNetwork; if (to) start(async () => { const r = await duplicateSocialPostAction(post.id, to); if (!r.ok) toast.error(r.error); else { toast.success(`Adaptação para ${NETWORK_LABELS[to]} criada em Rascunho`); router.refresh(); onDone(); } }); }}><option value="">Adaptar para outra rede…</option>{SOCIAL_NETWORKS.filter(n => n !== post.network).map(n => <option key={n} value={n}>{NETWORK_LABELS[n]}</option>)}</Select>}
-      {post && <Button className="w-full" variant="ghost" disabled={pending} onClick={remove}><Trash2 />Excluir</Button>}
+      <label className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-xs hover:bg-surface-2 ${uploading ? "pointer-events-none opacity-60" : ""}`}><Upload className="size-3.5" />{uploading ? "Enviando…" : hasMedia ? "Trocar capa" : "Enviar capa"}
+        <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={uploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file); }} /></label>
+      {hasMedia && <a href={f.mediaUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-[11px] text-muted hover:text-fg">Abrir em tamanho real</a>}
+      <div className={`rounded-lg px-2.5 py-2 text-center text-xs ${q.blocking.length ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>Qualidade {q.score}%{q.blocking.length ? ` · faltam ${q.blocking.length}` : " · pronto"}</div>
     </aside>
+    <div className="flex min-w-0 flex-col gap-3">
+      <div role="tablist" className="flex gap-1 border-b border-border pb-2">{tab("conteudo", "Conteúdo")}{tab("checklist", "Checklist", q.blocking.length ? String(q.blocking.length) : undefined)}{tab("mais", "Mais")}</div>
+      {view === "conteudo" && <div className="space-y-3">
+        <Field label="Título"><Input value={f.title} onChange={e => set("title", e.target.value)} maxLength={200} placeholder="Ex.: 3 automações que economizam 5h/semana" /></Field>
+        <Field label="Gancho"><Input value={f.hook} onChange={e => set("hook", e.target.value)} maxLength={300} /></Field>
+        <Field label={`Legenda · ${f.caption.length.toLocaleString("pt-BR")}/${limit.toLocaleString("pt-BR")}`}><Textarea rows={5} value={f.caption} onChange={e => set("caption", e.target.value)} className={f.caption.length > limit ? "border-warning" : ""} /></Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="CTA"><Input value={f.cta} onChange={e => set("cta", e.target.value)} placeholder='Comente "GUIA"' /></Field>
+          <Field label="Data e hora"><Input type="datetime-local" value={f.scheduledAt} onChange={e => set("scheduledAt", e.target.value)} /></Field>
+        </div>
+      </div>}
+      {view === "checklist" && <div className="space-y-4">
+        <ul className="space-y-1.5 text-xs">{q.checks.map(c => <li key={c.key} className="flex gap-2">{c.ok ? <CheckCircle2 className="size-3.5 shrink-0 text-success" /> : c.required ? <AlertTriangle className="size-3.5 shrink-0 text-warning" /> : <Circle className="size-3.5 shrink-0 text-faint" />}<span className={c.ok ? "text-muted" : ""}>{c.label}{!c.required && " (opcional)"}</span></li>)}</ul>
+        <div className="space-y-1 text-xs"><label className="flex items-center gap-2"><input type="checkbox" checked={f.brandReviewed} onChange={e => set("brandReviewed", e.target.checked)} />Revisei tom e marca</label><label className="flex items-center gap-2"><input type="checkbox" checked={f.ctaDeliverable} onChange={e => set("ctaDeliverable", e.target.checked)} />Material do CTA existe e foi testado</label></div>
+        <div className="space-y-2 border-t border-border pt-3">
+          <p className="text-xs font-medium">Entregas do CTA</p>
+          <Input aria-label="Palavra-chave" className="uppercase" value={f.keyword} onChange={e => set("keyword", e.target.value.replace(/\s/g, ""))} maxLength={40} placeholder="Palavra-chave (ex.: ROTINA)" />
+          {f.keyword.trim() ? <div className="space-y-1 text-xs">
+            <label className="flex items-center gap-2"><input type="checkbox" checked={f.libraryNeeded} onChange={e => set("libraryNeeded", e.target.checked)} />É de imagem ou motion</label>
+            {deliveries.map(c => <label key={c.key} className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={c.ok} onChange={e => set(c.key as "n8nDone" | "pageDone" | "libraryDone", e.target.checked)} /><span className={c.ok ? "text-muted line-through" : ""}>{c.label}</span></label>)}
+            <Input aria-label="media_id do Instagram" inputMode="numeric" value={f.mediaId} onChange={e => set("mediaId", e.target.value.replace(/\D/g, ""))} placeholder="media_id do Instagram (após publicar)" />
+          </div> : <p className="text-[11px] text-faint">Sem palavra-chave, não há entregas.</p>}
+        </div>
+      </div>}
+      {view === "mais" && <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          <Field label="Marca"><Select value={f.brand} onChange={e => set("brand", e.target.value as SocialBrand)}>{SOCIAL_BRANDS.map(b => <option key={b} value={b}>{BRAND_LABELS[b]}</option>)}</Select></Field>
+          <Field label="Rede"><Select value={f.network} onChange={e => set("network", e.target.value as SocialNetwork)}>{SOCIAL_NETWORKS.map(n => <option key={n} value={n}>{NETWORK_LABELS[n]}</option>)}</Select></Field>
+          <Field label="Formato"><Select value={f.format} onChange={e => set("format", e.target.value)}>{SOCIAL_FORMATS.map(n => <option key={n} value={n}>{n}</option>)}</Select></Field>
+        </div>
+        <Field label="Link da capa"><Input value={f.mediaUrl} onChange={e => set("mediaUrl", e.target.value)} placeholder="https://…" /></Field>
+        <Field label="Referência / fonte"><Input value={f.referenceUrl} onChange={e => set("referenceUrl", e.target.value)} placeholder="https://…" /></Field>
+        {post?.stage === "publicado" && <Field label="Link do post publicado"><Input value={f.publishedUrl} onChange={e => set("publishedUrl", e.target.value)} /></Field>}
+        <Field label="Notas e roteiro"><Textarea rows={6} value={f.notes} onChange={e => set("notes", e.target.value)} /></Field>
+        {post && <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <Select aria-label="Adaptar para outra rede" className="max-w-56" value="" disabled={pending} onChange={e => { const to = e.target.value as SocialNetwork; if (to) start(async () => { const r = await duplicateSocialPostAction(post.id, to); if (!r.ok) toast.error(r.error); else { toast.success(`Adaptação para ${NETWORK_LABELS[to]} criada em Rascunho`); router.refresh(); onDone(); } }); }}><option value="">Adaptar para outra rede…</option>{SOCIAL_NETWORKS.filter(n => n !== post.network).map(n => <option key={n} value={n}>{NETWORK_LABELS[n]}</option>)}</Select>
+          <Button size="sm" variant="ghost" disabled={pending} onClick={remove}><Trash2 />Excluir</Button>
+        </div>}
+      </div>}
+      <div className="mt-auto flex justify-end gap-2 border-t border-border pt-3">
+        <Button variant="ghost" onClick={onDone}>Cancelar</Button>
+        <Button disabled={pending || !f.title.trim()} onClick={save}>{pending ? "Salvando…" : "Salvar"}</Button>
+      </div>
+    </div>
   </div>;
 }
 
 const VIDEO = /\.(mp4|mov|webm|m4v)(\?|#|$)/i;
-/** Prévia da mídia para aprovar sem sair do Órbita. Link quebrado vira aviso, não imagem vazia. */
-function MediaPreview({ url, className = "", controls = false }: { url: string; className?: string; controls?: boolean }) {
+/** Prévia da mídia. "cover" preenche o card (miniatura); "contain" mostra a peça inteira, sem cortar. */
+function MediaPreview({ url, className = "", controls = false, fit = "cover" }: { url: string; className?: string; controls?: boolean; fit?: "cover" | "contain" }) {
   const [broken, setBroken] = React.useState(false);
-  const box = `overflow-hidden rounded-lg bg-surface ${className}`;
+  const box = `overflow-hidden rounded-lg bg-surface ${fit === "contain" ? "object-contain" : "object-cover"} ${className}`;
   if (broken) return <a href={url} target="_blank" rel="noopener noreferrer" className={`${box} grid min-h-16 place-items-center p-3 text-center text-[11px] text-warning`}>Mídia não carregou — abrir link</a>;
   return VIDEO.test(url)
-    ? <video src={url} className={`${box} object-cover`} controls={controls} muted playsInline preload="metadata" onError={() => setBroken(true)} />
-    // eslint-disable-next-line @next/next/no-img-element -- mídias vêm de storages diversos (Supabase, OpenClaw); next/image exigiria lista fixa de domínios
-    : <img src={url} alt="" loading="lazy" className={`${box} object-cover`} onError={() => setBroken(true)} />;
+    ? <video src={url} className={box} controls={controls} muted playsInline preload="metadata" onError={() => setBroken(true)} />
+    // eslint-disable-next-line @next/next/no-img-element -- mídias vêm do storage de mídia e de links externos; next/image exigiria lista fixa de domínios
+    : <img src={url} alt="" loading="lazy" className={box} onError={() => setBroken(true)} />;
 }

@@ -375,9 +375,3 @@ html { scrollbar-gutter: stable; }
 .agent-fade { animation: agent-fade 280ms cubic-bezier(0.23, 1, 0.32, 1) both; }
 @media (prefers-reduced-motion: reduce) { .agent-pixel, .agent-shimmer, .agent-fade { animation: none; } .agent-pixel { opacity: 0.7; } }
 
-/* Rolagem horizontal discreta (quadro de redes): barra fina, aparece no hover. */
-.board-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
-.board-scroll:hover { scrollbar-color: color-mix(in oklab, currentColor 22%, transparent) transparent; }
-.board-scroll::-webkit-scrollbar { height: 6px; }
-.board-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 999px; }
-.board-scroll:hover::-webkit-scrollbar-thumb { background: color-mix(in oklab, currentColor 22%, transparent); }
