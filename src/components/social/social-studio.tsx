@@ -2,15 +2,15 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { AlertTriangle, CalendarDays, CheckCircle2, Circle, LayoutGrid, Plus, Sun, BarChart3, Trash2, Upload } from "lucide-react";
-import { createSocialPostAction, deleteSocialPostAction, scheduleSocialPostAction, duplicateSocialPostAction, moveSocialPostAction, updateSocialPostAction } from "@/app/actions/social";
+import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid, Loader2, Plus, Sun, BarChart3, Trash2, Upload } from "lucide-react";
+import { createSocialPostAction, deleteSocialPostAction, scheduleSocialPostAction, moveSocialPostAction, updateSocialPostAction } from "@/app/actions/social";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import type { SocialPost } from "@/db/schema";
 import {
-  BRAND_LABELS, CAPTION_LIMITS, NETWORK_LABELS, SOCIAL_BRANDS, SOCIAL_FORMATS, SOCIAL_NETWORKS, SOCIAL_STAGES, STAGE_LABELS,
+  BRAND_LABELS, CAPTION_LIMITS, NETWORK_LABELS, SOCIAL_BRANDS, SOCIAL_FORMATS, SOCIAL_NETWORKS, STAGE_LABELS,
   calendarGaps, deliveryChecks, qualityScore, type SocialBrand, type SocialNetwork, type SocialStage,
 } from "@/lib/social-pipeline";
 
@@ -47,7 +47,7 @@ export function SocialStudio({ posts, metrics, initialTab = "hoje", dbError }: {
     {tab === "calendario" && <Calendar posts={visible} brand={brand} onOpen={setEditing} />}
     {tab === "metricas" && metrics}
     <Dialog open={editing !== null} onOpenChange={o => !o && setEditing(null)}>
-      <DialogContent wide className="max-w-3xl" title={editing === "new" ? "Novo post" : "Editar post"}>{editing !== null && <PostForm post={editing === "new" ? null : editing} defaultBrand={brand === "todas" ? "aglabs" : brand} onDone={() => setEditing(null)} />}</DialogContent>
+      <DialogContent wide className="max-w-4xl" title={editing === "new" ? "Novo post" : "Editar post"}>{editing !== null && <PostForm post={editing === "new" ? null : editing} defaultBrand={brand === "todas" ? "aglabs" : brand} onDone={() => setEditing(null)} />}</DialogContent>
     </Dialog>
   </div>;
 }
@@ -81,36 +81,40 @@ function PostList({ title, posts, onOpen, empty }: { title: string; posts: Socia
   return <Card className="p-5"><h3 className="text-sm font-semibold">{title}</h3>{posts.length ? <ul className="mt-3 divide-y divide-border">{posts.map(p => <li key={p.id}><button type="button" onClick={() => onOpen(p)} className="flex w-full items-center justify-between gap-3 py-2.5 text-left hover:text-accent"><span className="min-w-0"><span className="block truncate text-sm">{p.title}</span><span className="text-[11px] text-muted">{BRAND_LABELS[p.brand as SocialBrand]} · {NETWORK_LABELS[p.network as SocialNetwork]} · {fmt(p.scheduledAt)}</span></span><span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] ${p.stage === "falhou" ? "bg-warning/15 text-warning" : "bg-surface-2 text-muted"}`}>{STAGE_LABELS[p.stage as SocialStage]}</span></button></li>)}</ul> : <p className="mt-3 text-sm text-muted">{empty}</p>}</Card>;
 }
 
-function Board({ posts, onOpen }: { posts: SocialPost[]; onOpen: (p: SocialPost) => void }) {
+/** Aprova ou avança um post. Aprovar agenda no Postiz em todas as redes da marca, e isso leva alguns segundos. */
+function useAdvance() {
   const router = useRouter();
-  const [pending, start] = React.useTransition();
-  const [stage, setStage] = React.useState<SocialStage | "todos">("todos");
-  const move = (p: SocialPost, to: SocialStage) => start(async () => {
-    const r = await moveSocialPostAction(p.id, to);
-    if (!r.ok) return void toast.error(r.error);
-    if (r.data.aviso) toast.warning(r.data.aviso, { duration: 10_000 });
-    else toast.success(r.data.post.stage === "agendado" ? "Aprovado e agendado no Postiz" : `Movido para ${STAGE_LABELS[to]}`);
-    router.refresh();
-  });
-  const count = (s: SocialStage) => posts.filter(p => p.stage === s).length;
-  const stages = SOCIAL_STAGES.filter(s => s !== "falhou" || count(s) > 0);
-  const shown = stage === "todos" ? posts : posts.filter(p => p.stage === stage);
-  const chip = (active: boolean) => `shrink-0 rounded-full border px-3 py-1 text-xs transition ${active ? "border-accent/40 bg-accent/15 text-accent" : "border-border text-muted hover:text-fg"}`;
-  return <div aria-busy={pending} className="space-y-4">
-    <nav aria-label="Etapas" className="flex gap-1.5 overflow-x-auto pb-1">
-      <button type="button" aria-pressed={stage === "todos"} onClick={() => setStage("todos")} className={chip(stage === "todos")}>Todos <span className="tabular-nums opacity-70">{posts.length}</span></button>
-      {stages.map(s => <button key={s} type="button" aria-pressed={stage === s} onClick={() => setStage(s)} className={chip(stage === s)}>{STAGE_LABELS[s]} <span className="tabular-nums opacity-70">{count(s)}</span></button>)}
-    </nav>
-    {!shown.length ? <Card className="p-8 text-center text-sm text-muted">Nenhum post nesta etapa.</Card>
-      : <div className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4">{shown.map(p => <PostCard key={p.id} post={p} onOpen={() => onOpen(p)} onAdvance={to => move(p, to)} pending={pending} />)}</div>}
-  </div>;
+  const [busyId, setBusyId] = React.useState<string | null>(null);
+  const advance = async (p: SocialPost, to: SocialStage) => {
+    setBusyId(p.id);
+    const id = to === "aprovado" ? toast.loading("Aprovando e agendando no Postiz…") : undefined;
+    try {
+      const r = await moveSocialPostAction(p.id, to);
+      if (!r.ok) return void toast.error(r.error, { id });
+      if (r.data.aviso) toast.warning(r.data.aviso, { id, duration: 10_000 });
+      else toast.success(r.data.post.stage === "agendado" ? `Agendado para ${fmt(r.data.post.scheduledAt)}` : `Movido para ${STAGE_LABELS[to]}`, { id });
+      router.refresh();
+    } finally { setBusyId(null); }
+  };
+  return { busyId, advance };
 }
 
-function PostCard({ post: p, onOpen, onAdvance, pending }: { post: SocialPost; onOpen: () => void; onAdvance: (to: SocialStage) => void; pending: boolean }) {
+/** Grade única: a etapa aparece no próprio card e é o sistema que move. Ordem: o que espera você primeiro. */
+function Board({ posts, onOpen }: { posts: SocialPost[]; onOpen: (p: SocialPost) => void }) {
+  const { busyId, advance } = useAdvance();
+  const order: SocialStage[] = ["revisao", "falhou", "aprovado", "rascunho", "briefing", "ideia", "agendado", "publicado"];
+  const shown = [...posts].sort((a, b) => order.indexOf(a.stage as SocialStage) - order.indexOf(b.stage as SocialStage)
+    || new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime());
+  return !shown.length ? <Card className="p-8 text-center text-sm text-muted">Nenhum post ainda.</Card>
+    : <div className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4">{shown.map(p => <PostCard key={p.id} post={p} onOpen={() => onOpen(p)} onAdvance={to => void advance(p, to)} busy={busyId === p.id} />)}</div>;
+}
+
+function PostCard({ post: p, onOpen, onAdvance, busy }: { post: SocialPost; onOpen: () => void; onAdvance: (to: SocialStage) => void; busy: boolean }) {
   const q = quality(p);
-  const i = SOCIAL_STAGES.indexOf(p.stage as SocialStage);
-  const next = i >= 0 && i < SOCIAL_STAGES.length - 2 ? SOCIAL_STAGES[i + 1] : null;
-  return <article className="overflow-hidden rounded-2xl border border-border bg-surface transition hover:border-accent/30">
+  // Você só aprova: o resto das etapas é do sistema.
+  const next = p.stage === "revisao" ? "aprovado" as SocialStage : null;
+  return <article aria-busy={busy} className={`relative overflow-hidden rounded-2xl border border-border bg-surface transition hover:border-accent/30 ${busy ? "pointer-events-none" : ""}`}>
+    {busy && <div className="absolute inset-0 z-10 grid place-items-center bg-black/40 backdrop-blur-[1px]"><span className="flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white"><Loader2 className="size-3.5 animate-spin" />Agendando nas redes…</span></div>}
     <button type="button" onClick={onOpen} className="block w-full text-left">
       <div className="relative aspect-[4/5] bg-surface-2">
         {p.mediaUrl ? <MediaPreview url={p.mediaUrl} className="absolute inset-0 size-full rounded-none" /> : <div className="grid size-full place-items-center text-[11px] uppercase tracking-wider text-faint">{p.format} · sem capa</div>}
@@ -126,7 +130,7 @@ function PostCard({ post: p, onOpen, onAdvance, pending }: { post: SocialPost; o
         <span className="h-1 w-12 overflow-hidden rounded-full bg-surface-2"><span className={`block h-full ${q.blocking.length ? "bg-warning" : "bg-success"}`} style={{ width: `${q.score}%` }} /></span>
         <span className={q.blocking.length ? "text-warning" : "text-success"}>{q.score}%</span>
       </span>
-      {next && <button type="button" disabled={pending} onClick={() => onAdvance(next)} className="text-[11px] text-accent hover:underline">→ {STAGE_LABELS[next]}</button>}
+      {next && <button type="button" disabled={busy} onClick={() => onAdvance(next)} className="flex items-center gap-1 rounded-md bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent hover:bg-accent/25 disabled:opacity-70">{busy ? <><Loader2 className="size-3 animate-spin" />Agendando…</> : "Aprovar"}</button>}
     </div>
   </article>;
 }
@@ -184,70 +188,57 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
     toast.success("Post salvo"); router.refresh(); onDone();
   });
   const remove = () => post && confirm("Excluir este post do pipeline?") && start(async () => { const r = await deleteSocialPostAction(post.id); if (!r.ok) toast.error(r.error); else { router.refresh(); onDone(); } });
-  const [view, setView] = React.useState<"conteudo" | "checklist" | "mais">("conteudo");
+  const [view, setView] = React.useState<"conteudo" | "entregas">("conteudo");
   const tab = (k: typeof view, label: string, badge?: string) => <button type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} className={`rounded-md px-2.5 py-1 text-xs ${view === k ? "bg-surface-2 text-fg" : "text-muted hover:text-fg"}`}>{label}{badge && <span className="ml-1 text-warning">{badge}</span>}</button>;
+  const { busyId, advance } = useAdvance();
+  const approving = busyId === post?.id;
+  const postiz = post?.checks?.postiz as { scheduledFor: string; canais?: Record<string, unknown>; erros?: Record<string, string> } | undefined;
+  const pendentes = postiz?.erros ? Object.entries(postiz.erros).filter(([, m]) => m !== "sem canal") : [];
   const hasMedia = /^https?:\/\//.test(f.mediaUrl);
-  return <div className="grid gap-5 sm:grid-cols-[13rem_minmax(0,1fr)]">
+  return <div className="grid gap-5 md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
     <aside className="space-y-2">
-      <div className="grid aspect-[4/5] place-items-center overflow-hidden rounded-xl border border-border bg-surface-2">
-        {hasMedia ? <MediaPreview url={f.mediaUrl} controls fit="contain" className="size-full rounded-none" /> : <span className="px-4 text-center text-[11px] text-faint">Sem capa ainda</span>}
+      <MediaGallery postId={post?.id ?? null} cover={f.mediaUrl} />
+      <div className="flex gap-2">
+        <label className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-xs hover:bg-surface-2 ${uploading ? "pointer-events-none opacity-60" : ""}`}><Upload className="size-3.5" />{uploading ? "Enviando…" : hasMedia ? "Trocar capa" : "Enviar capa"}
+          <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={uploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file); }} /></label>
+        {post && <SlidesUpload postId={post.id} onDone={() => router.refresh()} />}
       </div>
-      <label className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-xs hover:bg-surface-2 ${uploading ? "pointer-events-none opacity-60" : ""}`}><Upload className="size-3.5" />{uploading ? "Enviando…" : hasMedia ? "Trocar capa" : "Enviar capa"}
-        <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={uploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file); }} /></label>
-      {hasMedia && <a href={f.mediaUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-[11px] text-muted hover:text-fg">Abrir em tamanho real</a>}
-      {post && <PostMediaList postId={post.id} />}
-      <div className={`rounded-lg px-2.5 py-2 text-center text-xs ${q.blocking.length ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>Qualidade {q.score}%{q.blocking.length ? ` · faltam ${q.blocking.length}` : " · pronto"}</div>
     </aside>
     <div className="flex min-w-0 flex-col gap-3">
-      <div role="tablist" className="flex gap-1 border-b border-border pb-2">{tab("conteudo", "Conteúdo")}{tab("checklist", "Entregas", q.blocking.length ? String(q.blocking.length) : undefined)}{tab("mais", "Mais")}</div>
+      <div className="flex items-center gap-2">
+        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted">{post ? STAGE_LABELS[post.stage as SocialStage] : "Novo"}</span>
+        {post?.scheduledAt && <span className="text-[11px] text-muted">{fmt(post.scheduledAt)}</span>}
+        <span className={`ml-auto rounded-full px-2 py-0.5 text-[11px] ${q.blocking.length ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>{q.blocking.length ? `faltam ${q.blocking.length}` : "pronto"}</span>
+      </div>
+      <div role="tablist" className="flex gap-1 border-b border-border pb-2">{tab("conteudo", "Conteúdo")}{tab("entregas", "Entregas", q.blocking.length ? String(q.blocking.length) : undefined)}</div>
       {view === "conteudo" && <div className="space-y-3">
-        <Field label="Título"><Input value={f.title} onChange={e => set("title", e.target.value)} maxLength={200} placeholder="Ex.: 3 automações que economizam 5h/semana" /></Field>
-        <Field label="Gancho"><Input value={f.hook} onChange={e => set("hook", e.target.value)} maxLength={300} /></Field>
-        <Field label={`Legenda · ${f.caption.length.toLocaleString("pt-BR")}/${limit.toLocaleString("pt-BR")}`}><Textarea rows={5} value={f.caption} onChange={e => set("caption", e.target.value)} className={f.caption.length > limit ? "border-warning" : ""} /></Field>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="CTA"><Input value={f.cta} onChange={e => set("cta", e.target.value)} placeholder='Comente "GUIA"' /></Field>
-          <Field label="Data e hora"><Input type="datetime-local" value={f.scheduledAt} onChange={e => set("scheduledAt", e.target.value)} /></Field>
-        </div>
-      </div>}
-      {view === "checklist" && <div className="space-y-4">
-        <div className="space-y-2">
-          <Field label="Palavra-chave do CTA"><Input className="uppercase" value={f.keyword} onChange={e => set("keyword", e.target.value.replace(/\s/g, ""))} maxLength={40} placeholder="Ex.: ARQUIVO (vazio = sem entrega)" /></Field>
-          {f.keyword.trim() && <>
-            <Field label="Página do conteúdo gratuito"><Input value={f.pageUrl} onChange={e => set("pageUrl", e.target.value)} placeholder="https://conteudo.aglabs.ia.br/conteudos/…" /></Field>
-            <Field label="Mensagem da DM (com o link)"><Textarea rows={3} value={f.deliveryMessage} onChange={e => set("deliveryMessage", e.target.value)} /></Field>
-          </>}
-        </div>
-        <div className="space-y-1.5 border-t border-border pt-3">
-          <p className="text-xs font-medium">Conferência automática</p>
-          <ul className="space-y-1.5 text-xs">{q.checks.map(c => <li key={c.key} className="flex gap-2">{c.ok ? <CheckCircle2 className="size-3.5 shrink-0 text-success" /> : c.required ? <AlertTriangle className="size-3.5 shrink-0 text-warning" /> : <Circle className="size-3.5 shrink-0 text-faint" />}<span className={c.ok ? "text-muted" : ""}>{c.label}{!c.required && " (opcional)"}</span></li>)}</ul>
-        </div>
-        {deliveries.length > 0 && <div className="space-y-1.5 border-t border-border pt-3">
-          <p className="text-xs font-medium">Entregas feitas pelo sistema</p>
-          <ul className="space-y-1.5 text-xs">{deliveries.map(c => <li key={c.key} className="flex gap-2">{c.ok ? <CheckCircle2 className="size-3.5 shrink-0 text-success" /> : <Circle className="size-3.5 shrink-0 text-faint" />}<span className={c.ok ? "text-muted" : ""}>{c.label}</span></li>)}</ul>
-          {post?.checks?.mediaId && <p className="text-[11px] text-faint">media_id {post.checks.mediaId}</p>}
-        </div>}
-        <p className="text-[11px] text-faint">Você só aprova. Ao aprovar: agenda no próximo dia livre às 20h, confere a página e grava as linhas do n8n.</p>
-      </div>}
-      {view === "mais" && <div className="space-y-3">
-        <div className="grid grid-cols-3 gap-2">
+        {!post && <div className="grid grid-cols-3 gap-2">
           <Field label="Marca"><Select value={f.brand} onChange={e => set("brand", e.target.value as SocialBrand)}>{SOCIAL_BRANDS.map(b => <option key={b} value={b}>{BRAND_LABELS[b]}</option>)}</Select></Field>
           <Field label="Rede"><Select value={f.network} onChange={e => set("network", e.target.value as SocialNetwork)}>{SOCIAL_NETWORKS.map(n => <option key={n} value={n}>{NETWORK_LABELS[n]}</option>)}</Select></Field>
           <Field label="Formato"><Select value={f.format} onChange={e => set("format", e.target.value)}>{SOCIAL_FORMATS.map(n => <option key={n} value={n}>{n}</option>)}</Select></Field>
-        </div>
-        <Field label="Link da capa"><Input value={f.mediaUrl} onChange={e => set("mediaUrl", e.target.value)} placeholder="https://…" /></Field>
-        <Field label="Referência / fonte"><Input value={f.referenceUrl} onChange={e => set("referenceUrl", e.target.value)} placeholder="https://…" /></Field>
-        {post?.stage === "publicado" && <Field label="Link do post publicado"><Input value={f.publishedUrl} onChange={e => set("publishedUrl", e.target.value)} /></Field>}
-        <Field label="Notas e roteiro"><Textarea rows={6} value={f.notes} onChange={e => set("notes", e.target.value)} /></Field>
-        {post && <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          <Select aria-label="Adaptar para outra rede" className="max-w-56" value="" disabled={pending} onChange={e => { const to = e.target.value as SocialNetwork; if (to) start(async () => { const r = await duplicateSocialPostAction(post.id, to); if (!r.ok) toast.error(r.error); else { toast.success(`Adaptação para ${NETWORK_LABELS[to]} criada em Rascunho`); router.refresh(); onDone(); } }); }}><option value="">Adaptar para outra rede…</option>{SOCIAL_NETWORKS.filter(n => n !== post.network).map(n => <option key={n} value={n}>{NETWORK_LABELS[n]}</option>)}</Select>
-          <Button size="sm" variant="ghost" disabled={pending} onClick={remove}><Trash2 />Excluir</Button>
         </div>}
+        <Field label="Título"><Input value={f.title} onChange={e => set("title", e.target.value)} maxLength={200} /></Field>
+        <Field label={`Legenda · ${f.caption.length.toLocaleString("pt-BR")}/${limit.toLocaleString("pt-BR")}`}><Textarea rows={12} value={f.caption} onChange={e => set("caption", e.target.value)} className={f.caption.length > limit ? "border-warning" : ""} /></Field>
       </div>}
-      {post?.checks?.postiz && <p className="text-[11px] text-muted">No Postiz para {fmt(post.checks.postiz.scheduledFor)}. Mudanças feitas aqui depois disso não vão para o Postiz.</p>}
-      <div className="mt-auto flex justify-end gap-2 border-t border-border pt-3">
-        {post?.stage === "aprovado" && !post.checks?.postiz && <Button variant="ghost" disabled={pending} onClick={() => start(async () => { const r = await scheduleSocialPostAction(post.id); if (!r.ok) toast.error(r.error); else { toast.success("Agendado no Postiz"); router.refresh(); onDone(); } })}>Agendar no Postiz</Button>}
-        <Button variant="ghost" onClick={onDone}>Cancelar</Button>
-        <Button disabled={pending || !f.title.trim()} onClick={save}>{pending ? "Salvando…" : "Salvar"}</Button>
+      {view === "entregas" && <div className="space-y-3">
+        <Field label="Palavra-chave (só Instagram)"><Input className="uppercase" value={f.keyword} onChange={e => set("keyword", e.target.value.replace(/\s/g, ""))} maxLength={40} placeholder="Vazio = sem entrega" /></Field>
+        {f.keyword.trim() && <>
+          <Field label="Página gratuita"><Input value={f.pageUrl} onChange={e => set("pageUrl", e.target.value)} /></Field>
+          <Field label="Mensagem da DM"><Textarea rows={3} value={f.deliveryMessage} onChange={e => set("deliveryMessage", e.target.value)} /></Field>
+        </>}
+        <ul className="grid gap-1 border-t border-border pt-3 text-xs sm:grid-cols-2">{[...q.checks.filter(c => c.required), ...deliveries].map(c => <li key={c.key} className="flex gap-1.5">{c.ok ? <CheckCircle2 className="size-3.5 shrink-0 text-success" /> : <AlertTriangle className="size-3.5 shrink-0 text-warning" />}<span className={c.ok ? "text-muted" : ""}>{c.label}</span></li>)}</ul>
+        <p className="text-[11px] text-faint">Nas outras redes o último slide vira a tela final (curte, comenta, compartilha), porque só o Instagram tem a automação da palavra-chave.</p>
+      </div>}
+      {postiz && <p className="text-[11px] text-muted">Agendado para {fmt(postiz.scheduledFor)}{postiz.canais ? ` em ${Object.keys(postiz.canais).map(n => NETWORK_LABELS[n as SocialNetwork] ?? n).join(", ")}` : ""}.{pendentes.length ? ` Falhou: ${pendentes.map(([n]) => NETWORK_LABELS[n as SocialNetwork] ?? n).join(", ")}.` : ""}</p>}
+      <div className="mt-auto flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
+        {post && <Button size="sm" variant="ghost" className="mr-auto text-muted" disabled={pending || approving} onClick={remove}><Trash2 />Excluir</Button>}
+        {post && (pendentes.length > 0 || (post.stage === "aprovado" && !postiz) || (post.stage === "agendado" && postiz && !postiz.canais)) && <Button variant="ghost" disabled={pending} onClick={() => start(async () => { const r = await scheduleSocialPostAction(post.id); if (!r.ok) toast.error(r.error); else { toast.success("Agendado nas redes"); router.refresh(); onDone(); } })}>{pending && <Loader2 className="animate-spin" />}Agendar nas outras redes</Button>}
+        <Button variant="ghost" disabled={pending || approving || !f.title.trim()} onClick={save}>{pending ? "Salvando…" : "Salvar"}</Button>
+        {post?.stage === "revisao" && <Button disabled={approving || pending || q.blocking.length > 0} onClick={() => void (async () => {
+          const r = await updateSocialPostAction(post.id, payload());
+          if (!r.ok) return void toast.error(r.error);
+          await advance(post, "aprovado"); onDone();
+        })()}>{approving ? <><Loader2 className="animate-spin" />Agendando…</> : "Aprovar"}</Button>}
       </div>
     </div>
   </div>;
@@ -272,16 +263,35 @@ async function fetchPostMedia(postId: string): Promise<MediaItem[]> {
   const n = (f: string) => Number(/(\d+)\.[a-z0-9]+$/i.exec(f)?.[1] ?? 999);
   return (json.midias ?? []).filter((m, i, all) => all.findIndex(o => o.filename === m.filename) === i).sort((a, b) => n(a.filename) - n(b.filename));
 }
-/** Slides e vídeo do post: é o que vai para o Postiz ao aprovar, na ordem do número no nome (…-01, …-02). */
-function PostMediaList({ postId }: { postId: string }) {
+/** Prévia grande do post com setas: capa primeiro e depois os slides, na ordem em que vão para o Postiz. */
+function MediaGallery({ postId, cover }: { postId: string | null; cover: string }) {
   const [items, setItems] = React.useState<MediaItem[] | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [version, setVersion] = React.useState(0);
+  const [i, setI] = React.useState(0);
   React.useEffect(() => {
+    if (!postId) return;
     let alive = true;
     void fetchPostMedia(postId).then(list => { if (alive) setItems(list); });
     return () => { alive = false; };
-  }, [postId, version]);
+  }, [postId, cover]);
+  const urls = items?.length ? items.map(m => m.url) : /^https?:\/\//.test(cover) ? [cover] : [];
+  const at = Math.min(i, Math.max(urls.length - 1, 0));
+  const go = (d: number) => setI(Math.max(0, Math.min(urls.length - 1, at + d)));
+  return <div className="space-y-2 outline-none" tabIndex={-1} onKeyDown={e => { if (e.key === "ArrowLeft") go(-1); if (e.key === "ArrowRight") go(1); }}>
+    <div className="relative grid aspect-[4/5] place-items-center overflow-hidden rounded-xl border border-border bg-black/80">
+      {urls.length ? <MediaPreview key={urls[at]} url={urls[at]} controls fit="contain" className="size-full rounded-none bg-transparent" /> : <span className="px-4 text-center text-[11px] text-faint">Sem capa ainda</span>}
+      {urls.length > 1 && <>
+        <button type="button" aria-label="Anterior" disabled={at === 0} onClick={() => go(-1)} className="absolute left-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80 disabled:opacity-0"><ChevronLeft className="size-5" /></button>
+        <button type="button" aria-label="Próxima" disabled={at === urls.length - 1} onClick={() => go(1)} className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80 disabled:opacity-0"><ChevronRight className="size-5" /></button>
+        <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] tabular-nums text-white">{at + 1}/{urls.length}</span>
+      </>}
+    </div>
+    {urls.length > 1 && <div className="flex justify-center gap-1.5">{urls.map((u, k) => <button key={u} type="button" aria-label={`Slide ${k + 1}`} onClick={() => setI(k)} className={`h-1.5 rounded-full transition-all ${k === at ? "w-5 bg-accent" : "w-1.5 bg-border-strong hover:bg-muted"}`} />)}</div>}
+  </div>;
+}
+
+/** Envia slides e vídeo do post (o número no fim do nome define a ordem: …-01, …-02). */
+function SlidesUpload({ postId, onDone }: { postId: string; onDone: () => void }) {
+  const [busy, setBusy] = React.useState(false);
   const send = async (files: FileList) => {
     setBusy(true);
     try {
@@ -292,15 +302,10 @@ function PostMediaList({ postId }: { postId: string }) {
         if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? `Falha em ${file.name}`);
       }
       toast.success(`${files.length} arquivo(s) enviado(s)`);
-      setVersion(v => v + 1);
+      onDone();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Falha no envio."); }
     finally { setBusy(false); }
   };
-  return <div className="space-y-1.5 border-t border-border pt-2">
-    <p className="flex items-center justify-between text-[11px] text-muted">Slides e vídeo <span className="tabular-nums">{items?.length ?? "…"}/10</span></p>
-    {!!items?.length && <div className="grid grid-cols-4 gap-1">{items.map(m => <a key={m.id} href={m.url} target="_blank" rel="noopener noreferrer" title={m.filename} className="block aspect-[4/5] overflow-hidden rounded border border-border bg-surface-2">
-      {m.contentType.startsWith("video/") ? <span className="grid size-full place-items-center text-[9px] text-muted">MP4</span> : <MediaPreview url={m.url} className="size-full rounded-none" />}</a>)}</div>}
-    <label className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-1.5 text-[11px] text-muted hover:bg-surface-2 ${busy ? "pointer-events-none opacity-60" : ""}`}><Upload className="size-3" />{busy ? "Enviando…" : "Enviar slides/vídeo"}
-      <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={busy} onChange={e => { const fl = e.target.files; if (fl?.length) void send(fl); e.target.value = ""; }} /></label>
-  </div>;
+  return <label className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-1.5 text-xs text-muted hover:bg-surface-2 ${busy ? "pointer-events-none opacity-60" : ""}`}>{busy ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}{busy ? "Enviando…" : "Enviar slides"}
+    <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={busy} onChange={e => { const fl = e.target.files; if (fl?.length) void send(fl); e.target.value = ""; }} /></label>;
 }
