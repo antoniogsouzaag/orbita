@@ -64,7 +64,7 @@ await db.insert(s.books).values([{ title: "Deep Work", author: "Cal Newport", to
 await db.insert(s.workouts).values([{ date: day(-1), name: "Treino A — Peito e tríceps", minutes: 55, exercises: [{ name: "Supino", sets: 4, reps: "10", load: "60kg" }] }]);
 
 const now = new Date();
-const urls = [["Barberias", "https://barberias.com.br/", "P1"], ["Members", "https://members.ia.br/", "P1"], ["AG LABS Institucional", "https://aglabs.ia.br/", "P2"], ["LP App", "https://lp.aglabs.app.br/", "P2"], ["Viajeki", "https://viajeki.com.br/", "P3"], ["n8n VPS-01", "https://n8na.aglabs.api.br/", "P4"]] as const;
+const urls = [["Barberias", "https://barberias.com.br/", "P1"], ["Members", "https://members.ia.br/", "P1"], ["AG LABS Institucional", "https://aglabs.ia.br/", "P2"], ["LP App", "https://aglabs.app.br/sobre", "P2"], ["Viajeki", "https://viajeki.com.br/", "P3"], ["n8n VPS-01", "https://n8na.aglabs.api.br/", "P4"]] as const;
 await db.insert(s.opsStatus).values(urls.map(([name, url], i) => ({ url, name, ok: i !== 4, statusCode: i === 4 ? 502 : 200, latencyMs: 180 + i * 37, fails: i === 4 ? 3 : 0, source: "n8n-vps03-ping", checkedAt: now, changedAt: new Date(now.getTime() - (i === 4 ? 45 : 3000) * 60_000) })));
 await db.insert(s.opsEvents).values([
   { kind: "site_down", severity: "critical", source: "n8n-vps03-ping", subject: "Viajeki", detail: { url: "https://viajeki.com.br/", status: 502 }, createdAt: new Date(now.getTime() - 45 * 60_000) },

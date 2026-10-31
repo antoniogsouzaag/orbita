@@ -3,11 +3,12 @@ import { and, eq, isNull, lte, sql } from "drizzle-orm";
 import { withDbTransaction } from "@/db";
 import { opsEvents, opsStatus } from "@/db/schema";
 
-// Explicit destination changes requested by Antonio on 2026-10-29.
+// Explicit destination changes requested by Antonio on 2026-10-29 and 2026-10-30.
 // Names and missing targets never authorize retiring a monitor.
 const replacements = [
   ["https://cortes-virais.pages.dev/", "https://cortes.lojalabs.com.br/"],
   ["https://pack-canva.pages.dev/", "https://pack.lojalabs.com.br/"],
+  ["https://lp.aglabs.app.br/", "https://aglabs.app.br/sobre"],
 ] as const;
 const normalize = (url: string) => url.replace(/\/+$/, "");
 
