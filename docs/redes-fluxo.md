@@ -120,3 +120,18 @@ O que a rotina precisa no ambiente da nuvem (claude.ai → ambiente "padrao" →
 - conectores: Órbita, Postiz, n8na e ElevenLabs.
 
 Até isso estar pronto, a produção roda aqui, comigo, a partir dos briefings das 6h.
+
+## Rotina na nuvem só com conectores (31/10/2026)
+
+A rotina "Redes AG LABS: pesquisa e produção (1 post/dia)" roda de segunda a sábado às 6h (BRT). Ela não usa chave de API no ambiente, só conectores:
+
+- **orbita**: cria o post, anexa a mídia (`orbita_redes_anexar_midia`) e leva o post para Revisão;
+- **postiz**: consulta o que já saiu e gera imagens (`generateImageTool`);
+- **neon**: `presign_storage_object` gera um link de envio para o bucket `redes`, e a rotina sobe o arquivo com `curl -X PUT`;
+- **n8na**: consulta as palavras-chave já usadas.
+
+Repositórios: marketing (a arte vai numa branch `rotina/<slug>`), orbita (leitura) e aglabs-conteudos (a página gratuita vai na main).
+
+## Storage: por que travava
+
+O upload pela Vercel estourava o tempo em arquivos acima de cerca de 0,5 MB. O `aws4fetch` monta um `Request`, o corpo vira stream e é enviado sem `Content-Length` (chunked), e o storage do Neon fica esperando o fim. Agora o Órbita só assina (`client.sign`) e envia com `fetch` e o corpo inteiro. O fallback para o banco continua existindo.
