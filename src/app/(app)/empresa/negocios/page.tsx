@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Building2, BookOpen } from "lucide-react";
-import { BusinessLinks } from "@/components/empresa/business-links";
 import { ProductPortfolio } from "@/components/empresa/product-portfolio";
 import { PageHeader } from "@/components/ui/card";
 import { BARBERIAS } from "@/lib/business";
@@ -13,7 +12,6 @@ export default function Page() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 sm:px-6">
       <PageHeader icon={<Building2 />} title="Negócios" description="Aplicativos, indicadores e próximas decisões." />
-      <BusinessLinks />
       <Suspense fallback={<PortfolioLoading />}><ProductPortfolio /></Suspense>
       <Suspense fallback={null}><DocumentedApps /></Suspense>
     </div>
@@ -43,9 +41,8 @@ async function DocumentedApps() {
 
 function PortfolioLoading() {
   return (
-    <div role="status" aria-label="Consultando usuários dos aplicativos e o CRM" className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-3">{Array.from({ length: 3 }, (_, i) => <div key={i} className="card h-[104px] p-4"><div className="loading-shimmer h-3 w-1/2 rounded" /><div className="loading-shimmer mt-4 h-6 w-1/3 rounded" /></div>)}</div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <div key={i} className="card h-[104px] p-4"><div className="loading-shimmer h-3 w-1/2 rounded" /><div className="loading-shimmer mt-4 h-6 w-1/3 rounded" /></div>)}</div>
+    <div role="status" aria-label="Consultando apps, funil e e-mails no CRM" className="space-y-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{Array.from({ length: 6 }, (_, i) => <div key={i} className="card h-[104px] p-4"><div className="loading-shimmer h-3 w-1/2 rounded" /><div className="loading-shimmer mt-4 h-6 w-1/3 rounded" /></div>)}</div>
       <div className="grid gap-3 lg:grid-cols-2">{Array.from({ length: 2 }, (_, i) => <div key={i} className="card h-[300px] p-4"><div className="loading-shimmer h-3 w-1/3 rounded" /><div className="loading-shimmer mt-6 h-[200px] rounded-xl" /></div>)}</div>
     </div>
   );

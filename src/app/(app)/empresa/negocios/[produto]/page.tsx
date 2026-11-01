@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowUpRight, Building2, CircleCheck, CircleDashed } from "lucide-react";
 import { ProductAppMetrics } from "@/components/empresa/product-app-metrics";
+import { ProductCommercial } from "@/components/empresa/product-commercial";
+import { crmKeyForUnit } from "@/lib/business-crm";
 import { Card, PageHeader } from "@/components/ui/card";
 import { BUSINESS_UNITS, MODEL_INFO, businessUnit } from "@/lib/business-models";
 import { listTasks } from "@/server/tasks";
@@ -29,6 +31,7 @@ export default async function Page({ params }: { params: Promise<{ produto: stri
       {[["Modelo", model.label], ["Unidade de negócio", model.unit], ["Receita", model.revenue]].map(([label, value]) => <Card key={label} className="p-3"><p className="text-[11px] text-muted">{label}</p><p className="mt-1 text-[13.5px] font-medium">{value}</p></Card>)}
     </div>
     <Suspense fallback={<Card className="p-4 text-xs text-muted">Consultando dados administrativos do app…</Card>}><ProductAppMetrics product={unit.id} /></Suspense>
+    <Suspense fallback={<Card className="p-4 text-xs text-muted" role="status">Consultando funil comercial e e-mails no CRM…</Card>}><ProductCommercial produto={crmKeyForUnit(unit.id)} /></Suspense>
     <div className="grid items-start gap-3 lg:grid-cols-2">
       <Card className="p-4">
         <h2 className="text-[14px] font-semibold tracking-tight">O que acompanhar neste modelo</h2>

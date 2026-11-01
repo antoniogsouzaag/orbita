@@ -15,9 +15,15 @@ export const BARBERIAS = {
 // IDs conferidos na lista de grupos do Postiz. O nome de uma conta não define seu negócio.
 export const SOCIAL_ENTITIES: Record<string, { id: string; name: string; logo?: string; businessHref?: string }> = {
   [BARBERIAS.postizGroupId]: { id: BARBERIAS.id, name: BARBERIAS.name, logo: BARBERIAS.logo, businessHref: "/empresa/negocios/barberias" },
-  "8b2560ec-d5c9-4290-9bf7-4b71555ed766": { id: "ag-labs", name: "AG LABS" },
-  "93b212db-9b05-4841-a6ba-e0bcc2c70837": { id: "mecard", name: "MeCard" },
+  "8b2560ec-d5c9-4290-9bf7-4b71555ed766": { id: "ag-labs", name: "AG LABS", logo: "/brands/aglabs-app-purple.png" },
+  "9d72757a-bd07-44a6-b362-29b8535b6ca9": { id: "members", name: "Members", logo: "/brands/members.png", businessHref: "/empresa/negocios/members" },
+  "93b212db-9b05-4841-a6ba-e0bcc2c70837": { id: "mecard", name: "MeCard", logo: "/brands/mecard.png", businessHref: "/empresa/negocios/mecard" },
 };
+
+/** Marcas do ecossistema ainda sem grupo no Postiz. VibeKit publica pelo perfil institucional do AG LABS. */
+export const SOCIAL_PENDING_ENTITIES = [
+  { id: "viajeki", name: "Viajeki", logo: "/brands/viajeki.png" },
+] as const;
 
 export function socialGroupId(entity: string) {
   return Object.entries(SOCIAL_ENTITIES).find(([groupId, item]) => entity === item.id || entity === groupId)?.[0] ?? entity;
