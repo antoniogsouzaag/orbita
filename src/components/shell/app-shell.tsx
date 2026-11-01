@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BookOpen, CheckCheck, LayoutGrid, LogOut, Moon, PanelLeft, Plus, RefreshCw, Search, Settings, Sun } from "lucide-react";
+import { Bell, BookOpen, CheckCheck, LayoutGrid, LogOut, Moon, Newspaper, PanelLeft, Plus, RefreshCw, Search, Settings, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -190,17 +190,18 @@ export function AppShell({
 
   const ctx = React.useMemo<Ctx>(() => ({ openPalette: () => setPalette(true), openQuickAdd: (tab) => setQuick({ open: true, tab }) }), []);
   // Início e Empresa têm capa: o topo fica transparente sobre a foto.
+  const isJournal = pathname === "/jornal";
   const isHome = pathname === "/" || pathname === "/empresa";
 
   return (
     <ShellContext.Provider value={ctx}>
-      <div className={cn("app-frame min-h-dvh", sidebar && "sidebar-open")}>
+      <div className={cn("app-frame min-h-dvh", sidebar && !isJournal && "sidebar-open")}>
         <GlassFilter />
-        <Wallpaper urls={wallpapers} />
-        {sidebar && <button className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] lg:hidden" aria-label="Fechar navegação" onClick={toggleSidebar} />}
-        <Sidebar open={sidebar} pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} onNavigate={() => { if (window.matchMedia("(max-width: 1023px)").matches) setSidebar(false); }} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />
+        {!isJournal && <Wallpaper urls={wallpapers} />}
+        {!isJournal && sidebar && <button className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] lg:hidden" aria-label="Fechar navegação" onClick={toggleSidebar} />}
+        {!isJournal && <Sidebar open={sidebar} pathname={pathname} name={name} avatar={avatar} onCollapse={toggleSidebar} onNavigate={() => { if (window.matchMedia("(max-width: 1023px)").matches) setSidebar(false); }} onSearch={ctx.openPalette} onQuick={() => ctx.openQuickAdd("tarefa")} />}
 
-        <header
+        {!isJournal && <header
           className={cn(
             "shell-topbar fixed inset-x-0 top-0 z-40 transition-[background,border,backdrop-filter] duration-300",
             "pointer-events-none border-0",
@@ -235,11 +236,11 @@ export function AppShell({
               <UserMenu name={name} avatar={avatar} light={isHome && !scrolled} />
             </div>
           </div>
-        </header>
+        </header>}
 
-        <main className={cn("shell-main pb-32", !isHome && "shell-page pt-20")}>{children}</main>
+        <main className={cn("shell-main pb-32", !isHome && !isJournal && "shell-page pt-20")}>{children}</main>
 
-        <Dock key={`${pathname}:${space}`} pathname={pathname} hidden={sidebar} onQuick={(tab) => ctx.openQuickAdd(tab)} />
+        <Dock key={`${pathname}:${space}`} pathname={pathname} hidden={sidebar && !isJournal} onQuick={(tab) => ctx.openQuickAdd(tab)} />
         <CommandPalette key={`${palette}:${space}`} open={palette} onOpenChange={setPalette} onQuickAdd={ctx.openQuickAdd} scope={space} onToggleSidebar={toggleSidebar} />
         <div id="shell-overlays" />
         <QuickAdd scope={space} key={`${quick.open}:${quick.tab}:${space}`} open={quick.open} tab={quick.tab} projects={projects.filter((project) => (project.area ?? "pessoal") === space)} onOpenChange={(open) => setQuick((q) => ({ ...q, open }))} />
@@ -289,8 +290,7 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
           <Settings className="size-4" /> Configurações
         </Link>
         <div className="mt-2 flex items-center gap-2.5 px-2">
-          <UserMenu name={name} avatar={avatar} light={false} />
-          <div className="min-w-0 flex-1 truncate text-[12.5px] font-medium">{name}</div><ThemeToggle />
+          <UserMenu name={name} avatar={avatar} light={false} showName /><ThemeToggle />
         </div>
       </div>
     </aside>
@@ -430,17 +430,18 @@ function NoticeList({ items, read, error, checkedAt, onPick }: { items: ShellNot
   );
 }
 
-function UserMenu({ name, avatar, light }: { name: string; avatar?: string | null; light: boolean }) {
+function UserMenu({ name, avatar, light, showName = false }: { name: string; avatar?: string | null; light: boolean; showName?: boolean }) {
   const router = useRouter();
   return (
     <Menu>
-      <MenuTrigger className={cn("rounded-full ring-1 transition", light ? "ring-white/20" : "ring-border")} aria-label="Conta">
-        <Avatar name={name} src={avatar} />
+      <MenuTrigger className={cn("transition", showName ? "flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left hover:bg-surface-2" : "rounded-full ring-1", light ? "ring-white/20" : "ring-border")} aria-label="Conta">
+        <Avatar name={name} src={avatar} />{showName && <span className="truncate text-[12.5px] font-medium">{name}</span>}
       </MenuTrigger>
       <MenuContent>
         <MenuLabel>{name}</MenuLabel>
         <MenuItem onSelect={() => router.push("/config")}><Settings /> Configurações</MenuItem>
         <MenuSeparator />
+        <MenuItem onSelect={() => router.push("/jornal")}><Newspaper /> Jornal da Órbita</MenuItem>
         <MenuItem onSelect={() => router.push("/documentacao")}><BookOpen /> Manual da Órbita</MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={() => logout()} danger><LogOut /> Sair</MenuItem>

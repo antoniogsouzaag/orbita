@@ -10,6 +10,7 @@ import { journalFeed } from "@/server/journal";
 import { JournalArticleBody } from "@/components/journal/article-body";
 import { JournalDailyContext } from "@/components/journal/daily-context";
 import { JournalCommercialPulse, JournalProductPulse } from "@/components/journal/business-pulse";
+import { EditionPicker } from "@/components/journal/edition-picker";
 import styles from "./journal.module.css";
 
 export const metadata = { title: "Jornal da Órbita" };
@@ -32,10 +33,10 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
       <p className="text-[11px] text-muted">Uma pausa para enxergar o todo.</p>
     </header>
     <div className={styles.datebar}>
-      <p className="text-xs capitalize text-muted">{formatLong(date)} <span className="ml-2 hidden text-faint sm:inline">· São Paulo</span></p>
+      <p className="text-xs capitalize text-muted">{formatLong(date)} <span className="ml-2 hidden text-faint sm:inline">· Rio Verde–GO</span></p>
       <div className="flex items-center gap-2">
         {date > shiftDate(currentDay, -30) && <Link href={journalHref(shiftDate(date, -1))} aria-label="Edição anterior" className={styles.dateArrow}><ArrowLeft className="size-3.5" /></Link>}
-        <form action="/jornal" className="flex items-center gap-2"><label htmlFor="journal-date" className="sr-only">Data da edição</label><input id="journal-date" name="data" type="date" defaultValue={date} min={shiftDate(currentDay, -30)} max={currentDay} className={styles.dateInput} /><button type="submit" className="rounded-lg px-2 py-1 text-xs text-accent hover:bg-surface-2">Abrir</button></form>
+        <EditionPicker date={date} min={shiftDate(currentDay, -30)} max={currentDay} />
         {!current && <Link href={journalHref(shiftDate(date, 1))} aria-label="Próxima edição" className={styles.dateArrow}><ArrowRight className="size-3.5" /></Link>}
       </div>
     </div>
@@ -44,14 +45,14 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
       <div className={styles.heroShade} />
       <div className={styles.heroContent}>
         <p className={styles.eyebrow}><span className={styles.liveDot} />{current ? "Edição em atualização" : "Arquivo editorial"} <span className="opacity-40">/</span> AG LABS</p>
-        <h1 id="journal-title">Seu dia,<br /><em>em perspectiva.</em></h1>
+        <h1 id="journal-title">Seu dia, <em>em perspectiva.</em></h1>
         <p className={styles.heroDescription}>O essencial da sua operação, as ideias que merecem atenção e os próximos movimentos. Tudo encontra seu lugar aqui.</p>
         <div className={styles.heroFooter}><span>Jornal da Órbita</span><span>{edition.unavailable ? "Consulta indisponível" : `${edition.articles.length}${edition.parcial ? "+" : ""} matérias recebidas`} · {current ? "ao longo do dia" : "nesta edição"}</span></div>
       </div>
     </section>
-    {current ? <Suspense fallback={<div role="status" aria-label="Carregando pauta do dia" className="loading-shimmer h-44 rounded-2xl" />}><JournalDailyContext /></Suspense> : <p className={styles.archiveNote}>Você está lendo as matérias recebidas para esta edição. Indicadores, agenda e pendências ao vivo aparecem somente na edição de hoje. <Link href="/jornal">Voltar para hoje →</Link></p>}
+    {current ? <Suspense fallback={<div role="status" aria-label="Carregando pauta do dia" className="loading-shimmer h-20" />}><JournalDailyContext /></Suspense> : <p className={styles.archiveNote}>Você está lendo as matérias recebidas para esta edição. Indicadores, agenda e pendências ao vivo aparecem somente na edição de hoje. <Link href="/jornal">Voltar para hoje →</Link></p>}
     <div className={styles.columns}>
-      <main className="min-w-0">
+      <section className="min-w-0">
         <div className={styles.sectionHeading}><div><p className={styles.kicker}>Informação que vira contexto</p><h2>Em pauta</h2></div><span className="text-[11px] text-faint">Recebido até {localTime(new Date(edition.consultadoEm))}</span></div>
         <nav aria-label="Editorias do Jornal" className={styles.sections}>
           <Link href={href()} aria-current={!section ? "page" : undefined}>Tudo <span>{edition.articles.length}</span></Link>
@@ -62,14 +63,14 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
         <div className="space-y-4">{articles.map(article => <JournalArticleCard key={article.id} article={article} />)}</div>
         {filtered.length > 12 && <nav aria-label="Paginação das matérias" className="mt-5 flex items-center justify-between text-xs text-accent"><span>{page > 0 && <Link href={href(section, page - 1)}>← Anteriores</Link>}</span><span className="text-muted">Página {page + 1} de {Math.ceil(filtered.length / 12)}</span><span>{(page + 1) * 12 < filtered.length && <Link href={href(section, page + 1)}>Próximas →</Link>}</span></nav>}
         <div className={styles.editorNote}><BookOpen className="size-5 shrink-0" /><div><h3>Boa informação também tem origem.</h3><p>As matérias são relatos das rotinas e dos agentes. Fontes permitem conferir o contexto; destaque editorial não é validação independente nem autorização para executar ações.</p></div></div>
-      </main>
+      </section>
       <aside aria-label="Contexto dos negócios" className="min-w-0 space-y-4">
-        <section className="rounded-2xl border border-border bg-surface/70 p-5 sm:p-6" aria-labelledby="journal-receipts"><p className={styles.kicker}>Recebimentos da edição</p><h2 id="journal-receipts" className="mt-2 text-lg font-semibold">Seu radar, com origem</h2><div className="mt-4 space-y-4">{(["ia", "emails"] as const).map(key => {
+        <section className="border-t border-border py-3" aria-labelledby="journal-receipts"><p className={styles.kicker}>Recebimentos da edição</p><h2 id="journal-receipts" className="mt-1 text-sm font-semibold">Seu radar, com origem</h2><div className="mt-2 space-y-2">{(["ia", "emails"] as const).map(key => {
           const items = edition.articles.filter(article => article.secao === key && !article.legado);
           return <div key={key}><p className="text-xs font-medium">{JOURNAL_SECTIONS[key]}</p><p className="mt-1 text-[11px] text-muted">{edition.unavailable ? "Consulta indisponível" : items.length ? `${items.length} matéria(s) · última às ${localTime(new Date(items[0].recebidoEm))} · ${items[0].autor}` : "Ainda sem matéria recebida nesta edição"}</p></div>;
-        })}</div><p className="mt-4 border-t border-border pt-3 text-[10px] leading-relaxed text-faint">Recebimento confirma uma remessa. Não comprova que toda a pesquisa ou caixa foi coberta.</p></section>
+        })}</div><p className="mt-2 text-[10px] leading-relaxed text-faint">Recebimento confirma uma remessa. Não comprova que toda a pesquisa ou caixa foi coberta.</p></section>
         {current && <><Suspense fallback={<PulseLoading title="Consultando sinais comerciais" />}><JournalCommercialPulse /></Suspense><Suspense fallback={<PulseLoading title="Consultando aplicativos" />}><JournalProductPulse /></Suspense></>}
-        <section className={styles.sideNote}><p className={styles.kicker}>Próxima leitura</p><h2>Menos ruído.<br /><em>Mais direção.</em></h2><p>O bom dia entrega um resumo curto e traz você para esta edição. Aqui, cada assunto tem espaço para ser entendido.</p><Link href="/projetos/624e1799-0d66-4743-8d56-749bf78744f7?escopo=empresa">Projeto do Jornal <ArrowUpRight className="size-3.5" /></Link></section>
+
       </aside>
     </div>
     <footer className={styles.footer}><span>ÓRBITA JORNAL · Seu contexto, conectado.</span><Link href="/documentacao#jornal">Fontes e recebimento →</Link><span>Arquivo segue a retenção operacional de 30 dias após o recebimento.</span></footer>
@@ -86,4 +87,4 @@ function JournalArticleCard({ article }: { article: JournalArticle }) {
     {!!article.fontes.length && <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-accent">{article.fontes.map((source, index) => <li key={index}><a href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">{source.titulo}<ArrowUpRight className="size-3" /></a></li>)}</ul>}
   </article>;
 }
-function PulseLoading({ title }: { title: string }) { return <div role="status" aria-label={title} className="loading-shimmer min-h-56 rounded-2xl border border-border p-6"><p className="text-xs text-muted">{title}…</p></div>; }
+function PulseLoading({ title }: { title: string }) { return <div role="status" aria-label={title} className="loading-shimmer min-h-20 border-t border-border py-3"><p className="text-xs text-muted">{title}…</p></div>; }

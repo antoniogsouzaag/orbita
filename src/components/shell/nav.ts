@@ -1,6 +1,6 @@
 import {
   BarChart3, BookOpen, Bot, Briefcase, Building2, CalendarDays, CheckSquare, Dumbbell, FolderKanban, Gauge, Goal, Home, GitFork,
-  LibraryBig, MessageSquareText, Newspaper, NotebookPen, Plug, Repeat, Settings, Sparkles, Timer, User, Wallet, Workflow, type LucideIcon,
+  LibraryBig, MessageSquareText, NotebookPen, Plug, Repeat, Settings, Sparkles, Timer, User, Wallet, Workflow, type LucideIcon,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; dock?: boolean; keywords?: string };
@@ -47,7 +47,6 @@ export const SPACES: Record<Space, { label: string; icon: LucideIcon; home: stri
         label: "AG LABS",
         items: [
           { href: "/empresa", label: "Visão geral", icon: Building2, dock: true, keywords: "empresa aguardando aprovação" },
-          { href: "/jornal", label: "Jornal", icon: Newspaper, keywords: "bom dia notícias IA resumos triagem emails radar" },
           { href: "/tarefas?escopo=empresa", label: "Tarefas", icon: CheckSquare, dock: true, keywords: "tarefas da empresa" },
           { href: "/propostas", label: "Propostas", icon: MessageSquareText, keywords: "decisões respostas aguardando agentes continuidade" },
           { href: "/empresa/negocios", label: "Negócios", icon: Building2, keywords: "produtos barberias members mecard viajeki" },
