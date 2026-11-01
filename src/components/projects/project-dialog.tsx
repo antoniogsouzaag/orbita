@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 
 import * as React from "react";
 import { toast } from "sonner";
@@ -45,7 +46,7 @@ export function ProjectDialog({ open, onOpenChange, project, scope = projectScop
           )}
           <div className="flex items-center gap-2">
             {project && (
-              <Button type="button" variant="danger" onClick={() => start(async () => { if (!confirm("Excluir o projeto? As tarefas ficam sem projeto.")) return; await deleteProject(project.id); onOpenChange(false); })}>Excluir</Button>
+              <Button type="button" variant="danger" onClick={() => start(async () => { if (!await confirmAction("Excluir o projeto? As tarefas ficam sem projeto.")) return; await deleteProject(project.id); onOpenChange(false); })}>Excluir</Button>
             )}
             <Button variant="primary" className="ml-auto" disabled={pending}>Salvar</Button>
           </div>

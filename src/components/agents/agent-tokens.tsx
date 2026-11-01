@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 
 import { KeyRound, Plus, ShieldOff } from "lucide-react";
 import * as React from "react";
@@ -132,8 +133,8 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
                   size="sm"
                   variant="danger"
                   disabled={pending}
-                  onClick={() => {
-                    if (!confirm(`Revogar o acesso de ${t.name}? O agente perde a conexão na hora.`)) return;
+                  onClick={async () => {
+                    if (!await confirmAction(`Revogar o acesso de ${t.name}? O agente perde a conexão na hora.`)) return;
                     start(async () => {
                       await revokeAgentTokenAction(t.id);
                       toast.success(`Acesso de ${t.name} revogado`);

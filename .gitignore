@@ -22,6 +22,7 @@
 /build
 
 # misc
+/.claude/
 .DS_Store
 *.pem
 

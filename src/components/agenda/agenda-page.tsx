@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 
 import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -191,7 +192,7 @@ function EventDialog({ event, date, onClose }: { event: AgendaEvent | null; date
           <Field label="Cor"><ColorPicker value={f.color} onChange={(color) => setF({ ...f, color })} /></Field>
           {error && <p role="alert" className="rounded-xl bg-danger/10 p-3 text-xs text-danger">{error}</p>}
           <div className="flex gap-2">
-            {event && <Button type="button" variant="danger" disabled={pending} onClick={() => { if (!confirm(`Excluir “${event.title}”?`)) return; start(async () => { try { await deleteEvent(event.id); toast.success("Evento excluído"); onClose(); } catch (cause) { setError(errorMessage(cause)); } }); }}><Trash2 /> Excluir</Button>}
+            {event && <Button type="button" variant="danger" disabled={pending} onClick={async () => { if (!await confirmAction(`Excluir “${event.title}”?`)) return; start(async () => { try { await deleteEvent(event.id); toast.success("Evento excluído"); onClose(); } catch (cause) { setError(errorMessage(cause)); } }); }}><Trash2 /> Excluir</Button>}
             <Button type="button" variant="ghost" className="ml-auto" disabled={pending} onClick={onClose}>Cancelar</Button><Button variant="primary" disabled={pending}>{pending ? "Salvando…" : "Salvar"}</Button>
           </div>
         </form>}
@@ -216,7 +217,7 @@ function CalendarsPanel({ calendars, feedUrl }: { calendars: Calendar[]; feedUrl
               <input type="checkbox" checked={c.enabled} disabled={pending} onChange={(e) => run(() => updateCalendar(c.id, { enabled: e.target.checked }))} style={{ accentColor: c.color }} aria-label={`Mostrar ${c.name}`} />
               <span className="truncate">{c.name}</span>
               <button disabled={pending} onClick={() => run(async () => { const r = await resyncCalendar(c.id); if (r.error) toast.error(r.error); else toast.success(`${r.count} eventos sincronizados`); })} className="ml-auto rounded p-1 text-faint hover:text-fg disabled:opacity-40" aria-label={`Sincronizar ${c.name}`}><RefreshCw className={cn("size-3.5", pending && "animate-spin")} /></button>
-              <button disabled={pending} onClick={() => { if (confirm(`Remover a assinatura “${c.name}”? Os eventos desta origem sairão da agenda.`)) run(() => deleteCalendar(c.id)); }} className="rounded p-1 text-faint hover:text-danger disabled:opacity-40" aria-label={`Remover ${c.name}`}><Trash2 className="size-3.5" /></button>
+              <button disabled={pending} onClick={async () => { if (await confirmAction(`Remover a assinatura “${c.name}”? Os eventos desta origem sairão da agenda.`)) run(() => deleteCalendar(c.id)); }} className="rounded p-1 text-faint hover:text-danger disabled:opacity-40" aria-label={`Remover ${c.name}`}><Trash2 className="size-3.5" /></button>
             </div>
             <div className={cn("pl-6 text-[11px]", c.lastError ? "text-danger" : "text-faint")}>{c.lastError ? c.lastError : c.lastSyncedAt ? `Sincronizado ${new Date(c.lastSyncedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : "Nunca sincronizado"}</div>
           </div>

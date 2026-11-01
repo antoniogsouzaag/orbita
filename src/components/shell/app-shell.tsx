@@ -127,7 +127,7 @@ export function AppShell({
       if (!response.ok) throw new Error("notifications");
       const data = await response.json();
       if (data.scope !== space || !Array.isArray(data.items) || typeof data.checkedAt !== "string") throw new Error("notifications-response");
-      if (!request.controller.signal.aborted) setNoticeSnapshot({ scope: space, items: data.items, checkedAt: data.checkedAt, error: false });
+      if (!request.controller.signal.aborted) setNoticeSnapshot({ scope: space, items: data.items, checkedAt: data.checkedAt, error: data.feedbackUnavailable === true });
     }).catch(() => {
       if (!request.controller.signal.aborted) setNoticeSnapshot((previous) => previous.scope === space ? { ...previous, error: true } : { scope: space, items: [], checkedAt: null, error: true });
     }).finally(() => { if (refreshingNotices.current === request) refreshingNotices.current = null; });
@@ -289,7 +289,7 @@ function Sidebar({ open, pathname, name, avatar, onCollapse, onNavigate, onSearc
           <Settings className="size-4" /> Configurações
         </Link>
         <div className="mt-2 flex items-center gap-2.5 px-2">
-          <Avatar name={name} src={avatar} />
+          <UserMenu name={name} avatar={avatar} light={false} />
           <div className="min-w-0 flex-1 truncate text-[12.5px] font-medium">{name}</div><ThemeToggle />
         </div>
       </div>
@@ -391,7 +391,7 @@ function Notifications({ items, read, unread, open, onOpenChange, onRead, onRefr
         <Popover.Content align="end" sideOffset={8} className="z-50 w-[min(92vw,360px)] rounded-2xl border border-border-strong bg-surface p-2 shadow-soft animate-in">
           <div className="flex items-center gap-2 px-2 pb-2 pt-1 text-[13px] font-semibold">Notificações
             <button onClick={() => void onRefresh()} className="ml-auto rounded-lg p-1.5 text-muted hover:bg-surface-2" aria-label="Atualizar notificações"><RefreshCw className="size-3.5" /></button>
-            {unread > 0 && <button onClick={() => onRead(items.map((n) => n.id))} className="rounded-lg p-1.5 text-muted hover:bg-surface-2" aria-label="Marcar todas como lidas"><CheckCheck className="size-4" /></button>}
+            {unread > 0 && <button onClick={() => onRead(items.map((n) => n.id))} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted hover:bg-surface-2" aria-label="Limpar notificações"><CheckCheck className="size-4" />Limpar</button>}
           </div>
           {error && <p role="status" className="px-2 pb-2 text-xs text-warning">Não foi possível atualizar. Tente novamente.</p>}
           <NoticeList items={items} read={read} error={error} checkedAt={checkedAt} onPick={(id) => { onRead([id]); onOpenChange(false); }} />

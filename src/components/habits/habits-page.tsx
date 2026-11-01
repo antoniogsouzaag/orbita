@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 
 import { Flame, Pencil, Plus, Trophy } from "lucide-react";
 import * as React from "react";
@@ -160,7 +161,7 @@ function HabitDialog({ open, onOpenChange, habit, existingNames }: { open: boole
           )}
           <Field label="Cor"><ColorPicker value={f.color} onChange={(color) => setF({ ...f, color })} /></Field>
           <div className="flex gap-2">
-            {habit && <Button type="button" variant="danger" onClick={() => start(async () => { if (!confirm("Excluir o hábito e todo o histórico?")) return; await deleteHabit(habit.id); onOpenChange(false); })}>Excluir</Button>}
+            {habit && <Button type="button" variant="danger" onClick={() => start(async () => { if (!await confirmAction("Excluir o hábito e todo o histórico?")) return; await deleteHabit(habit.id); onOpenChange(false); })}>Excluir</Button>}
             {habit && <Button type="button" variant="ghost" onClick={() => start(async () => { await saveHabit(habit.id, { name: habit.name, archived: true }); onOpenChange(false); })}>Arquivar</Button>}
             <Button variant="primary" className="ml-auto" disabled={pending}>Salvar</Button>
           </div>

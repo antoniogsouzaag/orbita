@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 
 import { CalendarDays, Goal as GoalIcon, Minus, Pencil, Plus, Trophy } from "lucide-react";
 import Link from "next/link";
@@ -145,7 +146,7 @@ function GoalDialog({ open, onOpenChange, goal, defaultArea }: { open: boolean; 
           </div>
           <Field label="Cor"><ColorPicker value={f.color} onChange={(color) => setF({ ...f, color })} /></Field>
           <div className="flex gap-2">
-            {goal && <Button type="button" variant="danger" disabled={pending} onClick={() => start(async () => { if (!confirm("Excluir a meta?")) return; try { await deleteGoal(goal.id); onOpenChange(false); } catch { toast.error("Não foi possível excluir a meta. Tente novamente."); } })}>Excluir</Button>}
+            {goal && <Button type="button" variant="danger" disabled={pending} onClick={() => start(async () => { if (!await confirmAction("Excluir a meta?")) return; try { await deleteGoal(goal.id); onOpenChange(false); } catch { toast.error("Não foi possível excluir a meta. Tente novamente."); } })}>Excluir</Button>}
             <Button variant="primary" className="ml-auto" disabled={pending}>Salvar</Button>
           </div>
         </form>

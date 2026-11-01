@@ -1,11 +1,14 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 
-import { Trash2, X } from "lucide-react";
+import { PencilLine, Trash2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Dialog as D } from "radix-ui";
 import * as React from "react";
 import { toast } from "sonner";
 import { createTask, deleteTask, toggleTask, updateTask } from "@/app/actions/core";
+import { MarkdownView } from "@/components/markdown/view";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { CheckButton, Segmented } from "@/components/ui/misc";
@@ -20,6 +23,7 @@ export type TaskDetailData = TaskRow & { children: Task[] };
 
 export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose }: { task: TaskDetailData; projects: { id: string; name: string; color: string }[]; assignees?: string[]; onClose: () => void }) {
   const router = useRouter();
+  const [editing, setEditing] = React.useState(false);
   const [title, setTitle] = React.useState(task.title);
   const [notes, setNotes] = React.useState(task.notes ?? "");
   const [tags, setTags] = React.useState(task.tags.join(", "));
@@ -33,6 +37,26 @@ export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose }
     catch { toast.error("Não foi possível salvar. Confira o espaço e o projeto da tarefa."); }
   });
 
+  if (!editing) return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent title={task.title} description="Visualização da tarefa" wide>
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted">
+          <span>{task.status === "done" ? "Concluída" : task.status === "doing" ? "Em andamento" : "A fazer"}</span>
+          {task.project && <span>· {task.project.name}</span>}
+          {task.dueDate && <span>· {task.dueDate.split("-").reverse().join("/")}{task.dueTime && ` às ${task.dueTime}`}</span>}
+          {task.assignee && <AssigneeBadge task={task} />}
+        </div>
+        {task.tags.length > 0 && <div className="mb-4 flex max-h-24 flex-wrap gap-1 overflow-y-auto text-xs text-accent">{task.tags.map(tag => <span key={tag} className="max-w-full break-all rounded bg-surface-2 px-2 py-1">#{tag}</span>)}</div>}
+        <div className="break-words">{task.notes ? <MarkdownView content={task.notes} /> : <p className="text-sm text-muted">Sem notas nesta tarefa.</p>}</div>
+        {task.children.length > 0 && <div className="mt-5 space-y-2"><h3 className="text-sm font-medium">Subtarefas</h3>{task.children.map(child => <div key={child.id} className="flex items-center gap-2"><CheckButton checked={child.status === "done"} label="Concluir subtarefa" onToggle={() => start(() => toggleTask(child.id))} /><span className={cn("text-sm", child.status === "done" && "line-through text-muted")}>{child.title}</span></div>)}</div>}
+        <div className="mt-5 flex gap-2 border-t border-border pt-4">
+          <Button size="sm" onClick={() => setEditing(true)}><PencilLine />Editar tarefa</Button>
+          <Button size="sm" variant="ghost" onClick={() => start(() => toggleTask(task.id))}>{task.status === "done" ? "Reabrir" : "Concluir"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   return (
     <D.Root open onOpenChange={(o) => !o && onClose()}>
       <D.Portal>
@@ -45,7 +69,7 @@ export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose }
             <button
               onClick={() =>
                 start(async () => {
-                  if (!confirm("Excluir esta tarefa?")) return;
+                  if (!await confirmAction("Excluir esta tarefa?")) return;
                   await deleteTask(task.id);
                   toast.success("Tarefa excluída");
                   onClose();

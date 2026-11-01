@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 
 import { Archive, ArchiveRestore, Eye, NotebookPen, PencilLine, Pin, PinOff, Plus, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -126,7 +127,7 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
                   router.refresh();
                 } catch { toast.error("Não foi possível atualizar o arquivo da nota."); }
               })} aria-label={selected.tags.includes(ARCHIVED_NOTE_TAG) ? "Restaurar nota" : "Arquivar nota"}>{selected.tags.includes(ARCHIVED_NOTE_TAG) ? <ArchiveRestore /> : <Archive />}</Button>
-              <Button size="icon-sm" variant="ghost" onClick={() => start(async () => { if (!confirm("Excluir nota?")) return; await deleteNote(selected.id, scope); toast.success("Nota excluída"); router.push(href(undefined, archived)); })} aria-label="Excluir"><Trash2 /></Button>
+              <Button size="icon-sm" variant="ghost" onClick={() => start(async () => { if (!await confirmAction("Excluir nota?")) return; await deleteNote(selected.id, scope); toast.success("Nota excluída"); router.push(href(undefined, archived)); })} aria-label="Excluir"><Trash2 /></Button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-8">

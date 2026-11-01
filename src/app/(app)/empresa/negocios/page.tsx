@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Building2, BookOpen } from "lucide-react";
+import { ArrowUpRight, Building2, BookOpen, MessageSquareHeart } from "lucide-react";
 import { ProductPortfolio } from "@/components/empresa/product-portfolio";
 import { PageHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { BARBERIAS } from "@/lib/business";
 import { appRegistry } from "@/server/ops";
 
@@ -11,7 +12,7 @@ export const metadata = { title: "Negócios" };
 export default function Page() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 sm:px-6">
-      <PageHeader icon={<Building2 />} title="Negócios" description="Aplicativos, indicadores e próximas decisões." />
+      <PageHeader icon={<Building2 />} title="Negócios" description="Aplicativos, indicadores e próximas decisões." actions={<Button asChild size="sm"><Link href="/empresa/feedback"><MessageSquareHeart />Feedback</Link></Button>} />
       <Suspense fallback={<PortfolioLoading />}><ProductPortfolio /></Suspense>
       <Suspense fallback={null}><DocumentedApps /></Suspense>
     </div>

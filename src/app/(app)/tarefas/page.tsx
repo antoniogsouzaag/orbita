@@ -20,21 +20,18 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const view = (VALID.includes(sp.view as TaskView) ? sp.view : "todas") as TaskView;
   const scope = taskScope(sp.escopo);
   const kanban = sp.modo === "kanban";
-  const [tasks, projects, tags, counts, detail, hoje, prox, sem, assignees] = await Promise.all([
+  const [tasks, projects, tags, counts, detail, assignees, done] = await Promise.all([
     listTasks({ view, projectId: sp.project, tag: sp.tag, scope }),
     listProjects(false, scope),
     allTags(scope),
     taskCounts(scope),
     sp.task ? getTask(sp.task, scope) : Promise.resolve(null),
-    listTasks({ view: "hoje", scope }),
-    listTasks({ view: "proximos", scope }),
-    listTasks({ view: "semdata", scope }),
     assigneeOptions(),
+    kanban && view === "todas" ? listTasks({ view: "concluidas", projectId: sp.project, tag: sp.tag, scope, limit: 30 }) : Promise.resolve([]),
   ]);
   const title = scope === "empresa" ? "Tarefas da empresa" : "Tarefas pessoais";
   const icon = scope === "empresa" ? <Briefcase /> : <User />;
   const projectId = projects.some((p) => p.id === sp.project) ? sp.project : undefined;
-  const done = kanban && view === "todas" ? await listTasks({ view: "concluidas", projectId, tag: sp.tag, scope, limit: 30 }) : [];
   const modeHref = (mode: string, project: string | null | undefined = sp.project) => {
     const query = new URLSearchParams(Object.entries(sp).filter((entry): entry is [string, string] => entry[1] !== undefined));
     query.set("modo", mode);
@@ -49,7 +46,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         scope={scope}
         tasks={tasks}
         view={view}
-        counts={{ hoje: hoje.length, proximos: prox.length, atrasadas: counts.overdue, semdata: sem.length, andamento: counts.doing, todas: counts.open }}
+        counts={{ hoje: counts.today + counts.overdue, proximos: counts.upcoming, atrasadas: counts.overdue, semdata: counts.undated, andamento: counts.doing, todas: counts.open }}
         assignees={assignees}
         projects={projects.map((p) => ({ id: p.id, name: p.name, color: p.color }))}
         tags={tags}

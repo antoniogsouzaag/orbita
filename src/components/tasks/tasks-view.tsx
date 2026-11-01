@@ -82,6 +82,7 @@ export function TasksView({
   const pathname = usePathname();
   const params = useSearchParams();
   const [value, setValue] = React.useState("");
+  const [tagQuery, setTagQuery] = React.useState("");
   const [optimistic, toggle] = React.useOptimistic(tasks, (state, id: string) => state.map((t) => (t.id === id ? { ...t, status: t.status === "done" ? "todo" : "done" } : t)) as TaskRow[]);
   const [pending, start] = React.useTransition();
 
@@ -125,9 +126,11 @@ export function TasksView({
           {tags && tags.length > 0 && (
             <div className="hidden lg:block">
               <div className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-faint">Tags</div>
-              <div className="flex flex-wrap gap-1 px-2">
-                {tags.map((t) => (
-                  <Link key={t} href={href({ tag: activeTag === t ? null : t, task: null })} className={cn("flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[12px]", activeTag === t ? "bg-accent text-accent-fg" : "bg-surface-2 text-muted hover:text-fg")}>
+              <Input aria-label="Buscar tags" placeholder="Buscar tag…" value={tagQuery} onChange={(e) => setTagQuery(e.target.value)} className="mb-2 h-8" />
+              {activeTag && <Link href={href({ tag: null, task: null })} className="mb-2 block truncate px-2 text-xs text-accent">#{activeTag} · limpar filtro</Link>}
+              <div role="region" aria-label="Tags das tarefas" tabIndex={0} className="flex max-h-48 flex-wrap gap-1 overflow-y-auto px-2">
+                {tags.filter(t => t.toLowerCase().includes(tagQuery.toLowerCase())).map((t) => (
+                  <Link key={t} href={href({ tag: activeTag === t ? null : t, task: null })} className={cn("flex max-w-full items-center gap-0.5 break-all rounded-md px-1.5 py-0.5 text-[12px]", activeTag === t ? "bg-accent text-accent-fg" : "bg-surface-2 text-muted hover:text-fg")}>
                     <Hash className="size-3" />{t}
                   </Link>
                 ))}
