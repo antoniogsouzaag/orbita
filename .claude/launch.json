@@ -1,0 +1,1 @@
+{ "version": "0.0.1", "configurations": [ { "name": "orbita-dev", "runtimeExecutable": "npx", "runtimeArgs": ["next","dev","-p","3100"], "port": 3100, "env": { "ORBITA_PASSWORD": "F0X5BVV9cXH8", "SESSION_SECRET": "db1ebc5822433aad51b6e5c3cdd2f12ad2e1e30a7827714188a2716ca4ba6945" } } ] }
