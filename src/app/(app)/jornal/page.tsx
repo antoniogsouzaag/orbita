@@ -9,7 +9,7 @@ import { formatLong, localTime, shiftDate, today } from "@/lib/dates";
 import { journalFeed } from "@/server/journal";
 import { JournalArticleBody } from "@/components/journal/article-body";
 import { JournalDailyContext } from "@/components/journal/daily-context";
-import { JournalCommercialPulse, JournalProductPulse } from "@/components/journal/business-pulse";
+import { JournalProductPulse } from "@/components/journal/business-pulse";
 import { EditionPicker } from "@/components/journal/edition-picker";
 import styles from "./journal.module.css";
 
@@ -46,7 +46,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
       <div className={styles.heroContent}>
         <p className={styles.eyebrow}><span className={styles.liveDot} />{current ? "Edição em atualização" : "Arquivo editorial"} <span className="opacity-40">/</span> AG LABS</p>
         <h1 id="journal-title">Seu dia, <em>em perspectiva.</em></h1>
-        <p className={styles.heroDescription}>O essencial da sua operação, as ideias que merecem atenção e os próximos movimentos. Tudo encontra seu lugar aqui.</p>
+        <p className={styles.heroDescription}>O que mudou hoje, o que precisa de você e as notícias que merecem atenção.</p>
         <div className={styles.heroFooter}><span>Jornal da Órbita</span><span>{edition.unavailable ? "Consulta indisponível" : `${edition.articles.length}${edition.parcial ? "+" : ""} matérias recebidas`} · {current ? "ao longo do dia" : "nesta edição"}</span></div>
       </div>
     </section>
@@ -56,7 +56,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
         <div className={styles.sectionHeading}><div><p className={styles.kicker}>Informação que vira contexto</p><h2>Em pauta</h2></div><span className="text-[11px] text-faint">Recebido até {localTime(new Date(edition.consultadoEm))}</span></div>
         <nav aria-label="Editorias do Jornal" className={styles.sections}>
           <Link href={href()} aria-current={!section ? "page" : undefined}>Tudo <span>{edition.articles.length}</span></Link>
-          {Object.entries(JOURNAL_SECTIONS).map(([key, name]) => <Link key={key} href={href(key)} aria-current={section === key ? "page" : undefined}>{name}<span>{edition.articles.filter(article => article.secao === key).length}</span></Link>)}
+          {Object.entries(JOURNAL_SECTIONS).filter(([key]) => key === section || edition.articles.some(article => article.secao === key)).map(([key, name]) => <Link key={key} href={href(key)} aria-current={section === key ? "page" : undefined}>{name}<span>{edition.articles.filter(article => article.secao === key).length}</span></Link>)}
         </nav>
         {edition.parcial && <p role="status" className="mb-4 rounded-xl border border-warning/20 bg-warning/5 p-3 text-xs text-warning">{edition.unavailable ? "Não foi possível consultar as matérias. Tente atualizar a página; não foi presumida uma edição vazia." : "Amostra limitada às 120 matérias mais recentes; registros incompatíveis não foram exibidos."}</p>}
         {!articles.length && !edition.unavailable && <div className={styles.empty}><Radio className="size-7 text-accent" /><h3>{filtered.length ? "Fim desta seleção" : section ? `O ${JOURNAL_SECTIONS[section].toLowerCase()} ainda está em silêncio.` : "Seu radar começa aqui."}</h3><p>{filtered.length ? "Volte à primeira página para ler as matérias recebidas." : "As notícias e os resumos enviados pelas suas rotinas aparecerão nesta edição, com autoria, data e fontes. Nada recebido ainda não significa que a rotina foi executada."}</p><Link href={filtered.length ? href(section) : "/documentacao#jornal"}>{filtered.length ? "Primeira página" : "Como alimentar o Jornal"}<ArrowUpRight className="size-3.5" /></Link></div>}
@@ -65,11 +65,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
         <div className={styles.editorNote}><BookOpen className="size-5 shrink-0" /><div><h3>Boa informação também tem origem.</h3><p>As matérias são relatos das rotinas e dos agentes. Fontes permitem conferir o contexto; destaque editorial não é validação independente nem autorização para executar ações.</p></div></div>
       </section>
       <aside aria-label="Contexto dos negócios" className="min-w-0 space-y-4">
-        <section className="border-t border-border py-3" aria-labelledby="journal-receipts"><p className={styles.kicker}>Recebimentos da edição</p><h2 id="journal-receipts" className="mt-1 text-sm font-semibold">Seu radar, com origem</h2><div className="mt-2 space-y-2">{(["ia", "emails"] as const).map(key => {
-          const items = edition.articles.filter(article => article.secao === key && !article.legado);
-          return <div key={key}><p className="text-xs font-medium">{JOURNAL_SECTIONS[key]}</p><p className="mt-1 text-[11px] text-muted">{edition.unavailable ? "Consulta indisponível" : items.length ? `${items.length} matéria(s) · última às ${localTime(new Date(items[0].recebidoEm))} · ${items[0].autor}` : "Ainda sem matéria recebida nesta edição"}</p></div>;
-        })}</div><p className="mt-2 text-[10px] leading-relaxed text-faint">Recebimento confirma uma remessa. Não comprova que toda a pesquisa ou caixa foi coberta.</p></section>
-        {current && <><Suspense fallback={<PulseLoading title="Consultando sinais comerciais" />}><JournalCommercialPulse /></Suspense><Suspense fallback={<PulseLoading title="Consultando aplicativos" />}><JournalProductPulse /></Suspense></>}
+        {current && <><Suspense fallback={<PulseLoading title="Consultando aplicativos" />}><JournalProductPulse /></Suspense></>}
 
       </aside>
     </div>

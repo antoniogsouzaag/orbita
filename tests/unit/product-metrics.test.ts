@@ -56,3 +56,11 @@ describe("modelos de negócio no contrato", () => {
     expect(() => validateProductMetrics({ ...raw, commerceFunnel: { ...raw.commerceFunnel, provisionedPurchases: 2 } }, "vibekit", Date.parse(members.generatedAt))).toThrow();
   });
 });
+
+it("valida e projeta contadores diários explícitos sem campos privados", () => {
+  const daily = { date: "2026-10-24", timeZone: "America/Sao_Paulo", from: "2026-10-24T03:00:00.000Z", to: raw.generatedAt, newUsers: 2, sales: 0, email: "private@example.test" };
+  const data = validateProductMetrics({ ...raw, daily }, "barberias");
+  expect(data.daily).toMatchObject({ newUsers: 2, sales: 0 });
+  expect(JSON.stringify(data.daily)).not.toContain("private");
+  for (const patch of [{ date: "2026-10-23" }, { from: "2026-10-01T03:00:00.000Z" }, { newUsers: 11 }, { sales: -1 }, { to: "2026-10-24T13:00:00Z" }]) expect(() => validateProductMetrics({ ...raw, daily: { ...daily, ...patch } }, "barberias")).toThrow();
+});

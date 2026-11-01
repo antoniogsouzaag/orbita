@@ -38,7 +38,7 @@ O Jornal é privado e reúne matérias recebidas; não executa rotinas. A págin
 
 Claude pode enviar a pesquisa de IA na seção ia; a triagem de infraestrutura do OpenClaw usa emails. São remessas distintas do suporte Maia e do registro de envios do CRM. Sem matéria recebida não há prova de que uma rotina executou, falhou ou leu toda a caixa.
 
-O bom dia traz só destaques e um link, com limite fixo. A página de hoje consulta indicadores ao vivo; edições anteriores mostram o arquivo editorial, sem reconstruir indicadores históricos. Não há snapshot diário de vendas/usuários por inferência. Matérias seguem a retenção operacional já existente (30 dias após recebimento), inclusive a janela do recibo idempotente. Para corrigir uma matéria, envie outro UUID com a referência ao registro anterior; não há sobrescrita silenciosa.
+O bom dia traz só destaques e um link, com limite fixo. A página de hoje mostra mudanças operacionais, pendências identificadas e agregados diários explícitos enviados pelos aplicativos via CRM, apenas quando positivos. Edições anteriores mostram o arquivo editorial, sem reconstruir indicadores históricos. Nunca se deduzem usuários ou vendas do dia a partir de totais mensais. Matérias seguem a retenção operacional já existente (30 dias após recebimento), inclusive a janela do recibo idempotente. Para corrigir uma matéria, envie outro UUID com a referência ao registro anterior; não há sobrescrita silenciosa.
 
 registrar_evento continua compatível para relatos operacionais; resumos legados aparecem identificados, sem classificação presumida. enviar_materia_jornal não envia Telegram, e-mail ou publicações e não inicia campanhas, cadências ou agentes.`;
 

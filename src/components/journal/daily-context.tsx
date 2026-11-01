@@ -1,41 +1,40 @@
 import Link from "next/link";
-import { CalendarDays, CheckCheck, Radar } from "lucide-react";
 import { ANSWERED_TAG } from "@/lib/proposals";
 import { localTime, shiftDate, today, zonedToUtc } from "@/lib/dates";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
+import { opsEventLabel } from "@/lib/ops-events";
 import { eventsBetween } from "@/server/calendar";
 import { listTasks } from "@/server/tasks";
 import { liveOps } from "@/server/ops-live";
 
 export async function JournalDailyContext() {
   const date = today();
+  const start = zonedToUtc(date).getTime();
+  const end = zonedToUtc(shiftDate(date, 1)).getTime();
+  const isToday = (at: Date) => at.getTime() >= start && at.getTime() < end;
   const [events, personal, business, live] = await Promise.all([
-    eventsBetween(zonedToUtc(date), zonedToUtc(shiftDate(date, 1))),
+    eventsBetween(new Date(start), new Date(end)),
     listTasks({ scope: "pessoal", view: "hoje", limit: 30 }),
     listTasks({ scope: "empresa", view: "hoje", limit: 30 }), liveOps(),
   ]);
   const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
-  const alerts = live.events.filter(event => !event.resolvedAt && event.severity !== "info");
-  const due = business.filter(task => !task.tags.includes(ANSWERED_TAG));
-  const attention = snapshot.down.length + snapshot.stale.length + live.monitors.filter(monitor => monitor.silent).length + alerts.filter(event => event.kind !== "site_down").length;
-  return <section aria-label="Sua pauta de hoje" className="grid gap-x-5 divide-y divide-border border-y border-border sm:grid-cols-3 sm:divide-y-0">
-    <div className="py-3">
-      <p className="flex items-center gap-2 text-xs font-medium text-muted"><CalendarDays className="size-4" />Na sua agenda</p>
-      <p className="my-1 text-lg font-semibold tracking-tight">{events.length} <span className="text-xs font-normal text-muted">compromisso{events.length === 1 ? "" : "s"}</span></p>
-      <ul className="space-y-2 text-xs text-muted">{events.slice(0, 2).map(event => <li key={event.id}><span className="mr-2 text-fg">{event.allDay ? "Dia todo" : localTime(event.startAt)}</span>{event.title}</li>)}</ul>
-      <Link href="/agenda" className="mt-2 inline-block text-xs text-accent">Ver agenda →</Link>
-    </div>
-    <div className="py-3">
-      <p className="flex items-center gap-2 text-xs font-medium text-muted"><CheckCheck className="size-4" />O que pede sua atenção</p>
-      <p className="my-1 text-lg font-semibold tracking-tight">{personal.length + due.length}{personal.length === 30 || business.length === 30 ? "+" : ""} <span className="text-xs font-normal text-muted">tarefas devidas</span></p>
-      <p className="text-xs text-muted">{personal.length} pessoais · {due.length} da empresa{personal.length === 30 || business.length === 30 ? " · consulta limitada" : ""}</p>
-      <div className="mt-2 flex gap-4 text-xs text-accent"><Link href="/tarefas?view=hoje">Pessoal →</Link><Link href="/tarefas?escopo=empresa&view=hoje">Empresa →</Link></div>
-    </div>
-    <div className="py-3">
-      <p className="flex items-center gap-2 text-xs font-medium text-muted"><Radar className="size-4" />Pulso da operação</p>
-      <p className={`my-1 text-lg font-semibold tracking-tight ${attention ? "text-warning" : ""}`}>{!live.status.length ? "Sem cobertura" : attention ? `${attention} sinais` : "Em dia"}</p>
-      <p className="text-xs leading-relaxed text-muted">{snapshot.up.length}/{live.status.length} endereços com verificação recente e no ar. Alertas refletem a amostra operacional.</p>
-      <Link href="/operacao" className="mt-2 inline-block text-xs text-accent">Abrir operação →</Link>
-    </div>
+  const tasks = [...personal.map(task => ({ ...task, scope: "pessoal" })), ...business.map(task => ({ ...task, scope: "empresa" }))].filter(task => !task.tags.includes(ANSWERED_TAG));
+  const alerts = live.events.filter(event => !event.resolvedAt && event.severity !== "info" && event.kind !== "site_down");
+  // A recovery is one story, rather than a second copy of the original failure.
+  const recovered = live.events.filter(event => event.kind === "site_up" && isToday(event.createdAt));
+  const resolved = live.events.filter(event => event.kind !== "site_down" && event.severity !== "info" && event.resolvedAt && isToday(event.resolvedAt));
+  const silent = live.monitors.filter(monitor => monitor.silent);
+  if (!events.length && !tasks.length && !alerts.length && !recovered.length && !resolved.length && !snapshot.down.length && !snapshot.stale.length && !silent.length) return null;
+  return <section aria-label="O que importa hoje" className="my-5 space-y-4 border-y border-border py-4">
+    <h2 className="text-sm font-semibold">O que importa hoje</h2>
+    {!!(alerts.length || snapshot.down.length || snapshot.stale.length || silent.length) && <div><h3 className="mb-2 text-xs font-medium text-warning">Precisa de atenção</h3><ul className="space-y-3 text-sm">
+      {alerts.map(event => <li key={event.id}><Link className="text-accent hover:underline" href={`/operacao#evento-${event.id}`}>{event.subject} →</Link><p className="mt-1 text-xs text-muted">{event.kind.startsWith("agente_") ? "Alerta de agente" : opsEventLabel(event.kind)} · {event.source} · aberto em {event.createdAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}. Sem resolução registrada.</p></li>)}
+      {snapshot.down.map(site => <li key={site.url}><Link href="/operacao#disponibilidade" className="text-accent">{site.name}: endereço com falha →</Link></li>)}
+      {snapshot.stale.map(site => <li key={site.url}><Link href="/operacao#disponibilidade" className="text-accent">{site.name}: verificação desatualizada →</Link></li>)}
+      {silent.map(monitor => <li key={monitor.source}><Link href="/operacao/automacoes" className="text-accent">{monitor.label}: coleta sem atualização →</Link></li>)}
+    </ul></div>}
+    {!!(recovered.length || resolved.length) && <div><h3 className="mb-2 text-xs font-medium">Resolvido hoje</h3><ul className="space-y-2 text-sm">{recovered.map(event => <li key={event.id}><Link href={`/operacao#evento-${event.id}`} className="text-accent">{event.subject}: houve uma falha e o endereço voltou ao ar às {localTime(event.createdAt)} →</Link></li>)}{resolved.map(event => <li key={event.id}><Link href={`/operacao#evento-${event.id}`} className="text-accent">{event.subject}: resolução registrada às {localTime(event.resolvedAt!)} →</Link>{typeof event.detail.resolution === "string" && <p className="mt-1 text-xs text-muted">{event.detail.resolution}</p>}</li>)}</ul></div>}
+    {!!tasks.length && <div><h3 className="mb-2 text-xs font-medium">Para você decidir ou fazer</h3><ul className="space-y-2 text-sm">{tasks.map(task => <li key={task.id}><Link className="text-accent hover:underline" href={`/tarefas?escopo=${task.scope}&view=hoje&task=${task.id}`}>{task.title} →</Link><span className="ml-2 text-xs text-muted">{task.scope === "empresa" ? "Empresa" : "Pessoal"}{task.dueDate && task.dueDate < date ? " · atrasada" : ""}{task.dueTime ? ` · ${task.dueTime}` : ""}</span></li>)}</ul>{(personal.length === 30 || business.length === 30) && <p className="mt-2 text-xs text-muted">Seleção limitada. <Link href="/tarefas" className="text-accent">Ver todas as tarefas →</Link></p>}</div>}
+    {!!events.length && <div><h3 className="mb-2 text-xs font-medium">Compromissos de hoje</h3><ul className="space-y-2 text-sm">{events.map(event => <li key={event.id}><Link href="/agenda" className="text-accent">{event.allDay ? "Dia todo" : localTime(event.startAt)} · {event.title} →</Link></li>)}</ul></div>}
   </section>;
 }

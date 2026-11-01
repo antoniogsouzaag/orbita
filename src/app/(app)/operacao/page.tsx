@@ -191,7 +191,7 @@ export default async function Page() {
             const st = EVENT_STYLE[e.kind] ?? { icon: Activity, tone: "text-muted", label: e.kind };
             const d = e.detail as { url?: string; message?: string; node?: string; executionUrl?: string; error?: string; status?: number };
             return (
-              <li key={e.id} className="flex gap-2.5 rounded-lg px-2 py-1.5 hover:bg-surface-2">
+              <li id={`evento-${e.id}`} key={e.id} className="scroll-mt-24 target:bg-accent/10 flex gap-2.5 rounded-lg px-2 py-1.5 hover:bg-surface-2">
                 <st.icon className={cn("mt-0.5 size-3.5 shrink-0", st.tone)} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2 text-[12.5px]"><span className="truncate font-medium">{e.subject}</span>{e.resolvedAt && <span className="shrink-0 text-[11px] text-faint">resolvido</span>}{e.source.startsWith("agente:") && <Link href={`/agentes/${e.source.slice(7)}`} className="shrink-0 text-[11px] text-accent hover:underline">{String((e.detail as { agent?: string }).agent ?? e.source.slice(7))} ↗</Link>}</div>

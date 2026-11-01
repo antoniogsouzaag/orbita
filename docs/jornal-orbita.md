@@ -71,3 +71,13 @@ Anotações de leitura/escrita do vault e registro de eventos foram alinhadas. E
 6. Revisão periódica de qualidade: comparar relatórios com fontes, medir latência, rever pendências já resolvidas e registrar somente decisões duráveis no vault. Cadência e execução de agentes permanecem nos runtimes existentes; esta entrega não cria automação recorrente ou amplia autonomia.
 
 As fichas consultadas distinguem suporte Maia, triagem da caixa empresarial e CRM. A nota de suporte por e-mail ainda descreve alerta de workflow por WhatsApp, enquanto o inventário descreve Telegram e Órbita; confirmar o fluxo real antes de atualizar a afirmação de canal. Não tomar uma nota antiga como prova de entrega.
+
+## Revisão editorial diária — 01/11/2026
+
+O Jornal deixou de repetir totais mensais, funil comercial, contagens de disponibilidade e cartões zerados. A pauta mostra compromissos e tarefas pelos títulos, alertas abertos com origem/data e link para o evento, e retornos ao ar ocorridos no dia. Alertas antigos continuam visíveis até resolução registrada. Recuperação não é exibida novamente como queda pendente. A listagem operacional continua sendo uma amostra limitada, não o histórico integral.
+
+O contrato administrativo aceita `daily` opcional: `{ date: "YYYY-MM-DD", timeZone: "America/Sao_Paulo", from: ISO, to: ISO, newUsers: number | null, sales: number | null }`. `from` deve ser meia-noite de São Paulo e `to` deve corresponder a `generatedAt`, dentro do mesmo dia. `newUsers` significa contas cadastradas no período; `sales` significa vendas confirmadas na origem, excluindo canceladas/estornadas. Zero, ausência de cobertura, snapshot antigo e janela mensal não geram notícia. Não se calcula crescimento diário pela diferença de snapshots mensais.
+
+Os produtores atuais ainda precisam fornecer esse agregado diário; a compatibilidade no consumidor não comprova implantação na origem. Até lá, os números mensais ficam exclusivamente nos painéis de negócios. A mudança não publica matérias nem altera rotinas ou envia mensagens.
+
+A evolução dos produtores e o mapa de fontes diárias estão em [jornal-dados-diarios-2026-11-01.md](./jornal-dados-diarios-2026-11-01.md). O campo opcional `registeredPurchases` mantém a descrição de compras registradas quando não há reconciliação de estornos, sem promover esse número a vendas líquidas.
