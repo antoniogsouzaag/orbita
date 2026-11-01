@@ -2,7 +2,7 @@
 
 ## Leitura e bom dia
 
-Página privada `/jornal`, no espaço Empresa; sessão do proprietário obrigatória, sem link público ou novo compartilhamento. Edições usam data de São Paulo, com navegação dos últimos 30 dias. A edição de hoje reúne pauta pessoal/empresarial, operação, matérias e consultas comerciais; dias anteriores mostram somente o arquivo editorial. Não há reconstrução de receita ou usuários históricos por inferência.
+Página privada `/jornal`, no espaço Empresa; sessão do proprietário obrigatória, sem link público ou novo compartilhamento. A leitura usa layout compacto sem topo e sidebar, preservando o dock. O acesso fica no bom dia e no menu da conta (avatar ou nome na sidebar), sem item próprio na sidebar. A data muda diretamente pelo seletor, sem botão de recarga. A identificação local é Rio Verde–GO; datas usam o fuso IANA `America/Sao_Paulo`, também válido para Rio Verde, com navegação dos últimos 30 dias. A edição de hoje reúne pauta pessoal/empresarial, operação, matérias e consultas comerciais; dias anteriores mostram somente o arquivo editorial. Não há reconstrução de receita ou usuários históricos por inferência.
 
 O bom dia já agendado passa a enviar um texto único com orçamento de 1900 caracteres de HTML, priorizando exceções operacionais e mantendo o link datado para a edição. Mesmo sem trabalho devido há um convite curto para o Jornal. Não foi criado outro agendador nem disparado Telegram para testar a mudança.
 
