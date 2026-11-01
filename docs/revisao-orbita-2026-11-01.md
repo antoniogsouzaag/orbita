@@ -12,7 +12,7 @@ Checkout inicialmente em `main`, sincronizado com `origin/main` em `5dcfd4b`. A 
 - O comando explícito **Limpar** marca os avisos atuais como lidos, preservando **Ver lidos**. A leitura individual continua ocorrendo ao abrir um aviso. A preferência é deste navegador, não uma confirmação global entre dispositivos. Incidentes permanecem na origem até sua resolução.
 - O avatar da sidebar reutiliza o menu de conta do topo.
 - Tags das tarefas ganham busca, filtro ativo removível e rolagem limitada. As colunas do Kanban têm rolagem própria e não alongam a página inteira.
-- Clique em tarefa abre modal de leitura; **Editar tarefa** abre o painel existente. Notas permanecem com modal de leitura e editor no painel normal.
+- Clique em tarefa abre modal de leitura; **Editar tarefa** abre o painel existente. Conforme a nota mais recente, notas passam a abrir diretamente no painel normal, com **Visualizar** e **Editar**, preservando autosave e arquivo.
 - Confirmações nativas do navegador passam a um modal acessível, com cancelamento em foco e autorização explícita antes da mutação. Nenhuma confirmação foi removida.
 - A tela Automações mantém workflows n8n, falhas e informação de cobertura parcial. A extensa lista de rotinas sem estado recebido e os cards de comparação do vault saem dessa tela. O inventário canônico continua disponível pelo link para o vault.
 - Contadores da página de tarefas passam a usar agregados, sem carregar três listas completas e suas subtarefas apenas para contar. A consulta de concluídas do Kanban começa em paralelo. As seções principais ganham estado de carregamento.
@@ -23,7 +23,7 @@ Checkout inicialmente em `main`, sincronizado com `origin/main` em `5dcfd4b`. A 
 | Nota | Evidência e tratamento |
 | --- | --- |
 | Menu ORBE sem seleção | Correção no código atual, testes de navegação e PR #84 mesclado (`123961379d909b1215210e3cb062c23b4f50d0ee`). Registrar evidência e arquivar preservando conteúdo. |
-| Modal da nota e autosave | Já implementados no PR #84; não refazer nem tratar como nova pendência. |
+| Modal da nota e autosave | Implementados no PR #84. O pedido novo mantém leitura e edição da nota no painel normal, substituindo o modal anterior; autosave é preservado. |
 | Modal da tarefa; confirmações nativas; notificações | Cobertos nesta alteração; a baixa depende de publicação e verificação do comportamento. |
 | Telas lentas | Melhorias concretas implementadas, mas a medição comparativa autenticada de produção ainda é um critério separado. Não declarar toda a nota concluída só porque existem skeletons. |
 | Feedback centralizado | Órbita #85, CRM #61, Members #55, Viajeki #41 e Barberias #148 constam mesclados. Isso corrige “tudo em PR”, mas não prova entrega real app → CRM em todos os produtos. |
