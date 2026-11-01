@@ -23,4 +23,14 @@ export async function crmFeedback(input: z.input<typeof feedbackInput> = {}): Pr
 export async function setCrmFeedbackStatus(id: string, status: FeedbackStatus) {
   const parsed = z.object({ id: z.string().uuid(), status: z.enum(FEEDBACK_STATUSES) }).parse({ id, status });
   await crmCall("crm_atualizar_feedback", { feedback_id: parsed.id, status: parsed.status });
+  notificationFeedback = null;
+}
+
+// Bounded polling cache shared by notification requests; never part of shell rendering.
+let notificationFeedback: { expires: number; promise: Promise<FeedbackResult> } | null = null;
+export function feedbackForNotifications(): Promise<FeedbackResult> {
+  if (!notificationFeedback || notificationFeedback.expires <= Date.now()) {
+    notificationFeedback = { expires: Date.now() + 30_000, promise: crmFeedback({ status: "novo", limite: 30 }) };
+  }
+  return notificationFeedback.promise;
 }

@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 import { BookOpen, Check, Dumbbell, Pencil, Plus, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -24,8 +25,8 @@ export function WorkoutsPage({ workouts, plans, weekCount, monthCount }: { worko
   const [editor, setEditor] = React.useState<Editor | null>(params.get("novo") === "1" ? { mode: "log" } : null);
   const [pending, start] = React.useTransition();
   const close = () => { setEditor(null); if (params.get("novo")) router.replace("/academia"); };
-  const remove = (kind: "plan" | "log", id: string) => {
-    if (!confirm(kind === "plan" ? "Excluir esta ficha? O histórico será preservado." : "Excluir este registro de treino?")) return;
+  const remove = async (kind: "plan" | "log", id: string) => {
+    if (!await confirmAction(kind === "plan" ? "Excluir esta ficha? O histórico será preservado." : "Excluir este registro de treino?")) return;
     start(async () => { try { await (kind === "plan" ? deleteTrainingPlan(id) : deleteWorkout(id)); toast.success("Excluído"); } catch { toast.error("Não foi possível excluir."); } });
   };
   return <div className="space-y-8">

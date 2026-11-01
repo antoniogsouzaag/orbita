@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 
 import { KeyRound, ShieldOff, Smartphone } from "lucide-react";
 import * as React from "react";
@@ -28,7 +29,7 @@ export function IphoneCard({ url, info }: { url: string; info: { prefix: string;
             disabled={pending}
             onClick={() =>
               start(async () => {
-                if (active && !confirm("Gerar outra chave? O atalho atual para de funcionar até você colar a nova.")) return;
+                if (active && !await confirmAction("Gerar outra chave? O atalho atual para de funcionar até você colar a nova.")) return;
                 setToken(await generateCaptureToken());
                 setActive(true);
               })

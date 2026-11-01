@@ -1,10 +1,9 @@
 import { AlertTriangle, CheckCircle2, CircleDashed, Workflow, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Card, PageHeader, SectionLabel } from "@/components/ui/card";
-import { BarRows, Big, ColumnBars, Legend, Ring, ShareStrip, WidgetShell, dayKey, lastDays } from "@/components/ui/mini-charts";
+import { BarRows, Big, ColumnBars, Legend, ShareStrip, WidgetShell, dayKey, lastDays } from "@/components/ui/mini-charts";
 import { WidgetBoard } from "@/components/ui/widget-board";
 import type { WidgetItem } from "@/components/ui/draggable-widget-grid";
-import { cn } from "@/lib/utils";
 import { n8nOverview } from "@/server/ops";
 import { liveOps } from "@/server/ops-live";
 import { VaultBanner } from "@/components/vault/vault-banner";
@@ -18,16 +17,12 @@ export default async function Page() {
   const [n8n, live] = await Promise.all([n8nOverview(), liveOps()]);
   const notePath = (await getVaultIndexSafe())?.resolve("Automações Ativas") ?? null;
   const sourcesVerified = n8n.configured && n8n.instances.every((instance) => instance.ok && !instance.workflowsPartial);
-  const liveIds = new Set(n8n.instances.flatMap((i) => i.workflows.map((w) => w.id)));
-  const comparisonAvailable = sourcesVerified && n8n.documentationAvailable;
-  const missing = comparisonAvailable ? n8n.documented.filter((d) => d.id && /^[A-Za-z0-9]{8,}$/.test(d.id) && !liveIds.has(d.id) && /n8n/i.test(d.where)) : [];
   const pushed = live.events.filter((e) => e.kind === "workflow_error");
   const pushedUrls = new Set(pushed.map((event) => String(event.detail.executionUrl ?? "")).filter(Boolean));
   const apiErrors = n8n.instances.flatMap((i) => i.errors).filter((error) => !pushedUrls.has(error.url));
 
   const workflows = n8n.instances.flatMap((i) => i.workflows);
   const active = workflows.filter((w) => w.active);
-  const documentedActive = active.filter((w) => w.documented);
 
   // Falhas por dia (ingestão + API), 14 dias.
   const days = lastDays(14, live.generatedAt);
@@ -93,20 +88,6 @@ export default async function Page() {
           rows={n8n.instances.map((i) => ({ key: i.name, label: i.name, value: i.workflows.filter((w) => w.active).length, display: i.ok ? `${i.workflows.filter((w) => w.active).length}/${i.workflows.length}` : "erro", tone: i.ok ? "accent" : "err", hint: i.ok ? undefined : i.error }))} />
       </WidgetShell>
     ),
-    coverage: (
-      <WidgetShell title="Documentação" href={notePath ? `/vault?p=${encodeURIComponent(notePath)}` : "/vault"} hrefLabel="Vault">
-        {!comparisonAvailable ? <p className="text-[12.5px] text-muted">Não é possível comparar a documentação: verifique o inventário do vault e a cobertura das instâncias n8n.</p> :
-        <div className="flex flex-1 items-center gap-4">
-          <Ring value={documentedActive.length} total={active.length} tone={documentedActive.length === active.length ? "ok" : "warn"} label={`${documentedActive.length} de ${active.length} workflows ativos documentados no vault`}>
-            <span className="text-[15px] font-semibold tabular-nums">{active.length ? `${Math.round((documentedActive.length / active.length) * 100)}%` : "—"}</span>
-          </Ring>
-          <dl className="space-y-1.5 text-[12px]">
-            <div><dt className="text-faint">Documentados</dt><dd className="font-medium tabular-nums">{documentedActive.length}</dd></div>
-            <div><dt className="text-faint">Sem ficha</dt><dd className={cn("font-medium tabular-nums", active.length - documentedActive.length ? "text-warning" : "")}>{active.length - documentedActive.length}</dd></div>
-          </dl>
-        </div>}
-      </WidgetShell>
-    ),
     failures: (
       <WidgetShell title="Falhas" meta="14 dias">
         <Big tone={failTotal ? "warn" : undefined} unit={failTotal === 1 ? "falha" : "falhas"}>{failTotal}</Big>
@@ -117,16 +98,6 @@ export default async function Page() {
       <WidgetShell title="Falhas recentes" meta={`${failTotal} registros`}>
         <Legend className="mb-2" items={[{ name: "recebidas pelo monitor", tone: "warn", value: pushed.length }, { name: "consultadas na API", tone: "err", value: apiErrors.length }]} />
         {failureList}
-      </WidgetShell>
-    ),
-    missing: (
-      <WidgetShell title="Fora do n8n" meta="no vault">
-        <Big tone={missing.length ? "warn" : undefined} unit="não encontrados">{comparisonAvailable ? missing.length : "—"}</Big>
-        <ul className="mt-auto space-y-1 text-[12px] text-muted">
-          {!comparisonAvailable && <li className="text-faint">Requer inventário do vault e todas as instâncias respondendo com inventário completo.</li>}
-          {comparisonAvailable && missing.length === 0 && <li className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-success" />Nenhum ID comparável ausente nas instâncias consultadas.</li>}
-          {missing.slice(0, 3).map((m) => <li key={m.id} className="truncate">{m.name}</li>)}
-        </ul>
       </WidgetShell>
     ),
     tags: (
@@ -150,10 +121,9 @@ export default async function Page() {
   const items: WidgetItem[] = n8n.configured
     ? [
         { id: "overview", size: "wide", label: "Workflows" },
-        { id: "coverage", size: "sm", label: "Documentação" },
         { id: "failures", size: "sm", label: "Falhas" },
         { id: "list", size: "lg", label: "Falhas recentes" },
-        { id: "missing", size: "sm", label: "Fora do n8n" },
+
         { id: "tags", size: "sm", label: "Etiquetas" },
         { id: "updated", size: "wide", label: "Última alteração" },
       ]
@@ -167,7 +137,7 @@ export default async function Page() {
       <PageHeader
         icon={<Workflow />}
         title="Automações"
-        description={<>Inventário de todos os ambientes e estado recebido dos workflows. Fonte canônica: <Link className="text-accent hover:underline" href={notePath ? `/vault?p=${encodeURIComponent(notePath)}` : "/vault"}>Automações Ativas</Link> no vault.</>}
+        description={<>Workflows das instâncias n8n conectadas e falhas recebidas. Documentação: <Link className="text-accent hover:underline" href={notePath ? `/vault?p=${encodeURIComponent(notePath)}` : "/vault"}>Automações Ativas</Link> no vault.</>}
       />
       <VaultBanner />
 
@@ -180,11 +150,6 @@ export default async function Page() {
       {n8n.instances.some((instance) => instance.workflowsPartial) && <Card className="p-4 text-[13px] text-warning">A consulta de workflows está incompleta em pelo menos uma instância. Os totais representam somente os dados carregados.</Card>}
       <WidgetBoard storageKey={n8n.configured ? "automacoes" : "automacoes-min"} items={items} panels={panels} />
 
-      <section className="space-y-3">
-        <SectionLabel>Inventário do vault · {n8n.documentationAvailable ? `${n8n.documented.length} rotinas` : "indisponível"}</SectionLabel>
-        <p className="text-xs text-muted">Rotinas sem correspondência na consulta ao vivo, incluindo outros ambientes. As rotinas já encontradas no n8n aparecem nas tabelas abaixo. O cadastro não comprova execução.</p>
-        <div className="grid gap-3 md:grid-cols-2">{n8n.documented.filter(d => !d.id || !liveIds.has(d.id)).map((d, i) => <Card key={`${d.where}:${d.id ?? d.name}:${i}`} className="p-4"><h3 className="text-sm font-medium">{d.name}</h3><p className="mt-1 text-xs text-accent">{d.where}</p><p className="mt-2 text-xs text-muted">{d.description || "Descrição não informada no vault."}</p><p className="mt-2 text-xs text-faint">{d.schedule || "Agenda não informada"} · sem estado de execução recebido</p></Card>)}</div>
-      </section>
       {n8n.configured && n8n.instances.map((inst) => (
         <section key={inst.name} className="space-y-3">
           <SectionLabel>n8n · {inst.name}</SectionLabel>

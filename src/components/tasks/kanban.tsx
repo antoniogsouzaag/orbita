@@ -37,7 +37,7 @@ export function Kanban({ tasks, projectId, scope }: { tasks: TaskRow[]; projectI
   };
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid items-start gap-4 md:grid-cols-3">
       {COLUMNS.map((col) => {
         const list = items.filter((x) => x.status === col.id);
         return (
@@ -60,7 +60,7 @@ export function Kanban({ tasks, projectId, scope }: { tasks: TaskRow[]; projectI
               <span className="size-2 rounded-full" style={{ background: col.dot }} /> {col.label}
               <span className="font-normal text-faint">{list.length}</span>
             </div>
-            <div className="flex-1 space-y-2">
+            <div role="region" aria-label={`Tarefas: ${col.label}`} tabIndex={0} className="max-h-[60dvh] min-h-0 space-y-2 overflow-y-auto overscroll-contain">
               {list.map((task) => (
                 <div
                   key={task.id}

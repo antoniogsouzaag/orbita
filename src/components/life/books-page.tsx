@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 
 import { BookOpen, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
@@ -46,7 +47,7 @@ export function BooksPage({ books }: { books: Book[] }) {
           <div key={g.id}>
             <SectionLabel className="mb-3">{g.label} · {list.length}</SectionLabel>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {list.map((b) => <BookCard key={b.id} b={b} onDelete={() => start(async () => { if (confirm("Remover livro?")) await deleteBook(b.id); })} />)}
+              {list.map((b) => <BookCard key={b.id} b={b} onDelete={() => start(async () => { if (await confirmAction("Remover livro?")) await deleteBook(b.id); })} />)}
             </div>
           </div>
         );

@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -187,7 +188,7 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
     if (!r.ok) return void toast.error(r.error);
     toast.success("Post salvo"); router.refresh(); onDone();
   });
-  const remove = () => post && confirm("Excluir este post do pipeline?") && start(async () => { const r = await deleteSocialPostAction(post.id); if (!r.ok) toast.error(r.error); else { router.refresh(); onDone(); } });
+  const remove = async () => post && await confirmAction("Excluir este post do pipeline?") && start(async () => { const r = await deleteSocialPostAction(post.id); if (!r.ok) toast.error(r.error); else { router.refresh(); onDone(); } });
   const [view, setView] = React.useState<"conteudo" | "entregas">("conteudo");
   const tab = (k: typeof view, label: string, badge?: string) => <button type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} className={`rounded-md px-2.5 py-1 text-xs ${view === k ? "bg-surface-2 text-fg" : "text-muted hover:text-fg"}`}>{label}{badge && <span className="ml-1 text-warning">{badge}</span>}</button>;
   const { busyId, advance } = useAdvance();

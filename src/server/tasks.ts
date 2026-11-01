@@ -89,6 +89,8 @@ export async function taskCounts(scope?: TaskScope) {
       doing: sql<number>`count(*) filter (where ${tasks.status} = 'doing')::int`,
       today: sql<number>`count(*) filter (where ${tasks.status} <> 'done' and ${tasks.dueDate} = ${t})::int`,
       overdue: sql<number>`count(*) filter (where ${tasks.status} <> 'done' and ${tasks.dueDate} < ${t})::int`,
+      upcoming: sql<number>`count(*) filter (where ${tasks.status} <> 'done' and ${tasks.dueDate} >= ${shiftDate(t, 1)} and ${tasks.dueDate} <= ${shiftDate(t, 14)})::int`,
+      undated: sql<number>`count(*) filter (where ${tasks.status} <> 'done' and ${tasks.dueDate} is null)::int`,
       doneToday: sql<number>`count(*) filter (where ${tasks.status} = 'done' and ${tasks.completedAt} >= now() - interval '24 hours')::int`,
     })
     .from(tasks)

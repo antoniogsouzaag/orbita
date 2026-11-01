@@ -1,4 +1,5 @@
 "use client";
+import { confirmAction } from "@/components/ui/confirm-action";
 
 import { KeyRound, LogOut, ShieldCheck, ShieldOff } from "lucide-react";
 import QRCode from "qrcode";
@@ -87,7 +88,7 @@ export function SecurityCard({ totpEnabled, envTotp, passwordMode }: { totpEnabl
         )}
         {envTotp && <p className="text-[12px] text-faint">2FA definido pela variável ORBITA_TOTP_SECRET.</p>}
         <PasswordForm />
-        <Button size="sm" variant="secondary" onClick={() => start(async () => { if (confirm("Sair de todos os dispositivos, inclusive este?")) await logoutEverywhere(); })}>
+        <Button size="sm" variant="secondary" onClick={() => start(async () => { if (await confirmAction("Sair de todos os dispositivos, inclusive este?")) await logoutEverywhere(); })}>
           <LogOut /> Sair de todos os dispositivos
         </Button>
       </div>
