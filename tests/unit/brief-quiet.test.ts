@@ -7,15 +7,18 @@ vi.mock('@/server/agents', () => ({ agentTasks: async () => fixture.asks }));
 vi.mock('@/server/ops-live', () => ({ liveOps: async () => fixture.live }));
 vi.mock('@/server/crm', () => ({ CRM_ASSIGNEE: {}, crmOverview: async () => ({ configured: true, ok: true, summary: { oportunidades_abertas: 25 }, mine: [], team: [] }) }));
 vi.mock('@/server/agent-reports', () => ({ agentReports: async () => fixture.reports }));
+vi.mock('@/server/journal', () => ({ journalFeed: async () => ({ articles: [] }) }));
 import { buildBrief } from '@/server/brief';
 beforeEach(() => { fixture.events = []; fixture.personal = []; fixture.company = []; fixture.asks = []; fixture.reports = []; const now = Date.now(); fixture.live = { generatedAt: now, status: [{ ok: true, source: 'ping', checkedAt: new Date(now) }], domains: [], monitors: [{ source: 'ping', silent: false, everyMinutes: 15 }], events: [] }; });
-it('healthy operation and no due work produce no message', async () => {
-  expect(await buildBrief()).toBe('');
+it('healthy operation and no due work still link to the daily journal without invented alerts', async () => {
+  const brief = await buildBrief();
+  expect(brief).toContain('Ler o Jornal da Órbita');
+  expect(brief).not.toContain('Operação');
 });
 it('a reply handed back to an agent no longer repeats as work waiting for Antonio', async () => {
   const answered = { title: 'Executar decisão respondida', status: 'todo', tags: ['agente:tom', 'resposta:antonio'], dueDate: '2020-01-01' };
   fixture.company = [answered]; fixture.asks = [answered];
-  expect(await buildBrief()).toBe('');
+  expect(await buildBrief()).not.toContain('Executar decisão respondida');
 });
 it('includes real due work, escapes HTML and omits empty scopes and healthy sections', async () => {
   fixture.company = [{ title: 'Revisar <produto>', dueDate: '2020-01-01' }];
@@ -26,7 +29,7 @@ it('includes real due work, escapes HTML and omits empty scopes and healthy sect
 });
 it('resolved errors stay silent and missing monitoring remains actionable', async () => {
   fixture.live.events = [{ kind: 'workflow_error', resolvedAt: new Date(), createdAt: new Date() }];
-  expect(await buildBrief()).toBe('');
+  expect(await buildBrief()).not.toContain('Operação');
   fixture.live.status = [];
   expect(await buildBrief()).toContain('Sem dados dos monitores');
 });

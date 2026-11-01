@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +54,7 @@ export function MarkdownView({
     <div className={cn("prose-orbita", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        urlTransform={(url) => url}
+        urlTransform={(url) => /^(wikilink|embed):/.test(url) ? url : defaultUrlTransform(url)}
         components={{
           h1: H("h1"),
           h2: H("h2"),
