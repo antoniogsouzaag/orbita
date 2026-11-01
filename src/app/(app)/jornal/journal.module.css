@@ -70,3 +70,5 @@
   .sections a { padding: 6px; }
   .editorNote { gap: 8px; }
 }
+/* An edition without business news uses the full reading width. */
+.columns:not(:has(> aside section)) { grid-template-columns: minmax(0, 1fr); }

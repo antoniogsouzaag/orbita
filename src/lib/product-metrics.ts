@@ -1,5 +1,6 @@
 import { projectFreemium, type FreemiumMetrics } from "./freemium-metrics";
 import { z } from "zod";
+import { localDate, zonedToUtc } from "./dates";
 import { marketplaceMetricsSchema, validateMarketplaceMetrics } from "./marketplace-metrics";
 import { creditsMetricsSchema, validateCreditsMetrics } from "./credits-metrics";
 import { audienceMetricsSchema, validateAudienceMetrics } from "./audience-metrics";
@@ -26,6 +27,15 @@ export const productMetricsSchema = z.object({
     payingAccounts: count, complimentaryAccounts: count, canceledAccounts: count,
     activatedAccounts: count,
   }),
+  daily: z.object({
+    date: z.iso.date(),
+    timeZone: z.literal("America/Sao_Paulo"),
+    from: z.iso.datetime(),
+    to: z.iso.datetime(),
+    newUsers: count,
+    sales: count,
+    registeredPurchases: count.optional(),
+  }).optional(),
   activationFunnel: z.object({
     professional: z.number().int().nonnegative(), catalog: z.number().int().nonnegative(),
     readyForBooking: z.number().int().nonnegative(), firstAppointment: z.number().int().nonnegative(),
@@ -41,6 +51,12 @@ export type ProductMetrics = z.infer<typeof productMetricsSchema>;
 export function validateProductMetrics(raw: unknown, product: string, now = Date.now()): ProductMetrics {
   const data = productMetricsSchema.parse(raw);
   if (data.product !== product) throw new Error("Produto divergente");
+  if (data.daily) {
+    const daily = data.daily;
+    const date = localDate(new Date(data.generatedAt), "America/Sao_Paulo");
+    if (daily.date !== date || Date.parse(daily.from) !== zonedToUtc(date, "00:00", "America/Sao_Paulo").getTime()
+      || daily.to !== data.generatedAt || (daily.newUsers !== null && (data.metrics.users === null || daily.newUsers > data.metrics.users))) throw new Error("Agregado diário inválido");
+  }
   if (data.audience) {
     if (product === "vibekit") throw new Error("Compra única não mede usuários");
     validateAudienceMetrics(data.audience, data.metrics.users, data.generatedAt, product);
