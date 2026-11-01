@@ -9,13 +9,15 @@ export const editVaultSchema = z.object({
   motivo: z.string().trim().min(5).max(200),
 });
 
+export class VaultEditError extends Error {}
+
 export async function editVault(input: z.infer<typeof editVaultSchema>) {
   const value = editVaultSchema.parse(input);
   const provider = getVaultProvider();
-  if (!provider) throw new Error("Vault não configurado");
+  if (!provider) throw new VaultEditError("Vault não configurado");
   const index = await getVaultIndex(true);
   const current = index.files.find((file) => file.path === value.caminho);
-  if ((current?.sha ?? null) !== value.versao) throw new Error("Conflito: releia a nota e sua versão antes de salvar");
+  if ((current?.sha ?? null) !== value.versao) throw new VaultEditError("Conflito: releia a nota e sua versão antes de salvar. Nenhuma alteração foi gravada.");
   await provider.write(value.caminho, value.conteudo, { sha: current?.sha, message: `vault: ${value.motivo}` });
   invalidateVault();
   return { text: `Nota salva: ${value.caminho}`, action: { label: "Nota do vault", href: `/vault?p=${encodeURIComponent(value.caminho)}` } };

@@ -10,11 +10,13 @@ import { getSettings } from "./settings";
 import { listTasks, type TaskRow } from "./tasks";
 import { escHtml } from "./telegram";
 import { agentReports } from "./agent-reports";
+import { compactBrief, journalHref } from "@/lib/journal";
+import { journalFeed } from "./journal";
 
 /** “Bom dia” da Órbita: agenda, tarefas pessoais e da empresa, CRM, pedidos de agentes e operação. Texto em HTML do Telegram. */
 export async function buildBrief(): Promise<string> {
   const t = today();
-  const [settings, events, pessoal, empresa, asks, live, crm, reports] = await Promise.all([
+  const [settings, events, pessoal, empresa, asks, live, crm, reports, journal] = await Promise.all([
     getSettings(),
     eventsBetween(zonedToUtc(t), zonedToUtc(shiftDate(t, 1))),
     listTasks({ view: "hoje", scope: "pessoal", limit: 30 }),
@@ -23,21 +25,41 @@ export async function buildBrief(): Promise<string> {
     liveOps(),
     crmOverview(0),
     agentReports(),
+    journalFeed(t).catch(() => null),
   ]);
-  const base = process.env.APP_URL ?? "https://orb.aglabs.api.br";
+  let base = "https://orb.aglabs.api.br";
+  try {
+    const configured = new URL(process.env.APP_URL ?? base);
+    if (["https:", "http:"].includes(configured.protocol) && configured.origin.length < 300) base = configured.origin;
+  } catch { /* A malformed configuration must not break the scheduled summary. */ }
   const first = settings.name.split(" ")[0];
   const lines: string[] = [`☀️ <b>Bom dia, ${escHtml(first)}</b> — ${escHtml(formatLong(t))}`, ""];
 
   const short = (text: string) => escHtml(text.length > 120 ? `${text.slice(0, 117)}…` : text);
+  // Operational exceptions precede routine content; the fixed budget cannot bury them.
+  const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
+  const down = snapshot.down;
+  const soon = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - Date.now() < 45 * 86_400_000);
+  const silent = live.monitors.filter((m) => m.silent);
+  const pendingWorkflows = live.events.filter(e => e.kind === "workflow_error" && !e.resolvedAt);
+  const noCoverage = !live.status.length;
+  if (down.length || soon.length || silent.length || pendingWorkflows.length || noCoverage || snapshot.stale.length) lines.push("🛰️ <b>Operação · atenção</b>");
+  if (noCoverage) lines.push("• Sem dados dos monitores nesta consulta.");
+  if (snapshot.stale.length) lines.push(`• ${snapshot.stale.length} endereço(s) sem verificação recente.`);
+  for (const d of down.slice(0, 2)) lines.push(`• ❌ ${short(d.name)}`);
+  if (pendingWorkflows.length) lines.push(`• ${pendingWorkflows.length} falha(s) de workflow sem resolução registrada (inclui antigas)`);
+  if (soon.length) lines.push(`• 🌐 ${soon.length} domínio(s) vencem em até 45 dias`);
+  if (silent.length) lines.push(`• ⚠️ ${silent.length} monitor(es) em silêncio`);
+
   if (events.length) lines.push("📅 <b>Agenda</b>");
-  for (const e of events.slice(0, 3)) lines.push(`• ${e.allDay ? "dia todo" : localTime(e.startAt)} ${short(e.title)}`);
+  for (const e of events.slice(0, 2)) lines.push(`• ${e.allDay ? "dia todo" : localTime(e.startAt)} ${short(e.title)}`);
 
   const fmt = (x: TaskRow) => `• ${x.dueDate && x.dueDate < t ? "⚠️ " : ""}${short(x.title)}${x.dueTime ? ` (${x.dueTime})` : ""}`;
   const block = (title: string, list: TaskRow[]) => {
     if (!list.length) return;
     lines.push("", `${title} — ${list.length ? `${list.length} para hoje${list.some((x) => x.dueDate && x.dueDate < t) ? `, ${list.filter((x) => x.dueDate && x.dueDate < t).length} atrasada(s)` : ""}` : "nada para hoje"}`);
-    for (const x of list.slice(0, 3)) lines.push(fmt(x));
-    if (list.length > 3) lines.push(`… e mais ${list.length - 3} na Órbita`);
+    for (const x of list.slice(0, 2)) lines.push(fmt(x));
+    if (list.length > 2) lines.push(`… e mais ${list.length - 2} no Jornal`);
   };
   block("✅ <b>Pessoal</b>", pessoal);
   block("🏢 <b>Empresa</b>", empresa.filter(task => !task.tags?.includes(ANSWERED_TAG)));
@@ -48,36 +70,21 @@ export async function buildBrief(): Promise<string> {
     for (const a of open.slice(0, 2)) lines.push(`• ${short(a.title)} <i>(${escHtml(a.tags.find((x) => x.startsWith("agente:"))?.slice(7) ?? "agente")})</i>`);
   }
 
-  if (crm.configured && !crm.ok) lines.push("", `💼 <b>CRM</b> — não consegui ler (${escHtml(crm.error)})`);
+  if (crm.configured && !crm.ok) lines.push("", "💼 <b>CRM</b> — indisponível nesta consulta.");
   if (crm.configured && crm.ok) {
     const mine = crm.mine.filter((x) => x.prazo && x.prazo <= t);
     const team = crm.team.filter((x) => x.vencida);
     if (mine.length || team.length) lines.push("", "💼 <b>CRM · ações devidas</b>");
-    for (const x of mine.slice(0, 3)) lines.push(`• ${x.vencida ? "⚠️ " : ""}${short(x.titulo)}`);
+    for (const x of mine.slice(0, 1)) lines.push(`• ${x.vencida ? "⚠️ " : ""}${short(x.titulo)}`);
     if (team.length) lines.push(`• Time com ${team.length} tarefa(s) vencida(s): ${[...new Set(team.map((x) => CRM_ASSIGNEE[x.responsavel ?? "sem_responsavel"]))].join(", ")}`);
   }
 
   // Rotinas e totais comerciais continuam nos painéis; o aviso traz só ações devidas.
 
-  const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
-  const down = snapshot.down;
-  const soon = live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - Date.now() < 45 * 86_400_000);
-  const silent = live.monitors.filter((m) => m.silent);
-  const pendingWorkflows = live.events.filter(e => e.kind === "workflow_error" && !e.resolvedAt);
-  const noCoverage = !live.status.length;
-  if (down.length || soon.length || silent.length || pendingWorkflows.length || noCoverage || snapshot.stale.length) lines.push("", "🛰️ <b>Operação · atenção</b>");
-  if (noCoverage) lines.push("• Sem dados dos monitores nesta consulta.");
-  if (snapshot.stale.length) lines.push(`• ${snapshot.stale.length} endereço(s) sem verificação recente.`);
-  for (const d of down.slice(0, 3)) lines.push(`• ❌ ${short(d.name)}`);
-  if (pendingWorkflows.length) lines.push(`• ${pendingWorkflows.length} falha(s) de workflow sem resolução registrada (inclui antigas)`);
-  for (const d of soon.slice(0, 3)) lines.push(`• 🌐 ${short(d.domain)} vence em ${Math.ceil((d.expiresAt!.getTime() - Date.now()) / 86_400_000)} dias`);
-  for (const m of silent.slice(0, 3)) lines.push(`• ⚠️ monitor em silêncio: ${short(m.label)}`);
-
-  if (reports.length) {
-    lines.push("", "📨 <b>Resumos dos agentes · últimas 24h</b>");
-    for (const report of reports.slice(0, 2)) lines.push(`• ${short(report.source.replace(/^agente:/, ""))} · ${localTime(report.createdAt)}: ${short(report.subject)}`);
-  }
-  if (lines.length === 2) return "";
-  lines.push("", `<a href="${base}">Abrir a Órbita</a>`);
-  return lines.join("\n");
+  const headline = journal?.articles.find(article => article.destaque) ?? journal?.articles[0];
+  if (headline) lines.push("", `🗞️ <b>No Jornal</b> — ${short(headline.titulo)}`);
+  else if (reports.length) lines.push("", `📨 <b>No Jornal</b> — ${reports.length} resumo(s) de agentes nas últimas 24h`);
+  if (lines.length === 2) lines.push("Sua edição está disponível. Sem pendências devidas nas fontes consultadas.");
+  const link = escHtml(new URL(journalHref(t), base).toString()).replace(/"/g, "&quot;");
+  return compactBrief(lines, `<a href="${link}">Ler o Jornal da Órbita →</a>`);
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { agentActivity, opsDomains, opsEvents, opsHeartbeats, opsStatus } from "@/db/schema";
@@ -171,7 +171,7 @@ export async function liveOps() {
   const since = new Date(Date.now() - 14 * 86_400_000);
   const [status, recentEvents, pendingEvents, beats, domains] = await Promise.all([
     db.select().from(opsStatus),
-    db.select().from(opsEvents).where(gte(opsEvents.createdAt, since)).orderBy(desc(opsEvents.createdAt)).limit(80),
+    db.select().from(opsEvents).where(and(gte(opsEvents.createdAt, since), ne(opsEvents.kind, "jornal_materia"))).orderBy(desc(opsEvents.createdAt)).limit(80),
     db.select().from(opsEvents).where(and(isNull(opsEvents.resolvedAt), or(eq(opsEvents.severity, "warning"), eq(opsEvents.severity, "critical")))).orderBy(desc(opsEvents.createdAt)).limit(80),
     db.select().from(opsHeartbeats),
     db.select().from(opsDomains),
@@ -192,7 +192,7 @@ export async function opsEventsByDay(days = 14) {
   const since = new Date(Date.now() - days * DAY);
   const day = sql<string>`to_char(${opsEvents.createdAt} at time zone 'America/Sao_Paulo', 'YYYY-MM-DD')`;
   return db.select({ day, kind: opsEvents.kind, count: sql<number>`count(*)`.mapWith(Number) })
-    .from(opsEvents).where(gte(opsEvents.createdAt, since)).groupBy(day, opsEvents.kind);
+    .from(opsEvents).where(and(gte(opsEvents.createdAt, since), ne(opsEvents.kind, "jornal_materia"))).groupBy(day, opsEvents.kind);
 }
 
 /** Alertas, incidentes e resumos que um agente registrou pelo MCP (fonte agente:<id>). */
