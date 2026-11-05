@@ -146,6 +146,42 @@ export const events = pgTable(
   (t) => [index("events_start_idx").on(t.startAt), index("events_calendar_idx").on(t.calendarId)],
 );
 
+/** Shared row lock: PGlite and PostgreSQL both support SELECT FOR UPDATE. */
+export const calendarWriteLock = pgTable("calendar_write_lock", { key: integer("key").primaryKey() });
+
+export const appointments = pgTable("appointments", {
+  id: id(),
+  contactId: uuid("contact_id").notNull(), // canonical CRM identifier, not a second contact store
+  customerName: text("customer_name"),
+  state: text("state").$type<"confirmed" | "pending_approval" | "cancelled" | "rejected">().notNull(),
+  mode: text("mode").$type<"remote" | "in_person">().notNull(),
+  subject: text("subject").notNull(),
+  remotePreference: text("remote_preference"),
+  address: text("address"),
+  startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+  endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "restrict" }).unique(),
+  travelBefore: integer("travel_before").notNull().default(0),
+  travelAfter: integer("travel_after").notNull().default(0),
+  version: integer("version").notNull().default(1),
+  createdAt: createdAt(),
+}, t => [index("appointments_contact_start_idx").on(t.contactId, t.startAt)]);
+export const appointmentRequests = pgTable("appointment_requests", {
+  id: uuid("id").primaryKey(),
+  digest: text("digest").notNull(),
+  receipt: jsonb("receipt").$type<Record<string, unknown>>().notNull(),
+  createdAt: createdAt(),
+});
+export const appointmentHistory = pgTable("appointment_history", {
+  id: id(),
+  appointmentId: uuid("appointment_id").notNull().references(() => appointments.id),
+  version: integer("version").notNull(),
+  actor: text("actor").notNull(),
+  operation: text("operation").notNull(),
+  snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+  createdAt: createdAt(),
+}, t => [uniqueIndex("appointment_history_version_idx").on(t.appointmentId, t.version)]);
+
 export const notes = pgTable("notes", {
   id: id(),
   title: text("title").notNull().default("Sem título"),

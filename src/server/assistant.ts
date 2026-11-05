@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { events, goals, notes, projects, tasks, transactions, type TaskScope } from "@/db/schema";
+import { goals, notes, projects, tasks, transactions, type TaskScope } from "@/db/schema";
 import { localDate, localTime, shiftDate, today, zonedToUtc } from "@/lib/dates";
 import { matchProject, parseTaskInput } from "@/lib/parse-task";
 import { projectScope, taskHref } from "@/lib/task-scope";
@@ -11,6 +11,7 @@ import { noteHref } from "@/lib/note-scope";
 import { getNote, insertNote, linkNoteProject, noteArchiveCondition, noteScopeCondition, noteVersion } from "./notes";
 import { ARCHIVED_NOTE_TAG } from "@/lib/note-scope";
 import { insertTask, patchTask } from "./task-write";
+import { saveManualEvent } from "./calendar-writes";
 import { eventsBetween } from "./calendar";
 import { CRM_ASSIGNEE, clearCrmCache, crmCall, crmConfigured, crmUrl } from "./crm";
 import { liveOps } from "./ops-live";
@@ -223,7 +224,6 @@ const criarEventoSchema = z.object({
 export const criarEvento = {
   schema: criarEventoSchema,
   async run(v: z.infer<typeof criarEventoSchema>): Promise<ActionResult> {
-    const db = await getDb();
     let startAt: Date, endAt: Date;
     const allDay = !v.inicio;
     if (allDay) {
@@ -234,7 +234,7 @@ export const criarEvento = {
       endAt = v.fim ? zonedToUtc(v.data, v.fim) : new Date(startAt.getTime() + 3_600_000);
       if (endAt <= startAt) endAt = new Date(startAt.getTime() + 3_600_000);
     }
-    await db.insert(events).values({ title: v.titulo, startAt, endAt, allDay, location: v.local ?? null, description: v.descricao ?? null });
+    await saveManualEvent(null, { title: v.titulo, startAt, endAt, allDay, location: v.local ?? null, description: v.descricao ?? null });
     return { text: `Evento criado: ${v.titulo} em ${v.data}${allDay ? " (dia inteiro)" : ` das ${localTime(startAt)} às ${localTime(endAt)}`}.`, action: { label: `Evento: ${v.titulo}`, href: "/agenda" } };
   },
 };
