@@ -62,7 +62,7 @@ export const ownerInput = z.discriminatedUnion("operation",[
   z.object({...ownerCommon,operation:z.literal("approve"),travel_before:z.number().int().min(0).max(600),travel_after:z.number().int().min(0).max(600)}).strict(),
   z.object({...ownerCommon,operation:z.enum(["reject","cancel"])}).strict(),
 ]);
-export async function ownerAppointment(input:unknown, now=new Date()) {
+export async function ownerAppointment(input:unknown, clock: Clock = () => new Date()) {
   const v=ownerInput.parse(input);
   return withCalendarTransaction(async tx=>{
     const [a]=await tx.select().from(appointments).where(eq(appointments.id,v.id));
@@ -75,7 +75,7 @@ export async function ownerAppointment(input:unknown, now=new Date()) {
     if(v.operation==="approve") {
       if(a.mode!=="in_person" || a.state!=="pending_approval") throw new AppointmentError("invalid_state");
       const t=a.startAt.getTime();
-      if(!legal(t,now)) throw new AppointmentError("invalid_slot",422);
+      if(!legal(t,readClock(clock))) throw new AppointmentError("invalid_slot",422);
       const from=t-v.travel_before*60000, to=t+HOUR+v.travel_after*60000;
       const day=new Date(t-3*HOUR).toISOString().slice(0,10);
       const morning=new Date(`${day}T08:00:00-03:00`).getTime();
@@ -85,12 +85,14 @@ export async function ownerAppointment(input:unknown, now=new Date()) {
       if(from<morning || to>close || (from<afternoon && to>lunch)) throw new AppointmentError("invalid_buffers",422);
       await refreshAppointmentCalendars(tx);
       if(!await free(tx,new Date(from),new Date(to),a)) throw new AppointmentError("slot_unavailable");
+      if(!legal(t,readClock(clock))) throw new AppointmentError("invalid_slot",422);
       const [event]=await tx.insert(events).values({title:a.subject,location:a.address,startAt:a.startAt,endAt:a.endAt}).returning();
       eventId=event.id; state="confirmed"; travelBefore=v.travel_before; travelAfter=v.travel_after;
     } else {
       if(v.operation==="reject" && a.state!=="pending_approval") throw new AppointmentError("invalid_state");
       state=v.operation==="reject"?"rejected":"cancelled"; eventId=null;
     }
+    if(v.operation==="approve" && !legal(a.startAt.getTime(),readClock(clock))) throw new AppointmentError("invalid_slot",422);
     const [updated]=await tx.update(appointments).set({state,eventId,travelBefore,travelAfter,version:a.version+1}).where(and(eq(appointments.id,a.id),eq(appointments.version,v.version))).returning();
     if(!updated) throw new AppointmentError("version_conflict");
     if(a.eventId && eventId===null) await tx.delete(events).where(eq(events.id,a.eventId));
@@ -99,23 +101,31 @@ export async function ownerAppointment(input:unknown, now=new Date()) {
   });
 }
 
-export async function maiaAppointment(input: unknown, now = new Date()) {
+// Date is retained for legacy fixed-time fixtures; production always reads a live clock.
+type Clock = Date | (() => Date);
+function readClock(clock: Clock) { return typeof clock === "function" ? clock() : clock; }
+export async function maiaAppointment(input: unknown, clock: Clock = () => new Date()) {
   const v = maiaInput.parse(input);
   return withCalendarTransaction(async tx => {
     if (v.operation === "list") {
+      const now = readClock(clock);
       const rows = await tx.select().from(appointments).where(and(eq(appointments.contactId,v.contact_id),gte(appointments.startAt,new Date(now.getTime()-14*86400000)))).orderBy(asc(appointments.startAt)).limit(20);
       return {version:1,ok:true,operation:"list",appointments:rows.map(projectAppointment)};
     }
     if (v.operation === "availability") {
       await refreshAppointmentCalendars(tx);
+      const now = readClock(clock);
       const slots: { start_at: string; end_at: string }[] = [];
       for (let t = Math.ceil((now.getTime() + 2 * HOUR) / HOUR) * HOUR; t <= now.getTime() + 14 * 86400000 && slots.length < 2; t += HOUR) {
         const d = new Date(t - 3 * HOUR); const h = d.getUTCHours();
         if (!legal(t, now) || (v.args.from_date && d.toISOString().slice(0,10) < v.args.from_date) || (v.args.period === "morning" && h > 10) || (v.args.period === "afternoon" && h < 13)) continue;
         if (!await free(tx, new Date(t), new Date(t + HOUR))) continue;
+        if (!legal(t, readClock(clock))) continue;
         slots.push({ start_at: new Date(t).toISOString(), end_at: new Date(t + 45 * 60000).toISOString() });
       }
-      return { version: 1, ok: true, operation: "availability", timezone: "America/Sao_Paulo", slots };
+      // Later conflict queries may also expire a slot collected earlier in this scan.
+      const decidedAt = readClock(clock);
+      return { version: 1, ok: true, operation: "availability", timezone: "America/Sao_Paulo", slots: slots.filter(slot => legal(new Date(slot.start_at).getTime(), decidedAt)) };
     }
     const digest = createHash("sha256").update(JSON.stringify(v)).digest("hex");
     const [prior] = await tx.select().from(appointmentRequests).where(eq(appointmentRequests.id, v.request_id));
@@ -127,10 +137,12 @@ export async function maiaAppointment(input: unknown, now = new Date()) {
     if (v.operation === "book") {
       await refreshAppointmentCalendars(tx);
       const t = new Date(v.args.start_at).getTime();
-      if (!legal(t, now)) throw new AppointmentError("invalid_slot", 422);
+      if (!legal(t, readClock(clock))) throw new AppointmentError("invalid_slot", 422);
       if (!await free(tx, new Date(t), new Date(t + HOUR))) throw new AppointmentError("slot_unavailable");
+      if (!legal(t, readClock(clock))) throw new AppointmentError("invalid_slot", 422);
       const confirmed = v.args.mode === "remote";
       const [event] = confirmed ? await tx.insert(events).values({ title: v.args.subject, startAt:new Date(t), endAt:new Date(t+45*60000) }).returning() : [];
+      if (!legal(t, readClock(clock))) throw new AppointmentError("invalid_slot", 422);
       [appointment] = await tx.insert(appointments).values({ contactId:v.contact_id, customerName:v.args.customer_name, mode:v.args.mode, subject:v.args.subject, remotePreference:v.args.remote_preference, address:v.args.address, state:confirmed ? "confirmed" : "pending_approval", startAt:new Date(t), endAt:new Date(t+45*60000), eventId:event?.id }).returning();
     } else {
       const [old] = await tx.select().from(appointments).where(and(eq(appointments.id,v.args.appointment_id),eq(appointments.contactId,v.contact_id)));
@@ -142,9 +154,11 @@ export async function maiaAppointment(input: unknown, now = new Date()) {
       } else {
         await refreshAppointmentCalendars(tx);
         const t = new Date(v.args.start_at).getTime();
-        if (!legal(t,now)) throw new AppointmentError("invalid_slot",422);
+        if (!legal(t,readClock(clock))) throw new AppointmentError("invalid_slot",422);
         if (!await free(tx,new Date(t),new Date(t+HOUR),old)) throw new AppointmentError("slot_unavailable");
+        if (!legal(t,readClock(clock))) throw new AppointmentError("invalid_slot",422);
         if (old.eventId && old.mode === "remote") await tx.update(events).set({startAt:new Date(t),endAt:new Date(t+45*60000)}).where(eq(events.id,old.eventId));
+        if (!legal(t,readClock(clock))) throw new AppointmentError("invalid_slot",422);
         [appointment] = await tx.update(appointments).set({startAt:new Date(t),endAt:new Date(t+45*60000),state:old.mode === "remote" ? "confirmed":"pending_approval",eventId:old.mode === "remote" ? old.eventId:null,travelBefore:0,travelAfter:0,version:old.version+1}).where(eq(appointments.id,old.id)).returning();
         if (old.eventId && old.mode === "in_person") await tx.delete(events).where(eq(events.id,old.eventId));
       }
