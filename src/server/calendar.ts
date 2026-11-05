@@ -1,6 +1,7 @@
 import "server-only";
 import { and, asc, eq, gte, isNull, lt, or } from "drizzle-orm";
 import ical, { type EventInstance, type VEvent } from "node-ical";
+import { withCalendarTransaction, type CalendarTx } from "./calendar-lock";
 import { getDb } from "@/db";
 import { calendars, events } from "@/db/schema";
 
@@ -72,12 +73,12 @@ export function expandIcs(text: string, from: Date, to: Date): ParsedEvent[] {
   for (const raw of Object.values(data)) {
     if (!raw || raw.type !== "VEVENT") continue;
     const ev = raw as VEvent;
-    if (!ev.start) continue;
+    if (!(ev.start instanceof Date) || !Number.isFinite(ev.start.getTime())) throw new Error("ICS inválido: início ausente");
     let instances: EventInstance[] = [];
     try {
       instances = ical.expandRecurringEvent(ev, { from, to, expandOngoing: true });
     } catch {
-      continue;
+      throw new Error("ICS inválido: recorrência não pôde ser expandida");
     }
     const uid = String(ev.uid ?? pv(ev.summary));
     for (const inst of instances) {
@@ -99,26 +100,29 @@ export function expandIcs(text: string, from: Date, to: Date): ParsedEvent[] {
   return out;
 }
 
-export async function syncCalendar(id: string) {
-  const db = await getDb();
+export async function syncCalendarInTransaction(db: CalendarTx, id: string) {
   const [cal] = await db.select().from(calendars).where(eq(calendars.id, id));
   if (!cal || cal.kind !== "ics" || !cal.url) throw new Error("Calendário não é uma assinatura ICS");
+  const res = await fetch(normalizeIcsUrl(cal.url), { headers: { "user-agent": "Orbita/1.0 (+calendar sync)" }, signal: AbortSignal.timeout(20_000), cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  if (!text.includes("BEGIN:VCALENDAR") || !text.includes("END:VCALENDAR")) throw new Error("A URL não retornou um calendário ICS");
+  const now = Date.now();
+  const parsed = expandIcs(text, new Date(now - 60 * 86_400_000), new Date(now + 400 * 86_400_000));
+  await db.delete(events).where(eq(events.calendarId, id));
+  for (let i = 0; i < parsed.length; i += 200) {
+    await db.insert(events).values(parsed.slice(i, i + 200).map((p) => ({ ...p, externalUid: p.uid, calendarId: id })));
+  }
+  await db.update(calendars).set({ lastSyncedAt: new Date(), lastError: null }).where(eq(calendars.id, id));
+  return parsed.length;
+}
+
+export async function syncCalendar(id: string) {
   try {
-    const res = await fetch(normalizeIcsUrl(cal.url), { headers: { "user-agent": "Orbita/1.0 (+calendar sync)" }, signal: AbortSignal.timeout(20_000), cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    if (!text.includes("BEGIN:VCALENDAR")) throw new Error("A URL não retornou um calendário ICS");
-    const now = Date.now();
-    const parsed = expandIcs(text, new Date(now - 60 * 86_400_000), new Date(now + 400 * 86_400_000));
-    await db.delete(events).where(eq(events.calendarId, id));
-    for (let i = 0; i < parsed.length; i += 200) {
-      await db.insert(events).values(parsed.slice(i, i + 200).map((p) => ({ ...p, externalUid: p.uid, calendarId: id })));
-    }
-    await db.update(calendars).set({ lastSyncedAt: new Date(), lastError: null }).where(eq(calendars.id, id));
-    return parsed.length;
+    return await withCalendarTransaction(tx => syncCalendarInTransaction(tx, id));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await db.update(calendars).set({ lastError: msg.slice(0, 300) }).where(eq(calendars.id, id));
+    await withCalendarTransaction(async tx => { await tx.update(calendars).set({ lastError: msg.slice(0, 300) }).where(eq(calendars.id, id)); });
     throw new Error(`Falha ao sincronizar: ${msg}`);
   }
 }

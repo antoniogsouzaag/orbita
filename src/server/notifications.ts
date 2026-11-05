@@ -1,4 +1,7 @@
 import "server-only";
+import { getDb } from "@/db";
+import { appointments } from "@/db/schema";
+import { eq, asc } from "drizzle-orm";
 import { ANSWERED_TAG } from "@/lib/proposals";
 import type { TaskScope } from "@/db/schema";
 import { localTime, today } from "@/lib/dates";
@@ -18,9 +21,11 @@ export async function loadNotifications(scope: TaskScope = "pessoal"): Promise<S
     scope === "empresa" ? agentTasks() : Promise.resolve([]),
     scope === "empresa" ? liveOps() : Promise.resolve({ events: [], monitors: [] }),
   ]);
+  const pendingAppointments = scope === "empresa" ? await (await getDb()).select().from(appointments).where(eq(appointments.state,"pending_approval")).orderBy(asc(appointments.startAt)).limit(20) : [];
   const t = today();
   const agentIds = new Set(asks.filter((a) => a.status !== "done").map((a) => a.id));
   return [
+    ...pendingAppointments.map(a=>({id:`appointment-${a.id}-v${a.version}`,title:a.subject,detail:"Presencial não confirmado — aprove com deslocamento ou rejeite",href:"/agenda/agendamentos",tone:"warning" as const})),
     ...ops.events.filter((e) => !e.resolvedAt && e.severity !== "info").slice(0, 15)
       .map((e) => ({ id: `o-${e.id}`, title: e.subject, detail: opsEventLabel(e.kind), href: "/operacao", tone: e.severity === "critical" ? "danger" as const : "warning" as const })),
     ...ops.monitors.filter((m) => m.silent).map((m) => ({ id: `m-${m.source}-${m.lastSeen.getTime()}`, title: m.label, detail: `Monitor sem sinal há ${m.minutesAgo} min`, href: "/operacao", tone: "warning" as const })),

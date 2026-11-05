@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { addDays, endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import { and, gte, isNotNull, isNull, lte } from "drizzle-orm";
 import { CalendarDays } from "lucide-react";
@@ -47,7 +48,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
   const feedUrl = token && host ? `${proto === "http" && !host.startsWith("localhost") ? "https" : proto}://${host}/api/calendar/feed.ics?token=${token}` : null;
   return (
     <div className="mx-auto max-w-[1440px] px-4 sm:px-6">
-      <PageHeader icon={<CalendarDays />} title="Calendário" description="Compromissos, tarefas e tempo para evoluir." />
+      <PageHeader icon={<CalendarDays />} title="Calendário" description="Compromissos, tarefas e tempo para evoluir." actions={<Link href="/agenda/agendamentos" className="text-accent underline">Agendamentos Maia</Link>} />
       <AgendaPage
         key={`${month}:${selected}:${view}`}
         month={month}

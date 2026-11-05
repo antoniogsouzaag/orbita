@@ -85,6 +85,13 @@
       "when": 1793415570082,
       "tag": "0011_social_media_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793837660761,
+      "tag": "0012_maia_appointments",
+      "breakpoints": true
     }
   ]
 }
