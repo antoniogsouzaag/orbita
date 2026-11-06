@@ -138,6 +138,8 @@ A rotina "Redes AG LABS: pesquisa e produção (1 post/dia)" roda de segunda a s
 
 Repositórios: marketing (a arte vai numa branch `rotina/<slug>`), orbita (leitura) e aglabs-conteudos (a página gratuita vai na main).
 
+**Layout editável (desde 07/11/2026):** em carrossel e imagem, depois do render a rotina roda `scripts/enviar-layout.mjs … --saida layout-orbita.html` (do repo orbita), sobe o arquivo no bucket como `text/html` e anexa por último, sem capa. Se a Órbita recusar (versão antiga no ar), o post segue só com os JPGs e o relatório diz "layout editável anexado: não". O `layout-orbita.html` não vai para o git.
+
 ## Storage: por que travava
 
 O upload pela Vercel estourava o tempo em arquivos acima de cerca de 0,5 MB. O `aws4fetch` monta um `Request`, o corpo vira stream e é enviado sem `Content-Length` (chunked), e o storage do Neon fica esperando o fim. Agora o Órbita só assina (`client.sign`) e envia com `fetch` e o corpo inteiro. O fallback para o banco continua existindo.
