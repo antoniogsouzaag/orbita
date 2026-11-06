@@ -59,6 +59,12 @@ A auditoria é a ferramenta MCP `redes_auditar_entregas`, que só lê dados. Ela
 4. **Envio para a Órbita:** botão **Enviar** no campo "Mídia principal" do post. Agentes usam `redes_anexar_midia` (por link) ou `POST /api/redes/midia` (multipart, token de agente com escopo tarefas/admin). O arquivo fica guardado na própria Órbita (tabela `social_media`) e o card mostra a prévia.
 5. **Revisão:** Antonio vê a capa no card. Aprovada a capa, seguem os slides internos, a página gratuita e a linha no n8n.
 
+### Editor de layout (06/11/2026)
+- **Anexar o layout:** depois do render, rode na pasta do marketing `node ../orbita/scripts/enviar-layout.mjs producao/<slug>/build/slides.html <postId>` (com `ORBITA_MCP_TOKEN`). As imagens locais entram embutidas; o limite é 8 MB. Também vale arrastar o `.html` em **Enviar slides** ou mandar por `redes_anexar_midia`.
+- **Editar:** no post aparece **Editar layout**. Clique seleciona, arrastar move, duplo clique edita o texto na própria arte; o dock embaixo troca cor, fundo, fonte, tamanho, peso, esconde e sobe para o bloco de fora. Ctrl+Z desfaz.
+- **Gerar imagens:** o navegador desenha cada slide como o `render.mjs` (janela de 1080 px, só aquele slide, animações no fim) e envia os JPGs com os mesmos nomes dos slides atuais, então o agendamento usa a versão nova. Serve para carrossel (`id="s1".."sN"`) e para peça única (a página inteira).
+- **Custo:** o VPS só guarda o HTML e os JPGs. Nada roda no servidor. O layout nunca vira capa nem entra no carrossel; scripts e eventos do HTML são removidos.
+
 ### Armazenamento e limpeza
 - **Neon Object Storage (preferido):** projeto Neon `orbita-midia` (org ag labs, us-east-1, porque o storage ainda não existe em São Paulo), bucket `redes` com leitura pública. Na Vercel: `MEDIA_S3_ENDPOINT`, `MEDIA_S3_REGION`, `MEDIA_S3_BUCKET` e, como Sensitive, `MEDIA_S3_ACCESS_KEY_ID` (token_id) e `MEDIA_S3_SECRET_ACCESS_KEY`, de uma credencial com escopo storage:read/write. O post recebe o link público (`endpoint/redes/<arquivo>`), que o Postiz e o OpenClaw abrem direto. Grátis até 5 GB.
 - **Sem essas variáveis:** o arquivo fica na própria Órbita (tabela `social_media`) e só abre com sessão ou token de agente.

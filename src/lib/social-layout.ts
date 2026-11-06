@@ -26,9 +26,15 @@ export function layoutFonts(html: string) {
       if (f.startsWith("family=")) out.add(decodeURIComponent(f.slice(7).split(":")[0]).replace(/\+/g, " "));
     }
   }
-  for (const m of html.matchAll(/font(?:-family)?\s*:[^;{}]*?["']([^"']+)["']/g)) out.add(m[1]);
+  for (const m of html.matchAll(/font\s*:[^;{}]*?["']([^"']+)["']/g)) out.add(m[1]);
+  // font-family com ou sem aspas (font-family:Inter,sans-serif): vale a primeira família que não é genérica.
+  for (const m of html.matchAll(/font-family\s*:\s*([^;{}"]*(?:"[^"]*"[^;{}"]*)*)/g)) {
+    const first = m[1].split(",").map(f => f.trim().replace(/^["']|["']$/g, "")).find(f => f && !GENERIC.has(f.toLowerCase()));
+    if (first) out.add(first);
+  }
   return [...out];
 }
+const GENERIC = new Set(["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui", "ui-sans-serif", "ui-serif", "inherit", "initial", "unset", "-apple-system", "blinkmacsystemfont"]);
 
 /** Quantos slides o layout tem (id="s1".."sN", a mesma regra do render.mjs). */
 export const slideCount = (html: string) => (html.match(/id=["']s\d+["']/g) ?? []).length;

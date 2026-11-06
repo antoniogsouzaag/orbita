@@ -18,6 +18,8 @@ describe("layout do post", () => {
   it("lista as fontes do Google Fonts e do CSS", () => {
     const html = `<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&amp;family=Manrope:wght@600;800&display=swap" rel="stylesheet"><style>.x{font:600 26px/1.3 "Plus Jakarta Sans"}.y{font-family:'Manrope'}</style>`;
     expect(layoutFonts(html)).toEqual(["Source Serif 4", "Manrope", "Plus Jakarta Sans"]);
+    // peça única do marketing: família sem aspas e genéricas ignoradas
+    expect(layoutFonts(`<style>body{font-family:Inter,sans-serif}.c{font-family:"Segoe UI",Arial,sans-serif}.d{font-family:serif}</style>`)).toEqual(["Inter", "Segoe UI"]);
   });
 
   it("conta slides pela regra do render.mjs", () => {
