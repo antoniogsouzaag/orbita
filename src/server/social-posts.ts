@@ -3,6 +3,7 @@ import { asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { socialPosts, type SocialPost } from "@/db/schema";
+import { invalidateDeliveries } from "./social-deliveries";
 import { nextFreeSlot, SOCIAL_BRANDS, SOCIAL_FORMATS, SOCIAL_NETWORKS, SOCIAL_STAGES, stageError, type SocialNetwork, type SocialStage } from "@/lib/social-pipeline";
 
 const optionalText = (max: number) => z.string().trim().max(max).transform(v => v || null).nullable().optional();
@@ -43,6 +44,7 @@ export async function listSocialPosts(): Promise<SocialPost[]> {
 export async function createSocialPost(raw: unknown) {
   const data = socialPostSchema.parse(raw);
   const db = await getDb();
+  invalidateDeliveries();
   // Sem data, entra no próximo dia livre da marca às 20h (1 post por dia).
   const scheduledAt = data.scheduledAt ? new Date(data.scheduledAt) : nextFreeSlot(await db.select({ id: socialPosts.id, brand: socialPosts.brand, stage: socialPosts.stage, scheduledAt: socialPosts.scheduledAt }).from(socialPosts), data.brand);
   const [row] = await db.insert(socialPosts).values({ ...data, scheduledAt, checks: data.checks ?? {} }).returning();
@@ -66,6 +68,7 @@ export async function updateSocialPost(id: string, raw: unknown) {
   const error = stageError(asQuality({ ...before, ...next }), before.stage as SocialStage);
   if (error && ["aprovado", "agendado", "publicado"].includes(before.stage)) throw new Error(error);
   const db = await getDb();
+  invalidateDeliveries();
   const [row] = await db.update(socialPosts).set({ ...next, updatedAt: new Date() }).where(eq(socialPosts.id, before.id)).returning();
   return row;
 }
@@ -76,6 +79,7 @@ export async function moveSocialPost(id: string, stage: SocialStage) {
   const error = stageError(asQuality(before), to);
   if (error) throw new Error(error);
   const db = await getDb();
+  invalidateDeliveries();
   const [row] = await db.update(socialPosts).set({ stage: to, updatedAt: new Date() }).where(eq(socialPosts.id, before.id)).returning();
   return row;
 }
@@ -88,6 +92,7 @@ export async function requestSocialAdjustment(id: string, nota: string) {
   const at = new Date();
   const stamp = at.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   const db = await getDb();
+  invalidateDeliveries();
   const [row] = await db.update(socialPosts).set({
     stage: "rascunho", checks: { ...before.checks, ajuste: { nota: text, at: at.toISOString() } },
     notes: `${before.notes ?? ""}
@@ -99,6 +104,7 @@ export async function requestSocialAdjustment(id: string, nota: string) {
 
 export async function deleteSocialPost(id: string) {
   const db = await getDb();
+  invalidateDeliveries();
   await db.delete(socialPosts).where(eq(socialPosts.id, z.string().uuid().parse(id)));
 }
 
@@ -107,6 +113,7 @@ export async function duplicateSocialPost(id: string, network: SocialNetwork) {
   const src = await current(id);
   const to = z.enum(SOCIAL_NETWORKS).parse(network);
   const db = await getDb();
+  invalidateDeliveries();
   const [row] = await db.insert(socialPosts).values({
     brand: src.brand, network: to, format: src.format, stage: "rascunho", title: src.title, hook: src.hook, caption: src.caption, cta: src.cta,
     mediaUrl: src.mediaUrl, referenceUrl: src.referenceUrl, scheduledAt: src.scheduledAt, checks: {}, notes: `Adaptado de ${src.network} (${src.id}).`,

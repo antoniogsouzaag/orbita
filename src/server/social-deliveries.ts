@@ -12,7 +12,22 @@ export type DeliveryItem = { postId: string; tabela: "porCodigo" | "porPost"; co
  * - porCodigo: post agendado/publicado com palavra nova (PROMPT não, ela é sempre por post);
  * - porPost: post publicado com media_id.
  */
+/**
+ * Cache em memória (o processo no VPS é contínuo): o n8n consulta a cada 30 min, mas a lista só muda quando um post
+ * é agendado, publicado, editado ou confirmado. Sem isso, cada consulta acordava o banco (Neon).
+ */
+let cache: { at: number; items: DeliveryItem[] } | null = null;
+const CACHE_MS = 2 * 3_600_000;
+export function invalidateDeliveries() { cache = null; }
+
 export async function pendingDeliveries(): Promise<DeliveryItem[]> {
+  if (cache && Date.now() - cache.at < CACHE_MS) return cache.items;
+  const items = await readPendingDeliveries();
+  cache = { at: Date.now(), items };
+  return items;
+}
+
+async function readPendingDeliveries(): Promise<DeliveryItem[]> {
   const db = await getDb();
   const rows = await db.select().from(socialPosts).where(inArray(socialPosts.stage, ["agendado", "publicado"]));
   const out: DeliveryItem[] = [];
@@ -31,6 +46,7 @@ export async function pendingDeliveries(): Promise<DeliveryItem[]> {
 const confirmSchema = z.object({ itens: z.array(z.object({ postId: z.uuid(), tabela: z.enum(["porCodigo", "porPost"]) })).max(200) });
 /** O n8n confirma o que gravou; a flag correspondente vira true no post. */
 export async function confirmDeliveries(raw: unknown) {
+  invalidateDeliveries();
   const { itens } = confirmSchema.parse(raw);
   const db = await getDb();
   let ok = 0;

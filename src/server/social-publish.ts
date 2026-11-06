@@ -6,6 +6,7 @@ import { socialMedia, socialPosts, type SocialPost } from "@/db/schema";
 import { buildSchedulePayload, captionFor, fanoutNetworks, orderMedia, pickChannel, reconcileExternal, type PostizChannel, type PostizMedia, type RemoteListedPost } from "@/lib/social-postiz";
 import { NETWORK_LABELS, nextFreeSlot, stageError, type SocialBrand, type SocialNetwork } from "@/lib/social-pipeline";
 import { getSocialMedia } from "./social-media";
+import { invalidateDeliveries } from "./social-deliveries";
 
 /* ───────────── cliente da API pública do Postiz (mesma configuração da aba Métricas) ───────────── */
 
@@ -150,6 +151,7 @@ export async function scheduleSocialPost(id: string) {
   const main = done[post.network];
   const state: PostizState = { postId: main.postId, integrationId: main.integrationId, scheduledFor: post.scheduledAt!.toISOString(), at: existing?.at ?? new Date().toISOString(), canais: done, ...(Object.keys(erros).length ? { erros } : {}) };
   const falhas = Object.entries(erros).filter(([, m]) => m !== "sem canal").map(([n]) => NETWORK_LABELS[n as SocialNetwork] ?? n);
+  invalidateDeliveries();
   const [row] = await db.update(socialPosts).set({ stage: "agendado", checks: { ...post.checks, postiz: state }, updatedAt: new Date() }).where(eq(socialPosts.id, post.id)).returning();
   return { post: row, postiz: state, already: false, falhas };
 }
@@ -178,6 +180,7 @@ export async function syncScheduledPosts(now = new Date()) {
         .where(and(eq(socialPosts.id, p.id), eq(socialPosts.stage, "agendado")));
     }
   }
+  if (published || failed) invalidateDeliveries();
   return { checked: scheduled.length, published, failed };
 }
 
