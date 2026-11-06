@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { getDb } from "@/db";
 import { socialMedia, socialPosts, type SocialPost } from "@/db/schema";
-import { buildSchedulePayload, captionFor, fanoutNetworks, orderMedia, pickChannel, reconcileExternal, type PostizChannel, type PostizMedia, type RemoteListedPost } from "@/lib/social-postiz";
+import { buildSchedulePayload, captionFor, fanoutNetworks, mediaForFormat, mediaForNetwork, orderMedia, pickChannel, reconcileExternal, type PostizChannel, type PostizMedia, type RemoteListedPost } from "@/lib/social-postiz";
 import { NETWORK_LABELS, nextFreeSlot, stageError, type SocialBrand, type SocialNetwork } from "@/lib/social-pipeline";
 import { getSocialMedia } from "./social-media";
 import { invalidateDeliveries } from "./social-deliveries";
@@ -59,6 +59,8 @@ async function uploadFinalScreen(brand: SocialBrand): Promise<PostizMedia | null
   if (!out?.id || !out.path) throw new Error("Upload da tela final sem id/path.");
   return { id: out.id, path: out.path };
 }
+/** Rede que não recebe vídeo em carrossel e ficou sem slides de imagem: não é falha, não se tenta de novo. */
+const SEM_IMAGEM = "carrossel só com vídeo: esta rede recebe apenas imagens";
 const postizOf = (p: Pick<SocialPost, "checks">) => (p.checks as { postiz?: PostizState } | null)?.postiz ?? null;
 
 /**
@@ -85,7 +87,7 @@ export async function scheduleSocialPost(id: string) {
   const wantsVideo = post.format === "reels" || post.format === "video";
   const networks = fanoutNetworks(post.brand as SocialBrand, post.network as SocialNetwork, wantsVideo);
   const done: Record<string, PostizChannelState> = existing ? { [post.network]: { postId: existing.postId, integrationId: existing.integrationId }, ...existing.canais } : {};
-  if (existing && networks.every(n => done[n] || existing.erros?.[n] === "sem canal")) return { post, postiz: existing, already: true };
+  if (existing && networks.every(n => done[n] || existing.erros?.[n] === "sem canal" || existing.erros?.[n] === SEM_IMAGEM)) return { post, postiz: existing, already: true };
   const channels = await postiz<PostizChannel[]>("/integrations");
   const channel = pickChannel(channels, post.brand as SocialBrand, post.network as SocialNetwork);
   if (!channel) throw new Error(`Nenhum canal ativo de ${post.brand} no ${post.network} no Postiz.`);
@@ -113,9 +115,9 @@ export async function scheduleSocialPost(id: string) {
 
   // Mídias do post na ordem do carrossel; o mesmo nome enviado de novo vale a versão mais recente.
   const all = await db.select({ id: socialMedia.id, filename: socialMedia.filename, contentType: socialMedia.contentType, createdAt: socialMedia.createdAt }).from(socialMedia).where(eq(socialMedia.postId, post.id));
-  // Reel/vídeo vai só com o vídeo (a capa em JPG viraria carrossel); carrossel e imagem vão só com imagens.
+  // Reel/vídeo vai só com o vídeo; carrossel aceita imagens e vídeos; imagem vai só com imagens.
   // O layout (HTML) fica fora: só a imagem gerada dele vai para a rede.
-  const rows = all.filter(r => (wantsVideo ? r.contentType.startsWith("video/") : r.contentType.startsWith("image/")));
+  const rows = mediaForFormat(post.format, all);
   if (wantsVideo && rows.length !== 1) throw new Error(rows.length ? "Reel precisa de um único vídeo." : "Envie o MP4 do reel antes de aprovar.");
   const latest = new Map<string, (typeof rows)[number]>();
   for (const r of rows) { const cur = latest.get(r.filename); if (!cur || cur.createdAt < r.createdAt) latest.set(r.filename, r); }
@@ -123,8 +125,9 @@ export async function scheduleSocialPost(id: string) {
   if (!ordered.length) throw new Error("Envie a capa e as mídias do post antes de aprovar.");
   if (ordered.length > 10) throw new Error(`${ordered.length} mídias; o Instagram aceita até 10.`);
 
-  const media: PostizMedia[] = [];
-  for (const m of ordered) media.push(await uploadToPostiz(m.id));
+  const uploaded = new Map<string, PostizMedia>();
+  for (const m of ordered) uploaded.set(m.id, await uploadToPostiz(m.id));
+  const media = ordered.map(m => uploaded.get(m.id)!);
   // Fora do Instagram não há automação da palavra-chave: o último slide (CTA "comenta X") vira a tela final.
   const keyword = post.checks?.keyword;
   const needsFinal = Boolean(keyword) && !wantsVideo && media.length > 1 && networks.some(n => n !== "instagram" && !done[n]);
@@ -136,7 +139,13 @@ export async function scheduleSocialPost(id: string) {
     const ch = network === post.network ? channel : pickChannel(channels, post.brand as SocialBrand, network);
     if (!ch) { erros[network] = "sem canal"; continue; }
     const { content, comment } = captionFor(network, post.caption!, { pageUrl: keyword ? post.checks?.pageUrl : null });
-    const files = network !== "instagram" && finalScreen ? [...media.slice(0, -1), finalScreen] : media;
+    // Carrossel misto: fora do Instagram seguem só os slides de imagem.
+    const networkMedia = mediaForNetwork(network, post.format, ordered).map(m => uploaded.get(m.id)!);
+    if (!networkMedia.length) {
+      if (network === post.network) throw new Error("Esta rede publica o carrossel só com imagens: inclua ao menos uma imagem.");
+      erros[network] = SEM_IMAGEM; continue;
+    }
+    const files = network !== "instagram" && finalScreen && networkMedia.length > 1 ? [...networkMedia.slice(0, -1), finalScreen] : networkMedia;
     try {
       const payload = buildSchedulePayload({ channel: ch, caption: content, comment, media: files, date: post.scheduledAt!, title: post.title, isVideo: wantsVideo });
       const result = await postiz<Array<{ postId?: string; id?: string }>>("/posts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
@@ -151,7 +160,7 @@ export async function scheduleSocialPost(id: string) {
   }
   const main = done[post.network];
   const state: PostizState = { postId: main.postId, integrationId: main.integrationId, scheduledFor: post.scheduledAt!.toISOString(), at: existing?.at ?? new Date().toISOString(), canais: done, ...(Object.keys(erros).length ? { erros } : {}) };
-  const falhas = Object.entries(erros).filter(([, m]) => m !== "sem canal").map(([n]) => NETWORK_LABELS[n as SocialNetwork] ?? n);
+  const falhas = Object.entries(erros).filter(([, m]) => m !== "sem canal" && m !== SEM_IMAGEM).map(([n]) => NETWORK_LABELS[n as SocialNetwork] ?? n);
   invalidateDeliveries();
   const [row] = await db.update(socialPosts).set({ stage: "agendado", checks: { ...post.checks, postiz: state }, updatedAt: new Date() }).where(eq(socialPosts.id, post.id)).returning();
   return { post: row, postiz: state, already: false, falhas };

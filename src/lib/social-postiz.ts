@@ -83,6 +83,34 @@ export function orderMedia<T extends { filename: string; createdAt: Date | strin
   return [...items].sort((a, b) => n(a.filename) - n(b.filename) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
+/* ───────────── Mídias por formato e por rede ───────────── */
+
+type MediaRow = { contentType: string };
+const isVideoRow = (r: MediaRow) => r.contentType.startsWith("video/");
+const isImageRow = (r: MediaRow) => r.contentType.startsWith("image/");
+
+/**
+ * Mídias que entram no agendamento conforme o formato.
+ * Reel/vídeo: só o MP4 (a capa em JPG viraria carrossel). Carrossel: imagens e vídeos, na ordem dos nomes
+ * (carrossel misto, como o F11 Astra de 07/09). Imagem, story e texto: só imagens. Nenhum outro tipo
+ * (como o layout HTML do editor) entra.
+ */
+export function mediaForFormat<T extends MediaRow>(format: string, rows: T[]): T[] {
+  if (format === "reels" || format === "video") return rows.filter(isVideoRow);
+  // Outros arquivos do post (o layout HTML do editor) nunca vão para a rede.
+  if (format === "carrossel") return rows.filter(r => isImageRow(r) || isVideoRow(r));
+  return rows.filter(isImageRow);
+}
+
+/**
+ * Cada rede recebe o que publica com segurança. O carrossel misto foi validado só no Instagram
+ * (Postiz, 07/09); nas demais redes o carrossel segue com os slides de imagem.
+ */
+export function mediaForNetwork<T extends MediaRow>(network: SocialNetwork, format: string, rows: T[]): T[] {
+  if (format !== "carrossel" || network === "instagram") return rows;
+  return rows.filter(isImageRow);
+}
+
 /* ───────────── Várias redes por post (AG LABS) ───────────── */
 
 /** Redes extras que cada marca recebe ao aprovar. YouTube só com vídeo vertical (Shorts). */
