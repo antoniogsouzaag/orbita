@@ -40,7 +40,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
     const date = e.allDay ? e.startAt.toISOString().slice(0, 10) : localDate(e.startAt);
     const lastDate = e.allDay ? new Date(e.endAt.getTime() - 1).toISOString().slice(0, 10) : localDate(new Date(e.endAt.getTime() - 1));
     const endDate = e.allDay ? lastDate : localDate(e.endAt);
-    return { id: e.id, title: e.title, date, endDate: endDate < date ? date : endDate, lastDate: lastDate < date ? date : lastDate, start: e.allDay ? null : localTime(e.startAt), end: e.allDay ? null : localTime(e.endAt), allDay: e.allDay, color: e.color, calendarName: e.calendarName, editable: e.editable, location: e.location, description: e.description };
+    return { id: e.id, title: e.title, date, endDate: endDate < date ? date : endDate, lastDate: lastDate < date ? date : lastDate, start: e.allDay ? null : localTime(e.startAt), end: e.allDay ? null : localTime(e.endAt), allDay: e.allDay, color: e.color, calendarName: e.calendarName, editable: e.editable, appointmentId:e.appointmentId, location: e.location, description: e.description };
   });
   const token = process.env.CALENDAR_FEED_TOKEN;
   const host = h.get("x-forwarded-host") ?? h.get("host");

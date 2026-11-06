@@ -1,3 +1,4 @@
+import {legacyPending} from "../legacy-appointment-fixture";
 import { sql } from "drizzle-orm";
 import { beforeEach, expect, it, vi } from "vitest";
 import { getDb } from "@/db";
@@ -73,7 +74,7 @@ it("keeps a scoped appointment through failed reschedule, successful reschedule 
 });
 
 it("requires explicit owner travel review with CAS before confirming presencial", async () => {
- const first = await maiaAppointment(request("book",{start_at:"2026-11-05T12:00:00Z",mode:"in_person",subject:"Presencial",address:"Endereço de teste"},"22222222-2222-4222-8222-222222222222"),now);
+ const first = await legacyPending(request("book",{start_at:"2026-11-05T12:00:00Z",mode:"in_person",subject:"Presencial",address:"Endereço de teste"},"22222222-2222-4222-8222-222222222222"),now);
  const a = (first as {appointment:{id:string}}).appointment;
  expect(first).toMatchObject({appointment:{state:"pending_approval"}});
  expect(await (await getDb()).select().from(events)).toHaveLength(0);
@@ -105,11 +106,11 @@ it("guards assistant-created events against reservations", async () => {
 it("lists owner review data with canonical CRM identity and versioned review history", async () => {
  const first=await maiaAppointment(request("book",{start_at:"2026-11-05T12:00:00Z",mode:"in_person",subject:"Presencial",address:"Teste"},"22222222-2222-4222-8222-222222222222"),now);
  expect(bookingService.ownerAppointments).toBeTypeOf("function");
- expect(await bookingService.ownerAppointments()).toMatchObject([{id:(first as {appointment:{id:string}}).appointment.id,contactId:contact,version:1,state:"pending_approval",history:[{version:1,actor:"maia",operation:"book"}]}]);
+ expect(await bookingService.ownerAppointments()).toMatchObject([{id:(first as {appointment:{id:string}}).appointment.id,contactId:contact,version:1,state:"confirmed",history:[{version:1,actor:"maia",operation:"book"}]}]);
 });
 
 it("shows one stable internal pending-review notification and removes it after rejection", async () => {
- const first=await maiaAppointment(request("book",{start_at:"2026-11-05T12:00:00Z",mode:"in_person",subject:"Presencial",address:"Teste"},"22222222-2222-4222-8222-222222222222"),now);
+ const first=await legacyPending(request("book",{start_at:"2026-11-05T12:00:00Z",mode:"in_person",subject:"Presencial",address:"Teste"},"22222222-2222-4222-8222-222222222222"),now);
  const id=(first as {appointment:{id:string}}).appointment.id;
  const notices=await loadNotifications("empresa");
  expect(notices.filter(n=>n.id===`appointment-${id}-v1`)).toMatchObject([{detail:"Presencial não confirmado — aprove com deslocamento ou rejeite",href:"/agenda/agendamentos",tone:"warning"}]);

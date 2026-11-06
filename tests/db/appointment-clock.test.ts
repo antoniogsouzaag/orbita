@@ -1,3 +1,4 @@
+import {legacyPending} from "../legacy-appointment-fixture";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { getDb } from "@/db";
@@ -14,7 +15,7 @@ it.each(["book", "reschedule", "approve"])("%s rolls back if its first write wai
   const db = await getDb();
   let ownerId = "";
   if (operation !== "book") {
-    const seed = await maiaAppointment(booking(operation === "approve" ? "2026-11-05T11:00:00Z" : "2026-11-06T11:00:00Z", operation === "approve" ? "in_person" : "remote"), fixtureClock);
+    const seed = await (operation === "approve" ? legacyPending : maiaAppointment)(booking(operation === "approve" ? "2026-11-05T11:00:00Z" : "2026-11-06T11:00:00Z", operation === "approve" ? "in_person" : "remote"), fixtureClock);
     if (!("appointment" in seed)) throw new Error("missing appointment");
     ownerId = seed.appointment.id;
   }
@@ -41,7 +42,7 @@ it.each(["book", "reschedule", "approve"])("%s honors inclusive 2h/14d boundarie
     let input = booking(start);
     let ownerId = "";
     if (operation !== "book") {
-      const seed = await maiaAppointment(booking(operation === "approve" ? start : "2026-11-06T11:00:00Z", operation === "approve" ? "in_person" : "remote"), operation === "approve" ? () => new Date(new Date(start).getTime() - 7200000) : fixtureClock);
+      const seed = await (operation === "approve" ? legacyPending : maiaAppointment)(booking(operation === "approve" ? start : "2026-11-06T11:00:00Z", operation === "approve" ? "in_person" : "remote"), operation === "approve" ? () => new Date(new Date(start).getTime() - 7200000) : fixtureClock);
       if (!("appointment" in seed)) throw new Error("missing appointment");
       ownerId = seed.appointment.id;
       input = request("reschedule", { appointment_id: ownerId, start_at: start });
@@ -117,7 +118,7 @@ it("reschedule rejects an expired target after refresh and preserves every old r
 });
 
 it("owner approval rechecks the production clock after refresh and retains pending state", async () => {
-  const pending = await maiaAppointment(booking("2026-11-05T11:00:00Z", "in_person"));
+  const pending = await legacyPending(booking("2026-11-05T11:00:00Z", "in_person"));
   if (!("appointment" in pending)) throw new Error("missing appointment");
   await slowFeed();
   const before = await snapshot();

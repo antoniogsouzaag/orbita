@@ -1,3 +1,6 @@
+// Run the identical direct-calendar lifecycle/correlation assertions on real transactions too.
+import "../db/direct-calendar.test";
+import {legacyPending} from "../legacy-appointment-fixture";
 import {readFileSync,readdirSync} from "node:fs";
 import {randomUUID} from "node:crypto";
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
@@ -19,7 +22,7 @@ it.each(["availability", "book", "reschedule", "approve"])("%s samples live time
  let id = "";
  if (operation === "reschedule" || operation === "approve") {
   const seed = input();
-  const result = await maiaAppointment({...seed,args:{...seed.args,start_at:operation === "approve" ? seed.args.start_at : "2026-11-06T11:00:00Z",mode:operation === "approve" ? "in_person":"remote",address:"SYNTHETIC"}});
+  const result = await (operation === "approve" ? legacyPending : maiaAppointment)({...seed,args:{...seed.args,start_at:operation === "approve" ? seed.args.start_at : "2026-11-06T11:00:00Z",mode:operation === "approve" ? "in_person":"remote",address:"SYNTHETIC"}});
   if (!("appointment" in result)) throw new Error("missing appointment");
   id = result.appointment.id;
  }
