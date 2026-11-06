@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { LayoutEditorButton } from "@/components/social/layout-editor";
 import type { SocialPost } from "@/db/schema";
 import type { ExternalPost } from "@/lib/social-postiz";
 import {
@@ -227,13 +228,17 @@ function PostForm({ post, defaultBrand, onDone }: { post: SocialPost | null; def
   const postiz = post?.checks?.postiz as { scheduledFor: string; canais?: Record<string, unknown>; erros?: Record<string, string> } | undefined;
   const pendentes = postiz?.erros ? Object.entries(postiz.erros).filter(([, m]) => m !== "sem canal") : [];
   const hasMedia = /^https?:\/\//.test(f.mediaUrl);
+  const media = usePostMedia(post?.id ?? null, f.mediaUrl);
+  const images = media.items?.filter(m => !m.contentType.startsWith("text/")) ?? null;
+  const hasLayout = media.items?.some(m => m.contentType.startsWith("text/html")) ?? false;
   return <div className="grid gap-5 md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
     <aside className="space-y-2">
-      <MediaGallery postId={post?.id ?? null} cover={f.mediaUrl} />
+      <MediaGallery items={images} cover={f.mediaUrl} />
+      {post && hasLayout && <div className="flex"><LayoutEditorButton postId={post.id} imageNames={(images ?? []).map(m => m.filename)} onSaved={url => { if (url) set("mediaUrl", url); media.reload(); router.refresh(); }} /></div>}
       <div className="flex gap-2">
         <label className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-xs hover:bg-surface-2 ${uploading ? "pointer-events-none opacity-60" : ""}`}><Upload className="size-3.5" />{uploading ? "Enviando…" : hasMedia ? "Trocar capa" : "Enviar capa"}
           <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={uploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file); }} /></label>
-        {post && <SlidesUpload postId={post.id} onDone={() => router.refresh()} />}
+        {post && <SlidesUpload postId={post.id} onDone={() => { media.reload(); router.refresh(); }} />}
       </div>
     </aside>
     <div className="flex min-w-0 flex-col gap-3">
@@ -295,16 +300,21 @@ async function fetchPostMedia(postId: string): Promise<MediaItem[]> {
   const n = (f: string) => Number(/(\d+)\.[a-z0-9]+$/i.exec(f)?.[1] ?? 999);
   return (json.midias ?? []).filter((m, i, all) => all.findIndex(o => o.filename === m.filename) === i).sort((a, b) => n(a.filename) - n(b.filename));
 }
-/** Prévia grande do post com setas: capa primeiro e depois os slides, na ordem em que vão para o Postiz. */
-function MediaGallery({ postId, cover }: { postId: string | null; cover: string }) {
+/** Mídias do post (slides, vídeo e o layout em HTML). Recarrega quando a capa muda ou após editar o layout. */
+function usePostMedia(postId: string | null, cover: string) {
   const [items, setItems] = React.useState<MediaItem[] | null>(null);
-  const [i, setI] = React.useState(0);
+  const [version, reload] = React.useReducer((n: number) => n + 1, 0);
   React.useEffect(() => {
     if (!postId) return;
     let alive = true;
     void fetchPostMedia(postId).then(list => { if (alive) setItems(list); });
     return () => { alive = false; };
-  }, [postId, cover]);
+  }, [postId, cover, version]);
+  return { items, reload };
+}
+/** Prévia grande do post com setas: capa primeiro e depois os slides, na ordem em que vão para o Postiz. */
+function MediaGallery({ items, cover }: { items: MediaItem[] | null; cover: string }) {
+  const [i, setI] = React.useState(0);
   const urls = items?.length ? items.map(m => m.url) : /^https?:\/\//.test(cover) ? [cover] : [];
   const at = Math.min(i, Math.max(urls.length - 1, 0));
   const go = (d: number) => setI(Math.max(0, Math.min(urls.length - 1, at + d)));
@@ -321,7 +331,7 @@ function MediaGallery({ postId, cover }: { postId: string | null; cover: string 
   </div>;
 }
 
-/** Envia slides e vídeo do post (o número no fim do nome define a ordem: …-01, …-02). */
+/** Envia slides e vídeo do post (o número no fim do nome define a ordem: …-01, …-02). Um .html vira o layout editável. */
 function SlidesUpload({ postId, onDone }: { postId: string; onDone: () => void }) {
   const [busy, setBusy] = React.useState(false);
   const send = async (files: FileList) => {
@@ -339,5 +349,5 @@ function SlidesUpload({ postId, onDone }: { postId: string; onDone: () => void }
     finally { setBusy(false); }
   };
   return <label className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-1.5 text-xs text-muted hover:bg-surface-2 ${busy ? "pointer-events-none opacity-60" : ""}`}>{busy ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}{busy ? "Enviando…" : "Enviar slides"}
-    <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4" className="sr-only" disabled={busy} onChange={e => { const fl = e.target.files; if (fl?.length) void send(fl); e.target.value = ""; }} /></label>;
+    <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,text/html,.html" className="sr-only" disabled={busy} onChange={e => { const fl = e.target.files; if (fl?.length) void send(fl); e.target.value = ""; }} /></label>;
 }

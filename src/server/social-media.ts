@@ -4,8 +4,10 @@ import { AwsClient } from "aws4fetch";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { socialMedia, socialPosts } from "@/db/schema";
+import { isLayout, LAYOUT_FILENAME, LAYOUT_TYPE, sanitizeLayout } from "@/lib/social-layout";
 
-export const MEDIA_TYPES = ["image/jpeg", "image/png", "image/webp", "video/mp4"] as const;
+/** text/html = layout editável do post (slides.html); nunca vira capa nem entra no carrossel. */
+export const MEDIA_TYPES = ["image/jpeg", "image/png", "image/webp", "video/mp4", LAYOUT_TYPE] as const;
 export const MEDIA_MAX_BYTES = 8 * 1024 * 1024;
 /** Retenção: mídia de post publicado sai depois de 7 dias; arquivo sem post, depois de 3. */
 export const MEDIA_RETENTION = { publishedDays: 7, orphanDays: 3 } as const;
@@ -51,7 +53,9 @@ async function bucketRemove(b: Bucket, paths: string[]) {
 
 /** Guarda a mídia (Neon Object Storage se configurado; senão no banco) e, se o post ainda não tem mídia principal, usa esta como capa. */
 export async function saveSocialMedia(input: { bytes: Uint8Array; filename: string; contentType: string; postId?: string | null; origin: string; setCover?: boolean }) {
-  const type = z.enum(MEDIA_TYPES).parse(input.contentType);
+  const type = z.enum(MEDIA_TYPES).parse(input.contentType.split(";")[0].trim());
+  const layout = isLayout(type);
+  if (layout) input = { ...input, bytes: new TextEncoder().encode(sanitizeLayout(new TextDecoder().decode(input.bytes))), filename: LAYOUT_FILENAME, setCover: false };
   if (!input.bytes.byteLength) throw new Error("Arquivo vazio.");
   if (input.bytes.byteLength > MEDIA_MAX_BYTES) throw new Error("Arquivo acima de 8 MB.");
   const postId = input.postId ? z.uuid().parse(input.postId) : null;
@@ -77,7 +81,7 @@ export async function saveSocialMedia(input: { bytes: Uint8Array; filename: stri
   }
   const [row] = await db.insert(socialMedia).values({ id, postId, filename, contentType: type, size: input.bytes.byteLength, ...stored })
     .returning({ id: socialMedia.id, filename: socialMedia.filename, contentType: socialMedia.contentType, size: socialMedia.size, storage: socialMedia.storage, createdAt: socialMedia.createdAt });
-  if (postId) {
+  if (postId && !layout) {
     const cover = input.setCover ? eq(socialPosts.id, postId) : and(eq(socialPosts.id, postId), isNull(socialPosts.mediaUrl));
     await db.update(socialPosts).set({ mediaUrl: url, updatedAt: new Date() }).where(cover);
   }
@@ -92,6 +96,24 @@ export async function getSocialMedia(id: string) {
   if (!row) return null;
   const b = mediaBucket();
   return { ...row, publicUrl: row.storage !== "db" && row.path && b ? publicUrl(b, row.path) : null };
+}
+
+/** Layout mais recente do post (o HTML já limpo), ou null se o agente não anexou. */
+export async function getPostLayout(postId: string) {
+  const db = await getDb();
+  const [row] = await db.select().from(socialMedia)
+    .where(and(eq(socialMedia.postId, z.uuid().parse(postId)), eq(socialMedia.contentType, LAYOUT_TYPE)))
+    .orderBy(desc(socialMedia.createdAt)).limit(1);
+  if (!row) return null;
+  const b = mediaBucket();
+  let html: string;
+  if (row.data) html = Buffer.from(row.data, "base64").toString("utf8");
+  else if (row.path && b) {
+    const res = await fetch(publicUrl(b, row.path), { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`Storage respondeu ${res.status} ao abrir o layout.`);
+    html = await res.text();
+  } else throw new Error("Layout fora do armazenamento configurado.");
+  return { id: row.id, createdAt: row.createdAt, html: sanitizeLayout(html) };
 }
 
 export async function listPostMedia(postId: string, origin: string) {

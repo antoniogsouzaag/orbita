@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(saved, { status: 201 });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error && e.name !== "ZodError" ? e.message : "Tipo não aceito (JPEG, PNG, WebP ou MP4)." }, { status: 400 });
+    return NextResponse.json({ error: e instanceof Error && e.name !== "ZodError" ? e.message : "Tipo não aceito (JPEG, PNG, WebP, MP4 ou o layout em HTML)." }, { status: 400 });
   }
 }
 

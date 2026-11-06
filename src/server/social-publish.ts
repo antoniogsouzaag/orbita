@@ -114,7 +114,8 @@ export async function scheduleSocialPost(id: string) {
   // Mídias do post na ordem do carrossel; o mesmo nome enviado de novo vale a versão mais recente.
   const all = await db.select({ id: socialMedia.id, filename: socialMedia.filename, contentType: socialMedia.contentType, createdAt: socialMedia.createdAt }).from(socialMedia).where(eq(socialMedia.postId, post.id));
   // Reel/vídeo vai só com o vídeo (a capa em JPG viraria carrossel); carrossel e imagem vão só com imagens.
-  const rows = all.filter(r => r.contentType.startsWith("video/") === wantsVideo);
+  // O layout (HTML) fica fora: só a imagem gerada dele vai para a rede.
+  const rows = all.filter(r => (wantsVideo ? r.contentType.startsWith("video/") : r.contentType.startsWith("image/")));
   if (wantsVideo && rows.length !== 1) throw new Error(rows.length ? "Reel precisa de um único vídeo." : "Envie o MP4 do reel antes de aprovar.");
   const latest = new Map<string, (typeof rows)[number]>();
   for (const r of rows) { const cur = latest.get(r.filename); if (!cur || cur.createdAt < r.createdAt) latest.set(r.filename, r); }

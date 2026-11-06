@@ -12,9 +12,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!row) return NextResponse.json({ error: "Mídia não encontrada." }, { status: 404 });
   if (row.publicUrl) return NextResponse.redirect(row.publicUrl, 302);
   if (!row.data) return NextResponse.json({ error: "Arquivo fora do armazenamento configurado." }, { status: 410 });
+  // Layout (HTML) nunca abre como página no domínio da Órbita: vai como texto e em sandbox.
+  const html = row.contentType === "text/html";
   return new NextResponse(Buffer.from(row.data, "base64"), {
     headers: {
-      "Content-Type": row.contentType, "Content-Length": String(row.size),
+      "Content-Type": html ? "text/plain; charset=utf-8" : row.contentType, ...(html ? { "Content-Security-Policy": "sandbox" } : {}), "Content-Length": String(row.size),
       "Content-Disposition": `inline; filename="${row.filename}"`,
       "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff",
     },

@@ -88,7 +88,7 @@ export const redesAuditarEntregas = {
 // Agentes (Claude na nuvem, OpenClaw) anexam mídia por URL: a Órbita baixa e guarda, para não depender de link externo.
 const attachSchema = z.object({
   id: z.uuid().describe("Post que recebe a mídia"),
-  url: z.url().refine(u => /^https:\/\//.test(u), "Use um link https.").describe("Link público do arquivo (JPEG, PNG, WebP ou MP4 até 8 MB)"),
+  url: z.url().refine(u => /^https:\/\//.test(u), "Use um link https.").describe("Link público do arquivo (JPEG, PNG, WebP ou MP4 até 8 MB). Um HTML (text/html) vira o layout editável do post: mande o slides.html com as imagens embutidas em data:"),
   capa: z.boolean().optional().describe("true substitui a mídia principal do post"),
 });
 export const redesAnexarMidia = {

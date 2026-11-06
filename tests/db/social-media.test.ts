@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSocialPost } from "@/server/social-posts";
-import { getSocialMedia, listPostMedia, saveSocialMedia } from "@/server/social-media";
+import { getPostLayout, getSocialMedia, listPostMedia, saveSocialMedia } from "@/server/social-media";
 
 const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
 const origin = "https://orb.example";
@@ -23,6 +23,21 @@ describe("mídia dos posts", () => {
     await expect(saveSocialMedia({ bytes: jpeg, filename: "x.jpg", contentType: "image/jpeg", postId: "00000000-0000-4000-8000-000000000000", origin })).rejects.toThrow(/não encontrado/);
   });
   it("id inválido não quebra", async () => expect(await getSocialMedia("nada")).toBeNull());
+  it("layout em HTML: guarda limpo, não vira capa e volta o mais recente", async () => {
+    const post = await createSocialPost({ brand: "aglabs", network: "instagram", format: "carrossel", title: "Layout teste" });
+    expect(await getPostLayout(post.id)).toBeNull();
+    const enc = (t: string) => new TextEncoder().encode(t);
+    await saveSocialMedia({ bytes: enc(`<div class="slide" id="s1">v1</div>`), filename: "slides.html", contentType: "text/html", postId: post.id, origin, setCover: true });
+    const v2 = await saveSocialMedia({ bytes: enc(`<div class="slide" id="s1" onclick="x()">v2<script>alert(1)</script></div>`), filename: "x.html", contentType: "text/html; charset=utf-8", postId: post.id, origin });
+    expect(v2.filename).toBe("layout.html");
+    const layout = await getPostLayout(post.id);
+    expect(layout?.html).toBe(`<div class="slide" id="s1">v2</div>`);
+    const { getDb } = await import("@/db");
+    const { socialPosts } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [row] = await (await getDb()).select({ mediaUrl: socialPosts.mediaUrl }).from(socialPosts).where(eq(socialPosts.id, post.id));
+    expect(row.mediaUrl).toBeNull();
+  });
 });
 
 describe("limpeza de mídia", () => {

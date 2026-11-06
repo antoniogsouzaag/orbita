@@ -6,6 +6,7 @@ import type { SocialStage } from "@/lib/social-pipeline";
 import { externalSocialPosts, scheduleSocialPost } from "@/server/social-publish";
 import { createSocialPost, deleteSocialPost, requestSocialAdjustment, duplicateSocialPost, moveSocialPost, updateSocialPost } from "@/server/social-posts";
 import type { SocialNetwork } from "@/lib/social-pipeline";
+import { getPostLayout } from "@/server/social-media";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 async function run<T>(fn: () => Promise<T>): Promise<Result<T>> {
@@ -36,3 +37,5 @@ export async function deleteSocialPostAction(id: string) { return run(() => dele
 export async function duplicateSocialPostAction(id: string, network: SocialNetwork) { return run(() => duplicateSocialPost(id, network)); }
 /** Conciliação sob demanda: só roda quando o calendário/hoje é aberto (ou no botão Atualizar). */
 export async function externalSocialPostsAction(force = false) { await requireAuth(); try { return { ok: true as const, data: await externalSocialPosts(force) }; } catch (e) { return { ok: false as const, error: e instanceof Error ? e.message : "Postiz indisponível" }; } }
+/** Abre o layout do post no editor. Só leitura: o HTML salvo volta pelo upload de mídia. */
+export async function socialLayoutAction(postId: string) { await requireAuth(); try { return { ok: true as const, data: await getPostLayout(postId) }; } catch (e) { return { ok: false as const, error: e instanceof Error && e.name !== "ZodError" ? e.message : "Post inválido." }; } }
