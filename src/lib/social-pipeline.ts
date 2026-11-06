@@ -30,6 +30,8 @@ export type SocialChecks = {
   n8nCodeDone?: boolean; n8nPostDone?: boolean;
   /** Gravado pela Órbita ao agendar no Postiz; nunca vem do formulário. */
   postiz?: { postId: string; integrationId: string; scheduledFor: string; at: string };
+  /** Pedido de ajuste feito na revisão: o post volta para Rascunho e o agente (ou a equipe) refaz. */
+  ajuste?: { nota: string; at: string } | null;
   brandReviewed?: boolean; ctaDeliverable?: boolean; libraryNeeded?: boolean; n8nDone?: boolean; pageDone?: boolean; libraryDone?: boolean;
 };
 

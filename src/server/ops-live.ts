@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, isNotNull, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { agentActivity, opsDomains, opsEvents, opsHeartbeats, opsStatus } from "@/db/schema";
@@ -12,7 +12,11 @@ import { reconcileMonitorTargets, reconcileStoredMonitorTargets } from "./monito
 const DAY = 86_400_000;
 
 /** Apaga o que perdeu valor. Roda no máximo uma vez por dia, embutida na ingestão do n8n. */
+let pruneCheckedAt = 0;
 export async function pruneOld(force = false) {
+  // No VPS o processo é contínuo: evita ler a configuração do banco em toda ingestão.
+  if (!force && Date.now() - pruneCheckedAt < DAY) return null;
+  pruneCheckedAt = Date.now();
   const last = Number(((await getRawSetting("prune")) as { at?: number } | undefined)?.at ?? 0);
   if (!force && Date.now() - last < DAY) return null;
   const db = await getDb();
@@ -99,8 +103,13 @@ export async function ingest(p: IngestPayload) {
       .onConflictDoUpdate({ target: opsHeartbeats.source, set: { lastSeen: now, ...(p.label ? { label: p.label } : {}), ...(p.everyMinutes ? { everyMinutes: p.everyMinutes } : {}) } });
   }
 
-  for (const l of p.links ?? []) {
-    const [prev] = await db.select().from(opsStatus).where(eq(opsStatus.url, l.url));
+  // Uma leitura e uma escrita para todos os links (antes eram 2 idas ao banco por link a cada execução do monitor).
+  const links = [...new Map((p.links ?? []).map(l => [l.url, l])).values()];
+  const prevRows = links.length ? await db.select().from(opsStatus).where(inArray(opsStatus.url, links.map(l => l.url))) : [];
+  const prevByUrl = new Map(prevRows.map(r => [r.url, r]));
+  const statusRows: (typeof opsStatus.$inferInsert)[] = [];
+  for (const l of links) {
+    const prev = prevByUrl.get(l.url);
     const fails = l.ok ? 0 : (prev?.fails ?? 0) + 1;
     // queda só é confirmada com 2 falhas seguidas (mesmo critério do "ping my links");
     // uma falha isolada aparece como "instável" (ok = true, fails = 1)
@@ -119,7 +128,7 @@ export async function ingest(p: IngestPayload) {
       checkedAt: now,
       changedAt: changed ? now : prev.changedAt,
     };
-    await db.insert(opsStatus).values(row).onConflictDoUpdate({ target: opsStatus.url, set: row });
+    statusRows.push(row);
     if (prev?.ok !== false && !ok) {
       await db.insert(opsEvents).values({ kind: "site_down", severity: "critical", source: p.source, subject: l.name, detail: { url: l.url, status: l.status, error: l.error, group: l.group } });
       counters.events++;
@@ -130,6 +139,14 @@ export async function ingest(p: IngestPayload) {
       counters.events++;
     }
     counters.links++;
+  }
+
+  if (statusRows.length) {
+    const ex = (c: string) => sql.raw(`excluded."${c}"`);
+    await db.insert(opsStatus).values(statusRows).onConflictDoUpdate({ target: opsStatus.url, set: {
+      name: ex("name"), group: ex("group"), ok: ex("ok"), statusCode: ex("status_code"), error: ex("error"), latencyMs: ex("latency_ms"),
+      fails: ex("fails"), source: ex("source"), checkedAt: ex("checked_at"), changedAt: ex("changed_at"),
+    } });
   }
 
   if (p.links?.length) counters.events += await reconcileMonitorTargets(p.source, p.links.map(l => l.url), now);

@@ -21,6 +21,8 @@ const summary = (p: Awaited<ReturnType<typeof listSocialPosts>>[number]) => {
     id: p.id, marca: p.brand, rede: p.network, formato: p.format, etapa: p.stage, titulo: p.title, gancho: p.hook, cta: p.cta,
     palavra_chave: p.checks?.keyword ?? null, midia: p.mediaUrl, referencia: p.referenceUrl, agendado_para: p.scheduledAt?.toISOString() ?? null,
     publicado_em: p.publishedUrl, qualidade: q.score, falta_para_aprovar: q.blocking.map(c => c.label), atualizado_em: p.updatedAt.toISOString(),
+    // Pedido de ajuste da revisão: o agente refaz e devolve para Revisão.
+    ajuste_pedido: p.stage === "rascunho" && p.checks?.ajuste ? p.checks.ajuste : null,
   };
 };
 

@@ -80,6 +80,23 @@ export async function moveSocialPost(id: string, stage: SocialStage) {
   return row;
 }
 
+/** Revisão reprovada com motivo: volta para Rascunho, guarda a nota no post e em checks.ajuste para o agente achar. */
+export async function requestSocialAdjustment(id: string, nota: string) {
+  const text = z.string().trim().min(3, "Diga o que precisa mudar.").max(2000).parse(nota);
+  const before = await current(id);
+  if (!["revisao", "aprovado", "falhou"].includes(before.stage)) throw new Error("Só dá para pedir ajuste de post em Revisão, Aprovado ou Falhou. Agendado já está no Postiz.");
+  const at = new Date();
+  const stamp = at.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const db = await getDb();
+  const [row] = await db.update(socialPosts).set({
+    stage: "rascunho", checks: { ...before.checks, ajuste: { nota: text, at: at.toISOString() } },
+    notes: `${before.notes ?? ""}
+
+[Ajuste pedido ${stamp}] ${text}`.trim(), updatedAt: at,
+  }).where(eq(socialPosts.id, before.id)).returning();
+  return row;
+}
+
 export async function deleteSocialPost(id: string) {
   const db = await getDb();
   await db.delete(socialPosts).where(eq(socialPosts.id, z.string().uuid().parse(id)));

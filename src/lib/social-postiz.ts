@@ -23,6 +23,37 @@ const NETWORK_ID: Record<SocialNetwork, RegExp> = {
   instagram: /^instagram(-standalone)?$/, tiktok: /^tiktok$/, youtube: /^youtube$/, linkedin: /^linkedin(-page)?$/, threads: /^threads$/, facebook: /^facebook$/,
 };
 
+/** Marca e rede de um canal do Postiz (caminho inverso do pickChannel). Canal sem marca reconhecida devolve null. */
+export function channelIdentity(c: PostizChannel): { brand: SocialBrand; network: SocialNetwork } | null {
+  const network = (Object.keys(NETWORK_ID) as SocialNetwork[]).find(n => NETWORK_ID[n].test(c.identifier));
+  if (!network) return null;
+  const brand = (Object.keys(BRAND_GROUPS) as SocialBrand[]).find(b => {
+    const rule = BRAND_GROUPS[b];
+    return c.customer?.id ? rule.groups.includes(c.customer.id) || rule.name.test(c.customer.name) : rule.name.test(c.name);
+  });
+  return brand ? { brand, network } : null;
+}
+
+export type RemoteListedPost = { id: string; state?: string; publishDate?: string; releaseURL?: string | null; content?: string | null; integration?: { id?: string } | null; integrationId?: string; deletedAt?: string | null };
+export type ExternalPost = { id: string; brand: SocialBrand; network: SocialNetwork; stage: "agendado" | "publicado"; scheduledAt: string; title: string; publishedUrl: string | null };
+
+/**
+ * Conciliação: posts do Postiz que não nasceram na Órbita (feitos no painel, pelo OpenClaw etc.).
+ * Ignora ids já vinculados, apagados, com erro e canais de marca desconhecida. Não grava nada: só leitura.
+ */
+export function reconcileExternal(remote: RemoteListedPost[], channels: PostizChannel[], linkedIds: Set<string>): ExternalPost[] {
+  const byId = new Map(channels.map(c => [c.id, channelIdentity(c)]));
+  const out: ExternalPost[] = [];
+  for (const r of remote) {
+    if (!r.publishDate || r.deletedAt || r.state === "ERROR" || linkedIds.has(r.id)) continue;
+    const who = byId.get(r.integration?.id ?? r.integrationId ?? "");
+    if (!who) continue;
+    const text = (r.content ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    out.push({ id: `postiz:${r.id}`, ...who, stage: r.state === "PUBLISHED" ? "publicado" : "agendado", scheduledAt: new Date(r.publishDate).toISOString(), title: text.slice(0, 80) || "Post feito fora da Órbita", publishedUrl: r.releaseURL ?? null });
+  }
+  return out;
+}
+
 /** Canal ativo da marca na rede pedida. Nunca devolve canal de outra marca. */
 export function pickChannel(channels: PostizChannel[], brand: SocialBrand, network: SocialNetwork, extraGroups: string[] = []): PostizChannel | null {
   const rule = BRAND_GROUPS[brand];

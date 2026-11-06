@@ -1,8 +1,9 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { getDb } from "@/db";
 import { socialMedia, socialPosts, type SocialPost } from "@/db/schema";
-import { buildSchedulePayload, captionFor, fanoutNetworks, orderMedia, pickChannel, type PostizChannel, type PostizMedia } from "@/lib/social-postiz";
+import { buildSchedulePayload, captionFor, fanoutNetworks, orderMedia, pickChannel, reconcileExternal, type PostizChannel, type PostizMedia, type RemoteListedPost } from "@/lib/social-postiz";
 import { NETWORK_LABELS, nextFreeSlot, stageError, type SocialBrand, type SocialNetwork } from "@/lib/social-pipeline";
 import { getSocialMedia } from "./social-media";
 
@@ -178,4 +179,30 @@ export async function syncScheduledPosts(now = new Date()) {
     }
   }
   return { checked: scheduled.length, published, failed };
+}
+
+/* ───────────── conciliação sob demanda (posts feitos fora da Órbita) ───────────── */
+
+const readExternal = async () => {
+  const db = await getDb();
+  const start = new Date(Date.now() - 7 * 86_400_000).toISOString(), end = new Date(Date.now() + 21 * 86_400_000).toISOString();
+  const [channels, list, rows] = await Promise.all([
+    postiz<PostizChannel[]>("/integrations"),
+    postiz<{ posts?: RemoteListedPost[] } | RemoteListedPost[]>(`/posts?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`),
+    db.select({ checks: socialPosts.checks }).from(socialPosts).where(inArray(socialPosts.stage, ["aprovado", "agendado", "publicado", "falhou"])),
+  ]);
+  const linked = new Set<string>();
+  for (const r of rows) {
+    const s = postizOf(r);
+    if (!s) continue;
+    linked.add(s.postId);
+    for (const c of Object.values(s.canais ?? {})) linked.add(c.postId);
+  }
+  return { posts: reconcileExternal(Array.isArray(list) ? list : list?.posts ?? [], channels, linked), checkedAt: new Date().toISOString() };
+};
+/** Cache de 30 min no servidor: abrir o calendário várias vezes não repete chamadas ao Postiz nem ao banco. */
+const cachedExternal = unstable_cache(readExternal, ["postiz-external-v1"], { revalidate: 1800, tags: ["postiz-external"] });
+export async function externalSocialPosts(force = false) {
+  if (force) revalidateTag("postiz-external", { expire: 0 });
+  return cachedExternal();
 }

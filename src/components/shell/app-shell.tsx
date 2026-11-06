@@ -136,7 +136,8 @@ export function AppShell({
 
   React.useEffect(() => {
     const refresh = () => { if (document.visibilityState === "visible") void refreshNotices(); };
-    const timer = window.setInterval(refresh, 60_000);
+    // 5 min: abaixo disso o banco (Neon) nunca entra em suspensão enquanto houver uma aba aberta.
+    const timer = window.setInterval(refresh, 300_000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => { clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };

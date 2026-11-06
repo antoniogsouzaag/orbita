@@ -4,12 +4,13 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid, Loader2, Plus, Sun, BarChart3, Trash2, Upload } from "lucide-react";
-import { createSocialPostAction, deleteSocialPostAction, scheduleSocialPostAction, moveSocialPostAction, updateSocialPostAction } from "@/app/actions/social";
+import { createSocialPostAction, deleteSocialPostAction, externalSocialPostsAction, requestSocialAdjustmentAction, scheduleSocialPostAction, moveSocialPostAction, updateSocialPostAction } from "@/app/actions/social";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import type { SocialPost } from "@/db/schema";
+import type { ExternalPost } from "@/lib/social-postiz";
 import {
   BRAND_LABELS, CAPTION_LIMITS, NETWORK_LABELS, SOCIAL_BRANDS, SOCIAL_FORMATS, SOCIAL_NETWORKS, STAGE_LABELS,
   calendarGaps, deliveryChecks, qualityScore, type SocialBrand, type SocialNetwork, type SocialStage,
@@ -30,7 +31,18 @@ export function SocialStudio({ posts, metrics, initialTab = "hoje", dbError }: {
   const [brand, setBrand] = React.useState<SocialBrand | "todas">("todas");
   const [editing, setEditing] = React.useState<SocialPost | "new" | null>(null);
   const visible = brand === "todas" ? posts : posts.filter(p => p.brand === brand);
-  const select = (next: Tab) => { setTab(next); const u = new URL(window.location.href); u.searchParams.set("aba", next); window.history.replaceState(null, "", u); };
+  // Conciliação com o Postiz: só na primeira abertura do calendário (ou no botão), com cache no servidor.
+  const [external, setExternal] = React.useState<{ posts: ExternalPost[]; checkedAt: string; error?: string } | null>(null);
+  const [loadingExt, setLoadingExt] = React.useState(false);
+  const loadExternal = React.useCallback(async (force = false) => {
+    setLoadingExt(true);
+    const r = await externalSocialPostsAction(force).catch(() => ({ ok: false as const, error: "Postiz indisponível" }));
+    setExternal(prev => r.ok ? r.data : { posts: prev?.posts ?? [], checkedAt: prev?.checkedAt ?? "", error: r.error });
+    setLoadingExt(false);
+  }, []);
+  const requested = React.useRef(false);
+  const ensureExternal = () => { if (requested.current) return; requested.current = true; void loadExternal(); };
+  const select = (next: Tab) => { if (next === "calendario") ensureExternal(); setTab(next); const u = new URL(window.location.href); u.searchParams.set("aba", next); window.history.replaceState(null, "", u); };
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -45,7 +57,8 @@ export function SocialStudio({ posts, metrics, initialTab = "hoje", dbError }: {
     {dbError && tab !== "metricas" && <p role="alert" className="rounded-xl border border-warning/30 p-4 text-sm text-warning">{dbError}</p>}
     {tab === "hoje" && <Today posts={visible} onOpen={setEditing} />}
     {tab === "producao" && <Board posts={visible} onOpen={setEditing} />}
-    {tab === "calendario" && <Calendar posts={visible} brand={brand} onOpen={setEditing} />}
+    {tab === "calendario" && external === null && !loadingExt && initialTab === "calendario" && <Button size="sm" variant="ghost" onClick={ensureExternal}>Conferir posts feitos fora da Órbita</Button>}
+    {tab === "calendario" && <Calendar posts={visible} brand={brand} onOpen={setEditing} external={external} loading={loadingExt} onRefresh={() => void loadExternal(true)} />}
     {tab === "metricas" && metrics}
     <Dialog open={editing !== null} onOpenChange={o => !o && setEditing(null)}>
       <DialogContent wide className="max-w-4xl" title={editing === "new" ? "Novo post" : "Editar post"}>{editing !== null && <PostForm post={editing === "new" ? null : editing} defaultBrand={brand === "todas" ? "aglabs" : brand} onDone={() => setEditing(null)} />}</DialogContent>
@@ -131,18 +144,36 @@ function PostCard({ post: p, onOpen, onAdvance, busy }: { post: SocialPost; onOp
         <span className="h-1 w-12 overflow-hidden rounded-full bg-surface-2"><span className={`block h-full ${q.blocking.length ? "bg-warning" : "bg-success"}`} style={{ width: `${q.score}%` }} /></span>
         <span className={q.blocking.length ? "text-warning" : "text-success"}>{q.score}%</span>
       </span>
+      {next && <AdjustButton id={p.id} disabled={busy} />}
       {next && <button type="button" disabled={busy} onClick={() => onAdvance(next)} className="flex items-center gap-1 rounded-md bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent hover:bg-accent/25 disabled:opacity-70">{busy ? <><Loader2 className="size-3 animate-spin" />Agendando…</> : "Aprovar"}</button>}
     </div>
   </article>;
 }
 
-function Calendar({ posts, brand, onOpen }: { posts: SocialPost[]; brand: SocialBrand | "todas"; onOpen: (p: SocialPost) => void }) {
-  const rows = calendarGaps(posts.map(p => ({ ...p, brand: p.brand as SocialBrand, stage: p.stage as SocialStage })), new Date(), 14).filter(r => brand === "todas" || r.brand === brand);
+type CalendarExternal = { posts: ExternalPost[]; checkedAt: string; error?: string } | null;
+/** Reprova com motivo: o post volta para Rascunho com a nota, visível para o agente pelo MCP. */
+function AdjustButton({ id, disabled }: { id: string; disabled?: boolean }) {
+  const router = useRouter();
+  const [pending, start] = React.useTransition();
+  const ask = () => {
+    const nota = window.prompt("O que precisa mudar neste post? (vai para o agente refazer)");
+    if (!nota?.trim()) return;
+    start(async () => { const r = await requestSocialAdjustmentAction(id, nota); if (!r.ok) toast.error(r.error); else { toast.success("Voltou para Rascunho com o pedido de ajuste"); router.refresh(); } });
+  };
+  return <button type="button" disabled={disabled || pending} onClick={ask} className="ml-auto rounded-md px-2 py-0.5 text-[11px] text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-70">{pending ? <Loader2 className="size-3 animate-spin" /> : "Pedir ajuste"}</button>;
+}
+
+function Calendar({ posts, brand, onOpen, external, loading, onRefresh }: { posts: SocialPost[]; brand: SocialBrand | "todas"; onOpen: (p: SocialPost) => void; external: CalendarExternal; loading: boolean; onRefresh: () => void }) {
+  const ext = (external?.posts ?? []).map(e => ({ ...e, scheduledAt: new Date(e.scheduledAt), external: true as const }));
+  const all = [...posts.map(p => ({ ...p, brand: p.brand as SocialBrand, stage: p.stage as SocialStage, external: false as const })), ...ext];
+  const rows = calendarGaps(all, new Date(), 14).filter(r => brand === "todas" || r.brand === brand);
   const days = rows[0]?.days.map(d => d.day) ?? [];
   const label = (k: string) => new Date(`${k}T12:00:00-03:00`).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" });
   return <Card className="overflow-x-auto p-4"><table className="w-full min-w-[900px] text-xs"><thead><tr><th className="w-28 text-left text-muted">Marca</th>{days.map(d => <th key={d} className="px-1 text-center font-normal text-muted">{label(d)}</th>)}</tr></thead>
-    <tbody>{rows.map(r => <tr key={r.brand} className="border-t border-border"><td className="py-2 font-medium">{BRAND_LABELS[r.brand]}<span className="block text-[10px] font-normal text-faint">{r.gaps} vazios</span></td>{r.days.map(d => <td key={d.day} className="p-1 align-top">{d.posts.length ? d.posts.map(p => <button type="button" key={p.id} onClick={() => onOpen(p as SocialPost)} title={p.title as string} className={`mb-1 block w-full truncate rounded-md px-1.5 py-1 text-left text-[10px] ${p.stage === "publicado" ? "bg-success/15 text-success" : "bg-accent/15 text-accent"}`}>{NETWORK_LABELS[p.network as SocialNetwork]}</button>) : <span className="block h-6 rounded-md border border-dashed border-border" aria-label="Sem post" />}</td>)}</tr>)}</tbody></table>
-    <p className="mt-3 text-[11px] text-faint">Azul: aprovado/agendado. Verde: publicado. Tracejado: dia sem post confirmado.</p></Card>;
+    <tbody>{rows.map(r => <tr key={r.brand} className="border-t border-border"><td className="py-2 font-medium">{BRAND_LABELS[r.brand]}<span className="block text-[10px] font-normal text-faint">{r.gaps} vazios</span></td>{r.days.map(d => <td key={d.day} className="p-1 align-top">{d.posts.length ? d.posts.map(p => <button type="button" key={p.id} onClick={() => p.external ? (p.publishedUrl && window.open(p.publishedUrl, "_blank", "noopener")) : onOpen(p as unknown as SocialPost)} title={`${p.title}${p.external ? " · feito fora da Órbita (Postiz)" : ""}`} className={`mb-1 block w-full truncate rounded-md px-1.5 py-1 text-left text-[10px] ${p.external ? "border border-dashed border-current " : ""}${p.stage === "publicado" ? "bg-success/15 text-success" : "bg-accent/15 text-accent"}`}>{NETWORK_LABELS[p.network as SocialNetwork]}</button>) : <span className="block h-6 rounded-md border border-dashed border-border" aria-label="Sem post" />}</td>)}</tr>)}</tbody></table>
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-faint"><p>Azul: aprovado/agendado. Verde: publicado. Borda tracejada: post feito fora da Órbita, lido do Postiz. Célula tracejada: dia sem post.</p>
+      <span className="flex items-center gap-2">{external?.error ? <span className="text-warning">Postiz: {external.error}</span> : external?.checkedAt ? <span>{ext.length} do Postiz · lido {fmt(external.checkedAt)}</span> : null}
+        <Button size="sm" variant="ghost" disabled={loading} onClick={onRefresh}>{loading && <Loader2 className="animate-spin" />}Atualizar Postiz</Button></span></div></Card>;
 }
 
 function toLocalInput(d: Date | string | null) {

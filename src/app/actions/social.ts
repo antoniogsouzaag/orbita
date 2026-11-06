@@ -1,16 +1,16 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAuth } from "@/lib/auth";
 import type { SocialStage } from "@/lib/social-pipeline";
-import { scheduleSocialPost } from "@/server/social-publish";
-import { createSocialPost, deleteSocialPost, duplicateSocialPost, moveSocialPost, updateSocialPost } from "@/server/social-posts";
+import { externalSocialPosts, scheduleSocialPost } from "@/server/social-publish";
+import { createSocialPost, deleteSocialPost, requestSocialAdjustment, duplicateSocialPost, moveSocialPost, updateSocialPost } from "@/server/social-posts";
 import type { SocialNetwork } from "@/lib/social-pipeline";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 async function run<T>(fn: () => Promise<T>): Promise<Result<T>> {
   await requireAuth();
-  try { const data = await fn(); revalidatePath("/redes"); return { ok: true, data }; }
+  try { const data = await fn(); revalidatePath("/redes"); revalidateTag("postiz-external", { expire: 0 }); return { ok: true, data }; }
   catch (e) { return { ok: false, error: e instanceof Error && !/ZodError/.test(e.name) ? e.message : "Dados inválidos. Revise os campos." }; }
 }
 
@@ -31,5 +31,8 @@ export async function moveSocialPostAction(id: string, stage: SocialStage) {
   });
 }
 export async function scheduleSocialPostAction(id: string) { return run(() => scheduleSocialPost(id)); }
+export async function requestSocialAdjustmentAction(id: string, nota: string) { return run(() => requestSocialAdjustment(id, nota)); }
 export async function deleteSocialPostAction(id: string) { return run(() => deleteSocialPost(id)); }
 export async function duplicateSocialPostAction(id: string, network: SocialNetwork) { return run(() => duplicateSocialPost(id, network)); }
+/** Conciliação sob demanda: só roda quando o calendário/hoje é aberto (ou no botão Atualizar). */
+export async function externalSocialPostsAction(force = false) { await requireAuth(); try { return { ok: true as const, data: await externalSocialPosts(force) }; } catch (e) { return { ok: false as const, error: e instanceof Error ? e.message : "Postiz indisponível" }; } }
