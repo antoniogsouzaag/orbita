@@ -20,7 +20,7 @@ import { eventFormSchema, type CalendarView } from "@/lib/calendar";
 import { capitalizeFirst } from "@/lib/text";
 import { cn } from "@/lib/utils";
 
-export type AgendaEvent = { id: string; title: string; date: string; endDate: string; lastDate: string; start: string | null; end: string | null; allDay: boolean; color: string; calendarName: string; editable: boolean; location: string | null; description: string | null };
+export type AgendaEvent = { id: string; title: string; date: string; endDate: string; lastDate: string; start: string | null; end: string | null; allDay: boolean; color: string; calendarName: string; editable: boolean; appointmentId?: string | null; location: string | null; description: string | null };
 export type AgendaTask = { id: string; title: string; date: string; time: string | null; done: boolean; color: string };
 
 const WD = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"];
@@ -151,21 +151,21 @@ export function AgendaPage({ month, today, initialDate, initialView = "mes", eve
 }
 
 function EventRow({ event, onClick }: { event: AgendaEvent; onClick: () => void }) {
-  return <button onClick={onClick} className="flex w-full gap-3 rounded-xl p-2.5 text-left transition hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"><span className="w-[3px] shrink-0 rounded-full" style={{ background: event.color }} /><span className="min-w-0"><span className="block break-words text-[13px] font-medium">{event.title}</span><span className="mt-0.5 block text-[11px] text-muted">{timeLabel(event)}</span><span className="mt-0.5 block text-[10.5px] text-faint">{event.calendarName}{!event.editable && " · assinado"}</span>{event.location && <span className="mt-1 flex items-center gap-1 text-[11px] text-faint"><MapPin className="size-3 shrink-0" /><span className="truncate">{event.location}</span></span>}</span></button>;
+  return <button onClick={onClick} className="flex w-full gap-3 rounded-xl p-2.5 text-left transition hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"><span className="w-[3px] shrink-0 rounded-full" style={{ background: event.color }} /><span className="min-w-0"><span className="block break-words text-[13px] font-medium">{event.title}</span><span className="mt-0.5 block text-[11px] text-muted">{timeLabel(event)}</span><span className="mt-0.5 block text-[10.5px] text-faint">{event.calendarName}{!event.editable && (event.appointmentId ? " · agendamento confirmado" : " · assinado")}</span>{event.location && <span className="mt-1 flex items-center gap-1 text-[11px] text-faint"><MapPin className="size-3 shrink-0" /><span className="truncate">{event.location}</span></span>}</span></button>;
 }
 function TaskRow({ task }: { task: AgendaTask }) {
   return <Link href={`/tarefas?task=${task.id}`} className="flex items-center gap-2 rounded-xl px-2.5 py-2 text-[12px] transition hover:bg-surface-2"><CheckSquare className={cn("size-3.5 shrink-0", task.done ? "text-success" : "text-muted")} /><span className={cn("min-w-0 flex-1 break-words", task.done && "text-faint line-through")}>{task.title}</span><span className="text-[11px] tabular-nums text-faint">{task.time ?? "Sem horário"}</span></Link>;
 }
 
 function EventDialog({ event, date, onClose }: { event: AgendaEvent | null; date: string | null; onClose: () => void }) {
-  const readonly = Boolean(event && !event.editable);
+  const readonly = Boolean(event && (!event.editable || event.appointmentId));
   const [f, setF] = React.useState(() => event ? { title: event.title, date: event.date, endDate: event.endDate, start: event.start ?? "09:00", end: event.end ?? "10:00", allDay: event.allDay, location: event.location ?? "", description: event.description ?? "", color: event.color } : { title: "", date: date!, endDate: date!, start: "09:00", end: "10:00", allDay: false, location: "", description: "", color: "#22c55e" });
   const [pending, start] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
   return (
     <Dialog open onOpenChange={(o) => !o && !pending && onClose()}>
-      <DialogContent title={readonly ? "Detalhes do evento" : event ? "Editar evento" : "Novo evento"} description={readonly ? `${event!.calendarName} · calendário assinado` : "Reserve um lugar na sua agenda."}>
-        {readonly ? <div className="space-y-4"><h3 className="text-lg font-semibold">{event!.title}</h3><p className="flex items-center gap-2 text-sm text-muted"><CalendarDays className="size-4" />{capitalizeFirst(longDate(event!.date))}</p><p className="flex items-center gap-2 text-sm text-muted"><Clock3 className="size-4" />{timeLabel(event!)}</p>{event!.location && <p className="flex gap-2 text-sm text-muted"><MapPin className="size-4 shrink-0" />{event!.location}</p>}{event!.description && <p className="whitespace-pre-wrap break-words rounded-xl bg-surface-2 p-3 text-[13px] text-muted">{event!.description}</p>}<p className="rounded-xl border border-border p-3 text-xs leading-relaxed text-faint">Para alterar este evento, abra o calendário de origem e depois sincronize a agenda.</p></div> : <form
+      <DialogContent title={readonly ? "Detalhes do evento" : event ? "Editar evento" : "Novo evento"} description={readonly ? event!.appointmentId ? "Confirmado na agenda · detalhes com o cliente a combinar" : `${event!.calendarName} · calendário assinado` : "Reserve um lugar na sua agenda."}>
+        {readonly ? <div className="space-y-4"><h3 className="text-lg font-semibold">{event!.title}</h3><p className="flex items-center gap-2 text-sm text-muted"><CalendarDays className="size-4" />{capitalizeFirst(longDate(event!.date))}</p><p className="flex items-center gap-2 text-sm text-muted"><Clock3 className="size-4" />{timeLabel(event!)}</p>{event!.location && <p className="flex gap-2 text-sm text-muted"><MapPin className="size-4 shrink-0" />{event!.location}</p>}{event!.description && <p className="whitespace-pre-wrap break-words rounded-xl bg-surface-2 p-3 text-[13px] text-muted">{event!.description}</p>}<p className="rounded-xl border border-border p-3 text-xs leading-relaxed text-faint">{event!.appointmentId ? <>Horário reservado. Antonio confirma os detalhes pessoalmente com o cliente. Se não confirmar, cancele o agendamento para liberar o horário. <Link className="text-accent underline" href={`/agenda/agendamentos?id=${event!.appointmentId}`}>Ver detalhes / Cancelar agendamento</Link></> : "Para alterar este evento, abra o calendário de origem e depois sincronize a agenda."}</p></div> : <form
           onSubmit={(e) => {
             e.preventDefault();
             const data = { title: f.title, date: f.date, endDate: f.endDate || f.date, startTime: f.allDay ? null : f.start, endTime: f.allDay ? null : f.end, allDay: f.allDay, location: f.location || null, description: f.description || null, color: f.color || null };

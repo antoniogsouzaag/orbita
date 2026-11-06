@@ -1,3 +1,4 @@
+import {legacyPending} from "../legacy-appointment-fixture";
 import {createServer} from "node:http";
 import {AddressInfo} from "node:net";
 import {beforeEach,afterEach,expect,it,vi} from "vitest";
@@ -17,7 +18,7 @@ it("denies digest conflicts and unknown transport fields",async()=>{
  for(const input of [{...req("availability"),extra:1},req("availability",{limit:100}),req("book",{start_at:"2026-11-05T11:00:00Z",subject:"X",mode:"in_person"}),req("list",{contact_id})]) await expect(maiaAppointment(input,now)).rejects.toThrow();
 });
 it("fails closed on stale feed errors for offer, booking and owner approval without changing state",async()=>{
- const pending=await maiaAppointment(book("2026-11-05T12:00:00Z",{mode:"in_person",address:"Fixture"}),now) as {appointment:{id:string}};
+ const pending=await legacyPending(book("2026-11-05T12:00:00Z",{mode:"in_person",address:"Fixture"}),now) as {appointment:{id:string}};
  const db=await getDb();await db.insert(calendars).values({name:"Private feed",kind:"ics",url:"https://fixture.invalid",lastSyncedAt:new Date(0)});
  vi.stubGlobal("fetch",vi.fn(async()=>new Response("Private error",{status:503})));
  await expect(maiaAppointment(req("availability"),now)).rejects.toThrow("calendar_unavailable");
@@ -47,7 +48,7 @@ it("preserves existing owner-configured ICS redirect compatibility",async()=>{
 it("preserves presencial identity and preferences through reschedule and cancel",async()=>{
  const first=await maiaAppointment(book("2026-11-05T12:00:00Z",{mode:"in_person",address:"Fixture",remote_preference:"Preferência mantida"}),now) as {appointment:Record<string,unknown>&{id:string}};
  const rescheduled=await maiaAppointment(req("reschedule",{appointment_id:first.appointment.id,start_at:"2026-11-05T13:00:00Z"},"33333333-3333-4333-8333-333333333333"),now) as {appointment:Record<string,unknown>};
- expect(rescheduled.appointment).toEqual({...first.appointment,start_at:"2026-11-05T13:00:00.000Z",end_at:"2026-11-05T13:45:00.000Z",state:"pending_approval"});
+ expect(rescheduled.appointment).toEqual({...first.appointment,start_at:"2026-11-05T13:00:00.000Z",end_at:"2026-11-05T13:45:00.000Z",state:"confirmed"});
  const cancelled=await maiaAppointment(req("cancel",{appointment_id:first.appointment.id},"44444444-4444-4444-8444-444444444444"),now) as {appointment:Record<string,unknown>};
  expect(cancelled.appointment).toEqual({...rescheduled.appointment,state:"cancelled"});
  expect((await (await getDb()).select().from(appointments))[0]).toMatchObject({contactId:contact_id,mode:"in_person",subject:"Fixture",address:"Fixture",remotePreference:"Preferência mantida"});
@@ -55,7 +56,7 @@ it("preserves presencial identity and preferences through reschedule and cancel"
 });
 it("prioritizes pending owner action ahead of cancelled history",async()=>{
  const db=await getDb();await db.insert(appointments).values(Array.from({length:100},()=>({contactId:contact_id,state:"cancelled" as const,mode:"remote" as const,subject:"Old",startAt:now,endAt:now})));
- await maiaAppointment(book("2026-11-05T12:00:00Z",{mode:"in_person",address:"Fixture"}),now);
+ await legacyPending(book("2026-11-05T12:00:00Z",{mode:"in_person",address:"Fixture"}),now);
  expect((await ownerAppointments())[0]).toMatchObject({state:"pending_approval"});
 });
 it("bounds scoped list to twenty projections with no contact/event/history data",async()=>{

@@ -51,9 +51,10 @@ async function free(tx: CalendarTx, start: Date, end: Date, ignore?: Appointment
 async function record(tx:CalendarTx, a:Appointment, operation:string, actor="maia") {
   await tx.insert(appointmentHistory).values({appointmentId:a.id,version:a.version,actor,operation,snapshot:JSON.parse(JSON.stringify(a))});
 }
-export async function ownerAppointments() {
+export async function ownerAppointments(id?:string) {
+  if(id) z.uuid().parse(id);
   const db=await getDb();
-  const rows=await db.select().from(appointments).orderBy(sql`CASE WHEN ${appointments.state} = 'pending_approval' THEN 0 WHEN ${appointments.state} = 'confirmed' THEN 1 ELSE 2 END`,desc(appointments.createdAt)).limit(100);
+  const rows=await db.select().from(appointments).where(id ? eq(appointments.id,id) : undefined).orderBy(sql`CASE WHEN ${appointments.state} = 'pending_approval' THEN 0 WHEN ${appointments.state} = 'confirmed' THEN 1 ELSE 2 END`,desc(appointments.createdAt)).limit(100);
   return Promise.all(rows.map(async a=>({...a,history:await db.select().from(appointmentHistory).where(eq(appointmentHistory.appointmentId,a.id)).orderBy(desc(appointmentHistory.version))})));
 }
 
@@ -140,10 +141,9 @@ export async function maiaAppointment(input: unknown, clock: Clock = () => new D
       if (!legal(t, readClock(clock))) throw new AppointmentError("invalid_slot", 422);
       if (!await free(tx, new Date(t), new Date(t + HOUR))) throw new AppointmentError("slot_unavailable");
       if (!legal(t, readClock(clock))) throw new AppointmentError("invalid_slot", 422);
-      const confirmed = v.args.mode === "remote";
-      const [event] = confirmed ? await tx.insert(events).values({ title: v.args.subject, startAt:new Date(t), endAt:new Date(t+45*60000) }).returning() : [];
+      const [event] = await tx.insert(events).values({ title: v.args.subject, location:v.args.mode === "in_person" ? v.args.address : null, startAt:new Date(t), endAt:new Date(t+45*60000) }).returning();
       if (!legal(t, readClock(clock))) throw new AppointmentError("invalid_slot", 422);
-      [appointment] = await tx.insert(appointments).values({ contactId:v.contact_id, customerName:v.args.customer_name, mode:v.args.mode, subject:v.args.subject, remotePreference:v.args.remote_preference, address:v.args.address, state:confirmed ? "confirmed" : "pending_approval", startAt:new Date(t), endAt:new Date(t+45*60000), eventId:event?.id }).returning();
+      [appointment] = await tx.insert(appointments).values({ contactId:v.contact_id, customerName:v.args.customer_name, mode:v.args.mode, subject:v.args.subject, remotePreference:v.args.remote_preference, address:v.args.address, state:"confirmed", startAt:new Date(t), endAt:new Date(t+45*60000), eventId:event.id }).returning();
     } else {
       const [old] = await tx.select().from(appointments).where(and(eq(appointments.id,v.args.appointment_id),eq(appointments.contactId,v.contact_id)));
       if (!old) throw new AppointmentError("not_found",404);
@@ -157,10 +157,9 @@ export async function maiaAppointment(input: unknown, clock: Clock = () => new D
         if (!legal(t,readClock(clock))) throw new AppointmentError("invalid_slot",422);
         if (!await free(tx,new Date(t),new Date(t+HOUR),old)) throw new AppointmentError("slot_unavailable");
         if (!legal(t,readClock(clock))) throw new AppointmentError("invalid_slot",422);
-        if (old.eventId && old.mode === "remote") await tx.update(events).set({startAt:new Date(t),endAt:new Date(t+45*60000)}).where(eq(events.id,old.eventId));
+        if (old.eventId) await tx.update(events).set({startAt:new Date(t),endAt:new Date(t+45*60000)}).where(eq(events.id,old.eventId));
         if (!legal(t,readClock(clock))) throw new AppointmentError("invalid_slot",422);
-        [appointment] = await tx.update(appointments).set({startAt:new Date(t),endAt:new Date(t+45*60000),state:old.mode === "remote" ? "confirmed":"pending_approval",eventId:old.mode === "remote" ? old.eventId:null,travelBefore:0,travelAfter:0,version:old.version+1}).where(eq(appointments.id,old.id)).returning();
-        if (old.eventId && old.mode === "in_person") await tx.delete(events).where(eq(events.id,old.eventId));
+        [appointment] = await tx.update(appointments).set({startAt:new Date(t),endAt:new Date(t+45*60000),state:old.state,eventId:old.eventId,travelBefore:0,travelAfter:0,version:old.version+1}).where(eq(appointments.id,old.id)).returning();
       }
     }
     await record(tx,appointment,v.operation);

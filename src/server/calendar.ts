@@ -3,7 +3,7 @@ import { and, asc, eq, gte, isNull, lt, or } from "drizzle-orm";
 import ical, { type EventInstance, type VEvent } from "node-ical";
 import { withCalendarTransaction, type CalendarTx } from "./calendar-lock";
 import { getDb } from "@/db";
-import { calendars, events } from "@/db/schema";
+import { appointments, calendars, events } from "@/db/schema";
 
 export type EventRow = {
   id: string;
@@ -17,17 +17,19 @@ export type EventRow = {
   calendarId: string | null;
   calendarName: string;
   editable: boolean;
+  appointmentId: string | null;
 };
 
 export async function eventsBetween(from: Date, to: Date): Promise<EventRow[]> {
   const db = await getDb();
   const rows = await db
-    .select({ e: events, c: { id: calendars.id, name: calendars.name, color: calendars.color, kind: calendars.kind, enabled: calendars.enabled } })
+    .select({ e: events, appointmentId: appointments.id, c: { id: calendars.id, name: calendars.name, color: calendars.color, kind: calendars.kind, enabled: calendars.enabled } })
     .from(events)
     .leftJoin(calendars, eq(events.calendarId, calendars.id))
+    .leftJoin(appointments, eq(appointments.eventId, events.id))
     .where(and(lt(events.startAt, to), gte(events.endAt, from), or(isNull(events.calendarId), eq(calendars.enabled, true))))
     .orderBy(asc(events.startAt));
-  return rows.map(({ e, c }) => ({
+  return rows.map(({ e, c, appointmentId }) => ({
     id: e.id,
     title: e.title,
     description: e.description,
@@ -38,7 +40,8 @@ export async function eventsBetween(from: Date, to: Date): Promise<EventRow[]> {
     color: e.color ?? c?.color ?? "#22c55e",
     calendarId: e.calendarId,
     calendarName: c?.name ?? "Órbita",
-    editable: !c || c.kind === "local",
+    editable: !appointmentId && (!c || c.kind === "local"),
+    appointmentId,
   }));
 }
 

@@ -8,7 +8,7 @@ export type ReviewItem = {
  subject:string; startAt:string; endAt:string; address:string|null; remotePreference:string|null; travelBefore:number; travelAfter:number; version:number;
  history:{version:number;actor:string;operation:string;createdAt:string}[];
 };
-const states={confirmed:"Confirmado",pending_approval:"Presencial não confirmado — exige ação",cancelled:"Cancelado",rejected:"Rejeitado"};
+const states={confirmed:"Confirmado na agenda",pending_approval:"Presencial não confirmado — exige ação",cancelled:"Cancelado",rejected:"Rejeitado"};
 export function AppointmentReview({items,crmBase}:{items:ReviewItem[];crmBase:string|null}) {
  return <div className="space-y-3">{items.length===0 && <p>Nenhum agendamento.</p>}{items.map(a=><ReviewCard key={`${a.id}:${a.version}`} item={a} crmBase={crmBase}/>)}</div>;
 }
@@ -33,7 +33,8 @@ function ReviewCard({item:a,crmBase}:{item:ReviewItem;crmBase:string|null}) {
   <p>{new Date(a.startAt).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo"})} · Brasília · 45 minutos + 15 de folga</p>
   <p>{a.customerName??"Cliente"} · {a.mode==="remote"?"Remoto":"Presencial"}</p>
   <p className="break-all">CRM: {crmBase?<a href={crmBase} target="_blank" rel="noreferrer" className="text-accent underline">{a.contactId}</a>:a.contactId}</p>
-  {a.mode==="remote"?<p>Preferência: {a.remotePreference??"Não informada"}. Antonio prepara e envia o link manualmente antes do atendimento.</p>:<><p>Endereço: {a.address}</p><p>Deslocamento aprovado: {a.travelBefore} min antes / {a.travelAfter} min depois.</p></>}
+  {a.mode==="remote"?<p>Preferência: {a.remotePreference??"Não informada"}. Antonio prepara e envia o link manualmente antes do atendimento.</p>:<><p>Endereço: {a.address}</p><p>Buffers de agenda: {a.travelBefore} min antes / {a.travelAfter} min depois.</p></>}
+  {a.state==="confirmed" && <p>Horário reservado. Antonio confirma os detalhes pessoalmente com o cliente. Se não confirmar, cancele o agendamento para liberar o horário. Nenhuma confirmação externa foi enviada automaticamente.</p>}
   {a.state==="pending_approval" && <><p>Horário não reservado. Confira disponibilidade e defina deslocamento para aprovar; ou rejeite e peça outra opção.</p><div className="flex flex-wrap gap-3">
    <label>Deslocamento antes (min)<input className="block rounded border p-2" type="number" min="0" max="600" required value={before} onChange={e=>setBefore(e.target.value)} disabled={pending}/></label>
    <label>Deslocamento depois (min)<input className="block rounded border p-2" type="number" min="0" max="600" required value={after} onChange={e=>setAfter(e.target.value)} disabled={pending}/></label>
