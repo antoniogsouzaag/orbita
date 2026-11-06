@@ -103,12 +103,13 @@ export function mediaForFormat<T extends MediaRow>(format: string, rows: T[]): T
 }
 
 /**
- * Cada rede recebe o que publica com segurança. O carrossel misto foi validado só no Instagram
- * (Postiz, 07/09); nas demais redes o carrossel segue com os slides de imagem.
+ * Carrossel com vídeo só vai para o Instagram, o único canal validado (Postiz, 07/09). Facebook e LinkedIn
+ * não aceitam vídeo dentro de carrossel, e o Threads ainda não foi testado pelo Postiz. Em vez de mandar um
+ * pedaço do carrossel sem contexto, essas redes ficam de fora: devolve lista vazia.
  */
 export function mediaForNetwork<T extends MediaRow>(network: SocialNetwork, format: string, rows: T[]): T[] {
   if (format !== "carrossel" || network === "instagram") return rows;
-  return rows.filter(isImageRow);
+  return rows.some(isVideoRow) ? [] : rows;
 }
 
 /* ───────────── Várias redes por post (AG LABS) ───────────── */

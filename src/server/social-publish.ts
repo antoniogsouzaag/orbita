@@ -59,8 +59,8 @@ async function uploadFinalScreen(brand: SocialBrand): Promise<PostizMedia | null
   if (!out?.id || !out.path) throw new Error("Upload da tela final sem id/path.");
   return { id: out.id, path: out.path };
 }
-/** Rede que não recebe vídeo em carrossel e ficou sem slides de imagem: não é falha, não se tenta de novo. */
-const SEM_IMAGEM = "carrossel só com vídeo: esta rede recebe apenas imagens";
+/** Carrossel com vídeo fica só no Instagram: as outras redes são puladas de propósito, sem contar como falha. */
+const SEM_IMAGEM = "carrossel com vídeo: publicado só no Instagram";
 const postizOf = (p: Pick<SocialPost, "checks">) => (p.checks as { postiz?: PostizState } | null)?.postiz ?? null;
 
 /**
@@ -139,10 +139,10 @@ export async function scheduleSocialPost(id: string) {
     const ch = network === post.network ? channel : pickChannel(channels, post.brand as SocialBrand, network);
     if (!ch) { erros[network] = "sem canal"; continue; }
     const { content, comment } = captionFor(network, post.caption!, { pageUrl: keyword ? post.checks?.pageUrl : null });
-    // Carrossel misto: fora do Instagram seguem só os slides de imagem.
+    // Carrossel com vídeo: só o Instagram recebe; as outras redes ficam de fora em vez de receber um pedaço.
     const networkMedia = mediaForNetwork(network, post.format, ordered).map(m => uploaded.get(m.id)!);
     if (!networkMedia.length) {
-      if (network === post.network) throw new Error("Esta rede publica o carrossel só com imagens: inclua ao menos uma imagem.");
+      if (network === post.network) throw new Error("Carrossel com vídeo só pode sair no Instagram: troque a rede principal ou use só imagens.");
       erros[network] = SEM_IMAGEM; continue;
     }
     const files = network !== "instagram" && finalScreen && networkMedia.length > 1 ? [...networkMedia.slice(0, -1), finalScreen] : networkMedia;

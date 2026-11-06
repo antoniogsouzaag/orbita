@@ -98,7 +98,7 @@ Sem data marcada, o Órbita sugere o próximo horário livre da grade. Nada é p
 ### Implementado (aprovar = agendar)
 - **Aprovar** no Órbita agenda no Postiz:
   1. valida o checklist, a data e as entregas;
-  2. sobe as mídias do post na ordem do carrossel (`…-01`, `…-02`…). Reel e vídeo levam só o MP4; imagem leva só imagens; **carrossel aceita imagens e vídeos juntos** (carrossel misto, como o F11 Astra de 07/09). O carrossel misto vai inteiro só no Instagram, o único canal validado; Facebook, LinkedIn e Threads recebem os slides de imagem. Carrossel sem nenhuma imagem pula essas redes, com o aviso registrado no post;
+  2. sobe as mídias do post na ordem do carrossel (`…-01`, `…-02`…). Reel e vídeo levam só o MP4; imagem leva só imagens; **carrossel aceita imagens e vídeos juntos** (carrossel misto, como o F11 Astra de 07/09). Carrossel com vídeo sai **só no Instagram**, o único canal validado: Facebook e LinkedIn não aceitam vídeo dentro de carrossel e o Threads ainda não foi testado pelo Postiz. Essas redes ficam de fora (aviso no post, não conta como falha) em vez de receber um pedaço do carrossel. Carrossel só com imagens continua indo para todas;
   3. cria o post no canal da marca e guarda o id em `checks.postiz`;
   4. muda a etapa para **Agendado**.
 - **Se faltar algo**, o post fica em Aprovado com o motivo na notificação. O botão **Agendar no Postiz** tenta de novo.

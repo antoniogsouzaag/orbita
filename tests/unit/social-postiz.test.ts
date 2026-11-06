@@ -67,13 +67,18 @@ describe("mídias por formato e por rede", () => {
     expect(mediaForFormat("video", rows).map(r => r.id)).toEqual(["2"]);
     expect(mediaForFormat("imagem", rows).map(r => r.id)).toEqual(["1", "3"]);
   });
-  it("carrossel misto vai inteiro só no Instagram; nas outras redes seguem as imagens", () => {
+  it("carrossel com vídeo vai só no Instagram; as outras redes ficam de fora", () => {
     const carrossel = mediaForFormat("carrossel", rows);
     expect(mediaForNetwork("instagram", "carrossel", carrossel).map(r => r.id)).toEqual(["1", "2", "3"]);
     for (const network of ["facebook", "linkedin", "threads"] as const) {
-      expect(mediaForNetwork(network, "carrossel", carrossel).map(r => r.id)).toEqual(["1", "3"]);
+      expect(mediaForNetwork(network, "carrossel", carrossel)).toEqual([]);
     }
-    expect(mediaForNetwork("linkedin", "carrossel", [rows[1]])).toEqual([]);
+  });
+  it("carrossel só com imagens continua indo para todas as redes", () => {
+    const imagens = [rows[0], rows[2]];
+    for (const network of ["instagram", "facebook", "linkedin", "threads"] as const) {
+      expect(mediaForNetwork(network, "carrossel", imagens).map(r => r.id)).toEqual(["1", "3"]);
+    }
   });
   it("reel não muda por rede", () => {
     expect(mediaForNetwork("youtube", "reels", [rows[1]]).map(r => r.id)).toEqual(["2"]);
