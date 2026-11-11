@@ -94,8 +94,8 @@ class LocalProvider implements VaultProvider {
 function githubHint(status: number, repo: string): string | null {
   const owner = repo.split("/")[0];
   if (status === 404)
-    return `O token do vault não enxerga ${repo} (GitHub 404). Crie um token fine-grained com “Resource owner” = ${owner} (não a conta pessoal), selecione só este repositório e dê “Contents: Read and write”. Se a organização pedir aprovação, aprove em github.com/organizations/${owner}/settings/personal-access-token-requests. Depois atualize VAULT_GITHUB_TOKEN na Vercel e publique de novo.`;
-  if (status === 401) return "O token do vault é inválido ou expirou (GitHub 401). Gere outro e atualize VAULT_GITHUB_TOKEN na Vercel.";
+    return `O token do vault não enxerga ${repo} (GitHub 404). Crie um token fine-grained com “Resource owner” = ${owner} (não a conta pessoal), selecione só este repositório e dê “Contents: Read and write”. Se a organização pedir aprovação, aprove em github.com/organizations/${owner}/settings/personal-access-token-requests. Depois atualize VAULT_GITHUB_TOKEN no servidor e publique de novo.`;
+  if (status === 401) return "O token do vault é inválido ou expirou (GitHub 401). Gere outro e atualize VAULT_GITHUB_TOKEN no servidor.";
   if (status === 403) return `O GitHub recusou o token do vault (403): falta a permissão “Contents” em ${repo}, a organização bloqueia tokens fine-grained ou o limite de requisições foi atingido.`;
   return null;
 }

@@ -1,4 +1,4 @@
-// Aplica migrations pendentes antes do build (Vercel). Sem DATABASE_URL, não faz nada.
+// Aplica migrations pendentes antes de o servidor subir (`npm start`). Sem DATABASE_URL, não faz nada.
 import path from "node:path";
 
 const url = process.env.DATABASE_URL;

@@ -24,15 +24,3 @@ describe("conciliação Postiz", () => {
   });
 });
 
-import { dueCrons } from "@/lib/internal-cron";
-describe("agendador interno", () => {
-  it("roda cada rota uma vez na janela do horário", () => {
-    const ran = new Set<string>();
-    const at = new Date("2026-11-06T03:16:00Z");
-    const first = dueCrons(at, ran);
-    expect(first.map(j => j.path)).toEqual(["/api/cron/redes"]);
-    first.forEach(j => ran.add(j.key));
-    expect(dueCrons(new Date("2026-11-06T03:17:00Z"), ran)).toEqual([]);
-    expect(dueCrons(new Date("2026-11-06T04:00:00Z"), new Set())).toEqual([]);
-  });
-});

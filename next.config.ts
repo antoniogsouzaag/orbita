@@ -1,7 +1,21 @@
+import { execSync } from "node:child_process";
 import type { NextConfig } from "next";
+
+/** Commit do build: variável da plataforma (Coolify, CI) ou o git da pasta; vazio se nenhum souber. */
+function buildCommit(): string {
+  const isSha = (value: string | undefined): value is string => /^[0-9a-f]{7,40}$/.test(value ?? "");
+  for (const value of [process.env.SOURCE_COMMIT, process.env.GITHUB_SHA]) if (isSha(value)) return value;
+  try {
+    const sha = execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    return isSha(sha) ? sha : "";
+  } catch {
+    return "";
+  }
+}
 
 const nextConfig: NextConfig = {
   distDir: process.env.ORBITA_DIST_DIR || ".next",
+  env: { ORBITA_COMMIT: buildCommit() },
   // App totalmente dinâmico (dados pessoais por requisição): usamos o modelo
   // clássico de cache em vez de Cache Components.
   cacheComponents: false,

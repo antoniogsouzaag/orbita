@@ -20,7 +20,7 @@ npm run check
 
 Roda `typecheck → testes → build`, o mesmo que o CI (`.github/workflows/quality.yml`, Node 24). Os testes usam PGlite em memória; nenhum deles precisa de `.env.local`, rede ou credencial.
 
-Depois de mudar `src/db/schema.ts`: `npm run db:generate`. As migrações rodam no build da Vercel (`scripts/migrate.mjs`), então uma migration mesclada é aplicada em produção no deploy.
+Depois de mudar `src/db/schema.ts`: `npm run db:generate`. As migrações rodam no `npm start` (`scripts/migrate.mjs`), então uma migration mesclada é aplicada quando o servidor sobe com a versão nova. Mesclar na `main` não publica: a produção (VPS-03) é atualizada à parte, e `GET /api/health` informa o `commit` que está no ar.
 
 ## Onde fica cada coisa
 

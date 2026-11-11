@@ -2,7 +2,7 @@
 
 Central operacional pessoal e da AG LABS: tarefas, hábitos, metas, agenda, vault do Obsidian, status ao vivo da operação e ponto de conexão dos agentes.
 
-Uso pessoal, um único usuário. Em produção: Vercel (região `gru1`, São Paulo) + Neon (Postgres, São Paulo).
+Uso pessoal, um único usuário. Em produção: servidor próprio (VPS-03) com `npm start` + Postgres (Neon, São Paulo; qualquer Postgres serve). Publicação e rotinas diárias em [Publicação](#publicação).
 
 ## O que tem
 
@@ -114,7 +114,7 @@ A **Visão geral da Empresa** segue o formato do Início: capa própria do Unspl
 
 A página Integrações mantém apenas conexões que o proprietário configura ou gerencia, como acessos MCP. O diagnóstico das dependências internas não aparece no painel. O mesmo diagnóstico operacional está em `GET /api/integrations/status`, autenticado pela sessão do dono ou pelo `CONTEXT_TOKEN` já usado para leitura de contexto. A resposta não contém credenciais e não é armazenada em cache público.
 
-Para a consulta de workflows, crie uma chave em **Settings → n8n API → Custom** em cada servidor, com apenas `workflow:list` e `execution:list`. Salve `N8N_INSTANCES` como segredo de produção na Vercel: uma lista de objetos com `name`, `url` e `apiKey`. Use o botão **Copy** do n8n: o campo visível da chave pode conter um valor abreviado. Após salvar ou trocar as chaves, faça um novo deployment e execute o diagnóstico pelo MCP. Acompanhe a validade das credenciais; uma recusa da API não significa que os workflows desapareceram.
+Para a consulta de workflows, crie uma chave em **Settings → n8n API → Custom** em cada servidor, com apenas `workflow:list` e `execution:list`. Salve `N8N_INSTANCES` como segredo de produção no servidor: uma lista de objetos com `name`, `url` e `apiKey`. Use o botão **Copy** do n8n: o campo visível da chave pode conter um valor abreviado. Após salvar ou trocar as chaves, faça um novo deployment e execute o diagnóstico pelo MCP. Acompanhe a validade das credenciais; uma recusa da API não significa que os workflows desapareceram.
 
 **GitHub** permite filtrar por tipo, título, repositório e autor. A credencial segue a precedência `GITHUB_INBOX_TOKEN` → `GITHUB_TOKEN` → `VAULT_GITHUB_TOKEN`. O token do Knowledge pode ser reutilizado com as permissões atuais, mas só enxerga os repositórios liberados para ele. Para visão do ecossistema, prefira um `GITHUB_INBOX_TOKEN` separado, de leitura, com os repositórios desejados. A busca carrega até 100 PRs e 100 propostas e informa quando os resultados são parciais.
 
@@ -126,13 +126,13 @@ A Órbita conversa com o CRM (`aglabs-core/crm-dash`) pelo servidor MCP dele (`/
 - **Bom dia**: oportunidades, receita do mês, suas tarefas do CRM e tarefas vencidas do time.
 - **IA**: busca contatos, abre a ficha, cria tarefa para Maia, Léo, Antonio ou técnico, conclui com motivo e registra interações. E-mail para um contato vira tarefa para o Léo, que já faz o envio.
 
-Configuração: `CRM_MCP_URL` (`https://crm.aglabs.api.br/api/mcp`) e `CRM_MCP_TOKEN` na Vercel da Órbita; o mesmo token em `CRM_MCP_TOKENS="orbita:<token>:leitura,tarefas,atividades"` na Vercel do CRM. Para trocar o token, gere outro (`openssl rand -hex 32`) e atualize os dois lados. Enquanto o CRM não aceita o token, o card mostra o motivo.
+Configuração: `CRM_MCP_URL` (`https://crm.aglabs.api.br/api/mcp`) e `CRM_MCP_TOKEN` no ambiente da Órbita; o mesmo token em `CRM_MCP_TOKENS="orbita:<token>:leitura,tarefas,atividades"` na Vercel do CRM. Para trocar o token, gere outro (`openssl rand -hex 32`) e atualize os dois lados. Enquanto o CRM não aceita o token, o card mostra o motivo.
 
 ## Telegram
 
 A Órbita envia direto pela API do bot, sem passar pelo n8n:
 
-- **Bom dia às 7h** (agendador da Vercel → `GET /api/cron/brief` com `CRON_SECRET`): agenda, tarefas pessoais e da empresa, pedidos dos agentes, hábitos e operação.
+- **Bom dia às 7h** (agendador interno → `GET /api/cron/brief` com `CRON_SECRET`): agenda, tarefas pessoais e da empresa, pedidos dos agentes, hábitos e operação.
 - **Aviso imediato** quando um agente abre um pedido pelo MCP.
 
 Os alertas de queda e de falha continuam saindo do n8n, de forma independente: se a Órbita cair, os alertas não param.
@@ -178,7 +178,7 @@ Veja `.env.example`. As principais:
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | IA (padrão `gpt-6-luna`). Alternativa: `ANTHROPIC_API_KEY` + `AI_PROVIDER=anthropic` |
 | `OPS_TOKEN`, `CONTEXT_TOKEN`, `CALENDAR_FEED_TOKEN` | Tokens das integrações (16+ caracteres) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Envio pelo Telegram (bom dia e pedidos dos agentes) |
-| `CRON_SECRET` | Autoriza o agendador da Vercel a chamar `/api/cron/brief` |
+| `CRON_SECRET` | Autoriza o agendador interno a chamar `/api/cron/*`; sem ele as rotinas diárias não rodam |
 | `GITHUB_INBOX_TOKEN` | Opcional: PRs e propostas da `aglabs-core` na página Empresa (fine-grained, leitura de Pull requests, Issues e Metadata) |
 | `CRM_MCP_URL`, `CRM_MCP_TOKEN` | Opcional: CRM na Empresa, no bom dia e na IA (veja **CRM**) |
 | `N8N_INSTANCES` | Opcional: API de cada n8n para listar workflows |
@@ -206,7 +206,12 @@ npm run typecheck
 npm run db:generate          # após mudar src/db/schema.ts
 ```
 
-As migrações rodam no build da Vercel (`scripts/migrate.mjs`).
+## Publicação
+
+- **Subir o servidor:** `npm run build` e `npm start`. O `start` aplica as migrations pendentes (`scripts/migrate.mjs`) antes de abrir a porta; se a migration falhar, o servidor não sobe e a versão anterior continua no ar. Um comando de start próprio na plataforma precisa manter esse passo.
+- **Publicar não é automático.** Mesclar na `main` não atualiza o servidor. `GET /api/health` devolve o `commit` do build, e o diagnóstico (`diagnostico_integracoes`, linha "Versão publicada") avisa quando a produção ficou atrás da `main`.
+- **Rotinas diárias:** com `CRON_SECRET` definido, o próprio servidor dispara as quatro rotinas (`src/lib/internal-cron.ts`, horários em UTC): fechamento das redes 03:15, memória da ORBE 06:00, limpeza de mídias 07:30 e bom dia 10:00. A rotina que perdeu o horário por deploy ou reinício roda até 3 h depois. Cada execução fica registrada; `status_ao_vivo` e o diagnóstico mostram a que não terminou bem nas últimas 26 h. `ORBITA_INTERNAL_CRON=0` desliga o agendador.
+- **Banco:** `DATABASE_URL` do Neon usa o driver HTTP do Neon; qualquer outra URL usa `postgres-js`, sem mudança de código.
 
 Stack: Next.js 16 (App Router), React 19, Tailwind v4, Drizzle ORM, Neon, jose, OpenAI SDK, MCP SDK.
 
