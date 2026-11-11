@@ -52,7 +52,7 @@ describe("central dos agentes (MCP)", () => {
   it("expõe só as ferramentas dos escopos do agente", async () => {
     const t = await createAgentToken("Só leitura", ["status"]);
     expect((await init(t)).body.result).toMatchObject({ serverInfo: { name: "orbita" } });
-    expect(await toolNames(t)).toEqual(["automacoes_operacionais", "consultar_jornal", "documentacao", "eventos_recentes", "pendencias_github", "status_ao_vivo"]);
+    expect(await toolNames(t)).toEqual(["automacoes_operacionais", "consultar_jornal", "documentacao", "eventos_recentes", "ocorrencias_abertas", "pendencias_github", "status_ao_vivo"]);
     const call = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "não deveria" } });
     expect(JSON.stringify(call.body)).toMatch(/not found|não|error/i);
   });

@@ -44,4 +44,16 @@ describe("encerramento verificado de incidentes", () => {
     await resolveIncidentAction({ id: site.id, evidence: "Site só resolve pela coleta real" });
     expect((await db.select().from(opsEvents).where(eq(opsEvents.id, site.id)))[0].resolvedAt).toBeNull();
   });
+
+  it("a ocorrência aberta aparece na lista e a resolução registra o agente sem sobrescrever", async () => {
+    const { openResolvableOpsEvents, resolveOpsEvent } = await import("@/server/ops-live");
+    const db = await getDb();
+    const [event] = await db.insert(opsEvents).values({ kind: "agente_alerta", severity: "warning", source: "agente:teste", subject: "Alerta para o MCP" }).returning();
+    expect((await openResolvableOpsEvents()).some((e) => e.id === event.id)).toBe(true);
+    expect(await resolveOpsEvent(event.id, "Conferido na origem pelo agente", "agente:tom")).toBe(true);
+    expect(await resolveOpsEvent(event.id, "Segunda tentativa não sobrescreve", "agente:outro")).toBe(false);
+    const [saved] = await db.select().from(opsEvents).where(eq(opsEvents.id, event.id));
+    expect(saved.detail).toMatchObject({ resolution: "Conferido na origem pelo agente", resolvedBy: "agente:tom" });
+    expect((await openResolvableOpsEvents()).some((e) => e.id === event.id)).toBe(false);
+  });
 });

@@ -7,7 +7,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { agentActivity, agentTokens, opsEvents, tasks, dispatches, type AgentScope } from "@/db/schema";
 import { buildContext, contextToMarkdown } from "./context";
-import { liveOps } from "./ops-live";
+import { liveOps, openResolvableOpsEvents, resolveOpsEvent } from "./ops-live";
 import { githubInbox } from "./github-inbox";
 import { stageLabel } from "@/lib/github-triage";
 import { n8nOverview } from "./ops";
@@ -236,6 +236,31 @@ export function buildMcpServer(agent: AgentIdentity) {
           const rows = await db.select().from(opsEvents).where(and(gte(opsEvents.createdAt, since), origem ? sql`${opsEvents.source} like ${`${origem.replace(/[%_\\]/g, "\\$&")}%`}` : undefined, tipo ? eq(opsEvents.kind, tipo) : undefined)).orderBy(desc(opsEvents.createdAt)).limit(50);
           if (!rows.length) return text(`Nenhum evento nas últimas ${horas ?? 24}h com esse filtro.`);
           return text(rows.map((e) => `- ${e.createdAt.toISOString()} · ${e.kind} · ${e.severity} · ${e.source}${e.resolvedAt ? " · resolvido" : ""}\n  ${e.subject}${typeof e.detail?.message === "string" && e.detail.message ? ` — ${e.detail.message.slice(0, 300)}` : ""} (${e.id})`).join("\n"));
+        }),
+    );
+  }
+
+  if (can("status")) {
+    server.registerTool(
+      "ocorrencias_abertas",
+      { title: "Ocorrências abertas", description: "Lista falhas de workflow, alertas e incidentes relatados que ainda esperam resolução, das mais antigas para as mais novas, com o ID de cada uma. Não inclui quedas de site, domínios ou silêncio de monitor, que a coleta reconcilia sozinha.", inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false } },
+      async () =>
+        run("ocorrencias_abertas", "consultou ocorrências abertas", async () => {
+          const rows = await openResolvableOpsEvents();
+          if (!rows.length) return text("Nenhuma ocorrência aberta.");
+          return text(rows.map((e) => `- ${e.id} · ${e.kind} · ${e.severity} · ${e.source} · ${e.createdAt.toISOString()}\n  ${e.subject}`).join("\n"));
+        }),
+    );
+  }
+
+  if (can("admin")) {
+    server.registerTool(
+      "resolver_ocorrencia",
+      { title: "Resolver ocorrência", description: "Administrador: encerra uma ocorrência aberta (falha de workflow, alerta ou incidente relatado) depois de conferir a correção na origem. Exige o ID de ocorrencias_abertas e a evidência do que foi verificado. Não executa correção, não encerra ocorrências futuras e não sobrescreve resolução anterior.", inputSchema: { id: z.uuid(), evidencia: z.string().trim().min(10).max(1000).describe("O que foi conferido na origem e onde") }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
+      async ({ id, evidencia }) =>
+        run("resolver_ocorrencia", `resolveu ocorrência ${id}`, async () => {
+          const resolved = await resolveOpsEvent(id, evidencia, `agente:${slug(agent.name)}`);
+          return text(resolved ? "Ocorrência encerrada com a evidência registrada." : "Nada foi alterado: ocorrência inexistente, já encerrada ou de um tipo reconciliado pela coleta.", !resolved);
         }),
     );
   }
