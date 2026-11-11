@@ -10,8 +10,8 @@ const globalForDb = globalThis as unknown as { __orbitaDb?: Promise<DB> };
 
 /**
  * Escolhe o driver pelo ambiente:
- * - DATABASE_URL do Neon → driver HTTP do Neon (serverless, ideal na Vercel)
- * - outra DATABASE_URL → postgres-js (VPS/EasyPanel)
+ * - DATABASE_URL do Neon → driver HTTP do Neon
+ * - outra DATABASE_URL → postgres-js (Postgres próprio, no mesmo servidor ou rede)
  * - sem DATABASE_URL → PGlite local em `.data/pglite` (dev) com migrations automáticas
  */
 async function createDb(): Promise<DB> {
@@ -47,7 +47,7 @@ export function getDb(): Promise<DB> {
 
 /**
  * Interactive transactions cannot use neon-http. Keep normal queries on HTTP,
- * but give each reservation its own WebSocket session (Node 22+/Vercel Node 24).
+ * but give each reservation its own WebSocket session (Node 22+).
  * Never cache this client: serverless sockets must close in the same request,
  * including callback, BEGIN/COMMIT and connection failures. The caller resumes
  * only after commit and close, before any external delivery.

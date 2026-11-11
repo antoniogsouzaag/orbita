@@ -27,6 +27,8 @@ import { journalInput, journalQueryInput, JOURNAL_GUIDE, JOURNAL_GUIDE_URI } fro
 import { journalSummary, submitJournalArticle, JournalError } from "./journal";
 import { mcpErrorMessage } from "@/lib/mcp-errors";
 import { agentQuickStartMarkdown } from "@/lib/agent-handbook";
+import { cronRuns } from "./cron-runs";
+import { INTERNAL_CRONS, lateCrons } from "@/lib/internal-cron";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -209,18 +211,20 @@ export function buildMcpServer(agent: AgentIdentity) {
     );
     server.registerTool(
       "status_ao_vivo",
-      { title: "Status ao vivo", description: "Endereços fora do ar, amostra de quedas, falhas e outros alertas, domínios perto de vencer e saúde dos monitores.", inputSchema: {} },
+      { title: "Status ao vivo", description: "Endereços fora do ar, amostra de quedas, falhas e outros alertas, domínios perto de vencer, saúde dos monitores e das rotinas diárias da própria Órbita.", inputSchema: {} },
       async () =>
         run("status_ao_vivo", "consultou o status ao vivo", async () => {
           const live = await liveOps();
           const snapshot = availabilitySnapshot(live.status, live.monitors, live.generatedAt);
           const down = snapshot.down;
+          const late = await cronRuns().then((runs) => lateCrons(runs, new Date()), () => null);
           const lines = [
             `Endereços: ${snapshot.current.length ? `${snapshot.up.length}/${snapshot.current.length} no ar com verificação recente` : "nenhuma verificação recente"}; ${snapshot.stale.length} sem verificação recente.`,
             ...snapshot.stale.map((s) => `- Sem verificação recente: ${s.name} (${s.url}), último registro ${s.checkedAt.toISOString()}.`),
             ...down.map((d) => `- ❌ ${d.name} (${d.url}) desde ${d.changedAt.toISOString()} — ${d.statusCode ?? d.error ?? ""}`),
             ...opsEventSummary(live.events, live.generatedAt),
             `Monitores: ${live.monitors.map((m) => `${m.label} ${m.silent ? "⚠️ em silêncio" : "ok"} (última batida ${m.lastSeen.toISOString()})`).join("; ") || "nenhum"}`,
+            `Rotinas diárias da Órbita: ${late === null ? "registro indisponível" : late.length ? `⚠️ ${INTERNAL_CRONS.length - late.length}/${INTERNAL_CRONS.length} em dia — ${late.join("; ")}` : `${INTERNAL_CRONS.length}/${INTERNAL_CRONS.length} em dia`}`,
             `Domínios < 45 dias: ${live.domains.filter((d) => d.expiresAt && d.expiresAt.getTime() - Date.now() < 45 * 86_400_000).map((d) => `${d.domain} (${d.expiresAt!.toISOString().slice(0, 10)})`).join(", ") || "nenhum"}`,
           ];
           return text(lines.join("\n"));

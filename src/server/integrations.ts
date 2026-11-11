@@ -12,6 +12,9 @@ import { BUSINESS_UNITS } from "@/lib/business-models";
 import { productMetrics, productMetricsConfigured } from "./product-metrics";
 import { hermesConfiguration } from "./hermes";
 import { openclawConfiguration } from "./openclaw";
+import { cronRuns } from "./cron-runs";
+import { INTERNAL_CRONS, internalCronEnabled, lateCrons } from "@/lib/internal-cron";
+import { ORBITA_REPO, buildCommit, sameCommit } from "@/lib/build-info";
 
 export type IntegrationHealthRow = {
   id: string;
@@ -40,7 +43,8 @@ export function integrationConfiguration(): IntegrationHealthRow[] {
     row("n8n", "n8n · Workflows", n8nInstances().length > 0, has("N8N_INSTANCES") && !n8nInstances().length ? "N8N_INSTANCES está preenchida, mas não contém instâncias válidas com url e apiKey." : "Consulta de workflows e falhas pela API pública de cada servidor.", ["N8N_INSTANCES"], "/operacao/automacoes"),
     row("monitors", "Monitores · n8n → Órbita", validToken("OPS_TOKEN"), "Recebe resultados em /api/ops/ingest. O diagnóstico verifica se há batidas recentes registradas.", ["OPS_TOKEN"], "/operacao"),
     row("telegram", "Telegram · Avisos", has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_CHAT_ID"), "O diagnóstico consulta bot e destino sem enviar mensagens. A entrega só é confirmada por um envio real.", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]),
-    row("brief", "Resumo diário · 7h", validToken("CRON_SECRET") && has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_CHAT_ID"), "Precisa do agendador da Vercel, CRON_SECRET e Telegram. Configuração não comprova execução do resumo.", ["CRON_SECRET"], "/agenda"),
+    row("release", "Versão publicada", true, "Compara o commit do build com a main do repositório.", []),
+    row("cron", "Rotinas diárias · agendador interno", validToken("CRON_SECRET"), "Bom dia das 7h, memória da ORBE, limpeza de mídias e fechamento das redes. Precisa de CRON_SECRET; o bom dia também precisa do Telegram.", ["CRON_SECRET", "ORBITA_INTERNAL_CRON"], "/agenda"),
     row("calendar", "Agenda · Assinaturas e feed", validToken("CALENDAR_FEED_TOKEN"), "Calendários externos são adicionados na Agenda. O feed da Órbita pode ser assinado no iPhone ou Google.", ["CALENDAR_FEED_TOKEN"], "/agenda"),
     row("context", "Agentes · Contexto e MCP", validToken("CONTEXT_TOKEN"), "GET /api/context usa CONTEXT_TOKEN. O MCP usa acessos individuais criados em Integrações → Acessos MCP, independentemente deste token.", ["CONTEXT_TOKEN"], "/integracoes/mcp"),
     row("openclaw", "OpenClaw · Pedidos ao Tom", Object.values(openclawConfiguration()).every(Boolean), "Saída para a rota /hooks/orbita do gateway do VPS-02. O diagnóstico não envia pedido; a solicitação em Agentes confirma a comunicação.", ["OPENCLAW_DISPATCH_ENABLED", "OPENCLAW_HOOK_URL", "OPENCLAW_HOOK_TOKEN"], "/agentes"),
@@ -111,6 +115,21 @@ export async function checkIntegrationHealth(): Promise<IntegrationHealthRow[]> 
         case "telegram": {
           await telegramProbe();
           return result("verified", "Bot e destino responderam. Nenhuma mensagem foi enviada; entrega não testada.");
+        }
+        case "release": {
+          const commit = buildCommit();
+          if (!commit) return result("warning", "O build não registrou o commit. Sem isso não dá para saber se a produção acompanha a main.");
+          const response = await fetch(`https://api.github.com/repos/${ORBITA_REPO}/commits/main`, { headers: { Accept: "application/vnd.github.sha" }, signal: AbortSignal.timeout(8000), cache: "no-store", redirect: "error" });
+          const main = response.ok ? (await response.text()).trim() : "";
+          if (!/^[0-9a-f]{40}$/.test(main)) return result("configured", `Produção em ${commit}. O GitHub não informou a main agora; comparação não feita.`);
+          return sameCommit(commit, main) ? result("verified", `Produção em ${commit}, igual à main.`) : result("warning", `Produção em ${commit}; a main está em ${main.slice(0, 7)}. Há mudança mesclada que ainda não foi publicada no servidor.`);
+        }
+        case "cron": {
+          const late = lateCrons(await cronRuns(), new Date());
+          const scheduler = internalCronEnabled(process.env) ? "Agendador interno ligado." : "Agendador interno desligado neste ambiente: nada dispara as rotinas sozinho.";
+          const telegram = has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_CHAT_ID") ? "" : " O bom dia não sai sem TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID.";
+          if (!late.length) return result(telegram ? "warning" : "verified", `${INTERNAL_CRONS.length}/${INTERNAL_CRONS.length} rotinas terminaram bem nas últimas 26 h. ${scheduler}${telegram}`);
+          return result("warning", `${INTERNAL_CRONS.length - late.length}/${INTERNAL_CRONS.length} rotinas em dia. ${late.join("; ")}. ${scheduler}${telegram}`);
         }
         case "calendar": {
           const calendars = (await listCalendars()).filter((calendar) => calendar.kind === "ics" && calendar.enabled);

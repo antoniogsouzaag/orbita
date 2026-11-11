@@ -19,9 +19,9 @@ export function TelegramCard({ configured, cron }: { configured: boolean; cron: 
             <Send /> Enviar o resumo agora
           </Button>
         ) : (
-          <p className="rounded-lg bg-surface-2 px-3 py-2 text-[12.5px]">Na Vercel, adicione <code>TELEGRAM_BOT_TOKEN</code> (o token do bot “avisos aglabs”, no @BotFather) e <code>TELEGRAM_CHAT_ID</code>. Depois publique de novo.</p>
+          <p className="rounded-lg bg-surface-2 px-3 py-2 text-[12.5px]">No servidor, adicione <code>TELEGRAM_BOT_TOKEN</code> (o token do bot “avisos aglabs”, no @BotFather) e <code>TELEGRAM_CHAT_ID</code>. Depois publique de novo.</p>
         )}
-        {!cron && <p className="text-[12px] text-warning">Falta <code>CRON_SECRET</code> na Vercel para o envio automático das 7h.</p>}
+        {!cron && <p className="text-[12px] text-warning">Falta <code>CRON_SECRET</code> no servidor para o envio automático das 7h.</p>}
       </div>
     </Card>
   );

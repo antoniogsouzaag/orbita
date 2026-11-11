@@ -68,7 +68,7 @@ export async function crmCall<T = unknown>(name: string, args: Record<string, un
   });
   if (res.status === 401) throw new Error("o CRM recusou o token (CRM_MCP_TOKEN)");
   if (res.status === 404) throw new Error("o servidor MCP ainda não está publicado no CRM");
-  if (res.status === 503) throw new Error("falta CRM_MCP_TOKENS na Vercel do CRM");
+  if (res.status === 503) throw new Error("falta CRM_MCP_TOKENS no ambiente do CRM");
   if (!res.ok) throw new Error(`CRM respondeu ${res.status}`);
   const body = (await res.json()) as { error?: { message: string }; result?: { isError?: boolean; structuredContent?: T; content?: { type: string; text?: string }[] } };
   if (body.error) throw new Error(body.error.message);

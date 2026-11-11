@@ -21,7 +21,7 @@ export function SecurityCard({ totpEnabled, envTotp, passwordMode }: { totpEnabl
       <div className="space-y-4 px-5 pb-5 text-[13px]">
         <ul className="space-y-1.5 text-muted">
           <li>• Único usuário (você). Sessão assinada, cookie httpOnly, válida por 30 dias.</li>
-          <li>• Senha: {passwordMode === "app" ? <b className="text-success">definida aqui no app (hash scrypt)</b> : passwordMode === "hash" ? <b className="text-success">guardada como hash (scrypt) na Vercel</b> : passwordMode === "plain" ? <span className="text-warning">em texto no ambiente — prefira ORBITA_PASSWORD_HASH</span> : <span className="text-danger">não configurada</span>}</li>
+          <li>• Senha: {passwordMode === "app" ? <b className="text-success">definida aqui no app (hash scrypt)</b> : passwordMode === "hash" ? <b className="text-success">guardada como hash (scrypt) no servidor</b> : passwordMode === "plain" ? <span className="text-warning">em texto no ambiente — prefira ORBITA_PASSWORD_HASH</span> : <span className="text-danger">não configurada</span>}</li>
           <li>• Bloqueio de 5 min após 5 tentativas erradas.</li>
           <li>• Verificação em duas etapas: {enabled ? <b className="text-success">ativa</b> : <span className="text-warning">desativada</span>}</li>
         </ul>
@@ -134,7 +134,7 @@ function PasswordForm() {
         <Button size="sm" variant="primary" disabled={pending || !cur || next.length < 10}>Salvar nova senha</Button>
         <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>Cancelar</Button>
       </div>
-      <p className="text-[12px] text-faint">A senha passa a valer pelo app; a da Vercel deixa de ser usada.</p>
+      <p className="text-[12px] text-faint">A senha passa a valer pelo app; a do servidor deixa de ser usada.</p>
     </form>
   );
 }
