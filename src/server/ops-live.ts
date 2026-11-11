@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { agentActivity, opsDomains, opsEvents, opsHeartbeats, opsStatus } from "@/db/schema";
 import { getRawSetting, setRawSetting } from "./security-store";
 import { monitorTargets } from "./ops";
+import { MANUALLY_RESOLVABLE_OPS_EVENTS } from "@/lib/ops-events";
 import { reconcileMonitorTargets, reconcileStoredMonitorTargets } from "./monitor-target-replacements";
 
 /* ───────────── Limpeza automática (sem acumular histórico velho) ───────────── */
@@ -233,4 +234,24 @@ export async function coherence() {
     notMonitored: [...vault.entries()].filter(([u]) => !monitored.has(u)).map(([, t]) => t),
     notInVault: [...monitored.entries()].filter(([u]) => !vault.has(u)).map(([, s]) => ({ url: s.url, name: s.name, source: s.source })),
   };
+}
+
+/* ───────────── Resolução de ocorrências (tela e MCP usam a mesma regra) ───────────── */
+
+/** Encerra uma ocorrência aberta com evidência. Não sobrescreve resolução anterior nem alcança eventos reconciliados pela coleta. */
+export async function resolveOpsEvent(id: string, evidence: string, resolvedBy: string) {
+  const db = await getDb();
+  const now = new Date();
+  const rows = await db
+    .update(opsEvents)
+    .set({ resolvedAt: now, detail: sql`${opsEvents.detail} || ${JSON.stringify({ resolution: evidence, resolvedBy, resolvedAt: now.toISOString() })}::jsonb` })
+    .where(and(eq(opsEvents.id, id), isNull(opsEvents.resolvedAt), inArray(opsEvents.kind, [...MANUALLY_RESOLVABLE_OPS_EVENTS])))
+    .returning({ id: opsEvents.id });
+  return rows.length > 0;
+}
+
+/** Ocorrências que esperam resolução, das mais antigas para as mais novas, sem limite de idade. */
+export async function openResolvableOpsEvents(limit = 50) {
+  const db = await getDb();
+  return db.select().from(opsEvents).where(and(isNull(opsEvents.resolvedAt), inArray(opsEvents.kind, [...MANUALLY_RESOLVABLE_OPS_EVENTS]))).orderBy(opsEvents.createdAt).limit(limit);
 }
