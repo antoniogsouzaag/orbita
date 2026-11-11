@@ -28,7 +28,6 @@ import { journalSummary, submitJournalArticle, JournalError } from "./journal";
 import { mcpErrorMessage } from "@/lib/mcp-errors";
 import { agentQuickStartMarkdown } from "@/lib/agent-handbook";
 import { cronRuns } from "./cron-runs";
-import { FAILURE_CAUSE_LABEL, isFailureCause } from "@/lib/failure-cause";
 import { INTERNAL_CRONS, lateCrons } from "@/lib/internal-cron";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -240,7 +239,7 @@ export function buildMcpServer(agent: AgentIdentity) {
           const since = new Date(Date.now() - (horas ?? 24) * 3_600_000);
           const rows = await db.select().from(opsEvents).where(and(gte(opsEvents.createdAt, since), origem ? sql`${opsEvents.source} like ${`${origem.replace(/[%_\\]/g, "\\$&")}%`}` : undefined, tipo ? eq(opsEvents.kind, tipo) : undefined)).orderBy(desc(opsEvents.createdAt)).limit(50);
           if (!rows.length) return text(`Nenhum evento nas últimas ${horas ?? 24}h com esse filtro.`);
-          return text(rows.map((e) => `- ${e.createdAt.toISOString()} · ${e.kind} · ${e.severity} · ${e.source}${e.resolvedAt ? " · resolvido" : ""}\n  ${e.subject}${typeof e.detail?.message === "string" && e.detail.message ? ` — ${e.detail.message.slice(0, 300)}` : ""}${isFailureCause(e.detail?.cause) ? ` · causa provável: ${FAILURE_CAUSE_LABEL[e.detail.cause]}` : ""} (${e.id})`).join("\n"));
+          return text(rows.map((e) => `- ${e.createdAt.toISOString()} · ${e.kind} · ${e.severity} · ${e.source}${e.resolvedAt ? " · resolvido" : ""}\n  ${e.subject}${typeof e.detail?.message === "string" && e.detail.message ? ` — ${e.detail.message.slice(0, 300)}` : ""} (${e.id})`).join("\n"));
         }),
     );
   }
@@ -253,7 +252,7 @@ export function buildMcpServer(agent: AgentIdentity) {
         run("ocorrencias_abertas", "consultou ocorrências abertas", async () => {
           const rows = await openResolvableOpsEvents();
           if (!rows.length) return text("Nenhuma ocorrência aberta.");
-          return text(rows.map((e) => `- ${e.id} · ${e.kind} · ${e.severity} · ${e.source} · ${e.createdAt.toISOString()}\n  ${e.subject}${isFailureCause(e.detail?.cause) ? ` · causa provável: ${FAILURE_CAUSE_LABEL[e.detail.cause]}` : ""}`).join("\n"));
+          return text(rows.map((e) => `- ${e.id} · ${e.kind} · ${e.severity} · ${e.source} · ${e.createdAt.toISOString()}\n  ${e.subject}`).join("\n"));
         }),
     );
   }

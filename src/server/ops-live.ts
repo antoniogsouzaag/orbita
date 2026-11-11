@@ -168,9 +168,7 @@ export async function ingest(p: IngestPayload) {
       gte(opsEvents.createdAt, new Date(now.getTime() - DAY)),
     )).limit(1) : [];
     if (!existing) {
-      const { triageFailure } = await import("./failure-triage");
-      const triage = await triageFailure({ workflow: e.workflow, node: e.node, message: e.message }).catch(() => null);
-      await db.insert(opsEvents).values({ kind: "workflow_error", severity: "warning", source: p.source, subject: e.workflow, detail: { node: e.node, message: e.message, executionUrl: e.executionUrl, workflowId: e.workflowId, ...(triage ? { cause: triage.cause, causeSource: triage.source } : {}) } });
+      await db.insert(opsEvents).values({ kind: "workflow_error", severity: "warning", source: p.source, subject: e.workflow, detail: { node: e.node, message: e.message, executionUrl: e.executionUrl, workflowId: e.workflowId } });
       counters.events++;
     }
   }
