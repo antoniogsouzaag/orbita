@@ -304,10 +304,12 @@ export const opsEvents = pgTable(
     source: text("source").notNull(),
     subject: text("subject").notNull(),
     detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
+    /** Stable receipt for deliveries with a source execution identifier. Legacy rows stay intact. */
+    receiptKey: text("receipt_key"),
     createdAt: createdAt(),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   },
-  (t) => [index("ops_events_created_idx").on(t.createdAt)],
+  (t) => [index("ops_events_created_idx").on(t.createdAt), uniqueIndex("ops_events_receipt_key_idx").on(t.receiptKey)],
 );
 
 export const opsHeartbeats = pgTable("ops_heartbeats", {

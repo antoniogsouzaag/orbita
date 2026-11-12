@@ -74,6 +74,15 @@ describe("ingestão de status (n8n → Órbita)", () => {
 });
 
 describe("limpeza automática", () => {
+  it("deduplica atomicamente entregas concorrentes e reenvios após 24 horas", async () => {
+    const payload = IngestSchema.parse({ source: "parallel-fixture", workflowError: { workflow: "Original", message: "falhou", executionUrl: "https://n8n.example/executions/parallel" } });
+    const results = await Promise.all([ingest(payload), ingest(payload)]);
+    expect(results.reduce((sum, result) => sum + result.events, 0)).toBe(1);
+    const db = await getDb();
+    const { eq } = await import("drizzle-orm");
+    await db.update(opsEvents).set({ createdAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(opsEvents.source, payload.source));
+    expect((await ingest({ ...payload, workflowError: { ...payload.workflowError!, workflow: "Renamed" } })).events).toBe(0);
+  });
   it("não duplica reenvio da mesma execução de workflow", async () => {
     const payload = IngestSchema.parse({ source: "retry-fixture", workflowError: { workflow: "Retry fixture", message: "falhou", executionUrl: "https://n8n.example/executions/123" } });
     expect((await ingest(payload)).events).toBe(1);

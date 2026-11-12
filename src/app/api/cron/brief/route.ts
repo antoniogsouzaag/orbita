@@ -9,7 +9,7 @@ export const maxDuration = 60;
 export async function GET(req: Request) {
   if (!tokenMatches(req.headers.get("authorization")?.replace(/^Bearer\s+/i, ""), "CRON_SECRET")) return Response.json({ error: "unauthorized" }, { status: 401 });
   return runCron(req, "brief", async () => {
-    if (!telegramConfigured()) return { status: 503, body: { ok: false, error: "Telegram não configurado" } };
+    if (!telegramConfigured()) return { status: 503, retryable: true, body: { ok: false, error: "Telegram não configurado" } };
     const brief = await buildBrief();
     if (!brief) return { body: { ok: true, skipped: true, reason: "nothing_actionable" } };
     const r = await sendTelegram(brief);

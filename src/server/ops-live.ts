@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
@@ -163,13 +164,14 @@ export async function ingest(p: IngestPayload) {
     const e = p.workflowError;
     // A mesma execução reenviada não é outra falha. Execuções distintas continuam visíveis.
     const [existing] = e.executionUrl ? await db.select({ id: opsEvents.id }).from(opsEvents).where(and(
-      eq(opsEvents.kind, "workflow_error"), eq(opsEvents.source, p.source), eq(opsEvents.subject, e.workflow),
+      eq(opsEvents.kind, "workflow_error"), eq(opsEvents.source, p.source),
       sql`${opsEvents.detail}->>'executionUrl' = ${e.executionUrl}`,
-      gte(opsEvents.createdAt, new Date(now.getTime() - DAY)),
     )).limit(1) : [];
     if (!existing) {
-      await db.insert(opsEvents).values({ kind: "workflow_error", severity: "warning", source: p.source, subject: e.workflow, detail: { node: e.node, message: e.message, executionUrl: e.executionUrl, workflowId: e.workflowId } });
-      counters.events++;
+      const receiptKey = e.executionUrl ? createHash("sha256").update(JSON.stringify([p.source, e.executionUrl])).digest("hex") : null;
+      const inserted = await db.insert(opsEvents).values({ kind: "workflow_error", severity: "warning", source: p.source, subject: e.workflow, receiptKey, detail: { node: e.node, message: e.message, executionUrl: e.executionUrl, workflowId: e.workflowId } })
+        .onConflictDoNothing({ target: opsEvents.receiptKey }).returning({ id: opsEvents.id });
+      counters.events += inserted.length;
     }
   }
   for (const e of p.events ?? []) {

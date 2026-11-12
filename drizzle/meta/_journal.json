@@ -92,6 +92,13 @@
       "when": 1793837660761,
       "tag": "0012_maia_appointments",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794495213745,
+      "tag": "0013_operational_receipts",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import { productMetrics } from "@/server/product-metrics";
 import { BUSINESS_UNITS, MODEL_INFO } from "@/lib/business-models";
 import { businessAudience, sumBusinessAudience } from "@/lib/business-audience";
 import { crmKeyForUnit } from "@/lib/business-crm";
+import { StageDistribution } from "./stage-distribution";
 
 const NAMES: Record<string, string> = { barberias: "Barberias", mecard: "MeCard", members: "Members", membros: "Members", viajeki: "Viajeki", aglabs: "AG LABS", "ag-labs": "AG LABS", localsite: "Desenvolvimento web", "local-site": "Desenvolvimento web", desenvolvimento_web: "Desenvolvimento web", sem_produto: "A definir" };
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -58,7 +59,7 @@ export async function ProductPortfolio() {
         <KpiCard icon={<Users />} label="Usuários nos apps" value={num(audience.total.value)} hint={partial(audience.total)} />
         <KpiCard icon={<Activity />} label="Ativos · 30 dias" value={num(audience.active.value)} hint={pct(audience.active.value, audience.total.value) != null ? `${pct(audience.active.value, audience.total.value)}% dos usuários · ${partial(audience.active)}` : partial(audience.active)} />
         <KpiCard icon={<UserPlus />} label="Novos no mês" value={num(audience.newMonth.value)} hint={partial(audience.newMonth)} />
-        <KpiCard icon={<BadgeDollarSign />} label="Receita líquida · mês" value={data?.receita_mes == null ? "—" : brl(data.receita_mes)} delta={revenueDelta} period="vs mês anterior" hint={data?.receita_total != null ? `${brl(data.receita_total)} acumulado` : undefined} />
+        <KpiCard icon={<BadgeDollarSign />} label="Após estornos · mês" value={data?.receita_mes == null ? "—" : brl(data.receita_mes)} delta={revenueDelta} period="vs mês anterior" hint="Antes de taxas e tributos; não comprova liquidação" />
         <KpiCard icon={<Target />} label="Oportunidades abertas" value={num(data?.oportunidades_abertas)} hint={data?.contatos_a_qualificar != null ? `${num(data.contatos_a_qualificar)} a qualificar` : undefined} />
         <KpiCard icon={<Mail />} label="E-mails · 30 dias" value={num(mail?.enviados)} hint={mail?.taxa_resposta != null && mail.entregues ? `${mail.taxa_resposta.toLocaleString("pt-BR")}% de resposta · ${num(mail.respostas)} respostas` : emails.status !== "ok" ? "Funil de e-mails indisponível" : undefined} />
       </div>
@@ -73,8 +74,8 @@ export async function ProductPortfolio() {
           </ChartCard>
         )}
         {data?.funil && (
-          <ChartCard title="Funil comercial" subtitle="Contatos por etapa e conversão a partir de Lead · todos os produtos">
-            <FunnelBars rows={funnel} />
+          <ChartCard title="Funil comercial" subtitle="Distribuição atual por etapa · não mede conversão histórica">
+            <StageDistribution rows={funnel} />
             <p className="mt-3 text-[11px] text-faint">{num(data.clientes)} clientes na etapa Cliente{data.pagantes_mes != null ? ` · ${num(data.pagantes_mes)} pagantes no mês` : ""}{data.novos_30d != null ? ` · ${num(data.novos_30d)} contatos novos em 30 dias` : ""}.</p>
           </ChartCard>
         )}
