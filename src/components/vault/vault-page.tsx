@@ -116,9 +116,9 @@ export function VaultPage({
   };
 
   const sidebar = (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex gap-1.5 p-3">
-        <div className="relative flex-1">
+        <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint" />
           <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filtrar arquivos" className="h-8 pl-8 text-[12.5px]" />
         </div>
@@ -126,7 +126,7 @@ export function VaultPage({
         <Button size="icon-sm" variant="ghost" asChild><Link href="/vault/revisao" aria-label="Revisar estrutura do vault"><FileSearch /></Link></Button>
         <Button size="icon-sm" variant="ghost" asChild><Link href="/vault/grafo" aria-label="Grafo"><Network /></Link></Button>
       </div>
-      <div className="flex-1 overflow-y-auto px-2 pb-3"><VaultTree nodes={tree} current={file?.path ?? null} filter={filter} /></div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3"><VaultTree nodes={tree} current={file?.path ?? null} filter={filter} /></div>
       <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-[11px] text-faint">
         <span className="truncate" title={source}>{source}</span>
         <button onClick={() => startSave(async () => { await refreshVault(); toast.success("Vault atualizado"); })} className="ml-auto rounded p-1 hover:text-fg" aria-label="Recarregar"><RefreshCw className={cn("size-3.5", saving && "animate-spin")} /></button>
@@ -137,18 +137,23 @@ export function VaultPage({
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_260px]">
       <Card className="hidden overflow-hidden lg:block lg:h-[calc(100dvh-110px)] lg:sticky lg:top-[72px]">{sidebar}</Card>
-      {treeOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 lg:hidden" onClick={() => setTreeOpen(false)}>
-          <div className="h-full w-[85vw] max-w-xs border-r border-border bg-surface" onClick={(e) => e.stopPropagation()}>{sidebar}</div>
-        </div>
-      )}
+      <Dialog open={treeOpen} onOpenChange={setTreeOpen}>
+        <DialogContent title="Arquivos do vault" className="flex h-[min(76dvh,640px)] flex-col overflow-hidden">
+          <div className="min-h-0 flex-1">{sidebar}</div>
+        </DialogContent>
+      </Dialog>
 
       <div className="min-w-0">
         {!file ? (
-          <Card className="p-6">
-            <Button size="sm" variant="secondary" className="mb-4 lg:hidden" onClick={() => setTreeOpen(true)}><PanelLeft /> Arquivos</Button>
-            <EmptyState icon={<ListTree />} title="Vault da AG LABS" description={`${stats.notes} notas · ${stats.links} links entre notas. Escolha uma nota à esquerda, busque com Ctrl+K ou abra o grafo.`} action={<Button size="sm" asChild><Link href={`/vault?p=${encodeURIComponent(mdPaths.find((p) => /in[ií]cio/i.test(p)) ?? mdPaths[0] ?? "")}`}>Abrir nota inicial</Link></Button>} />
-          </Card>
+          <>
+            <Card className="flex h-[min(70dvh,640px)] flex-col overflow-hidden lg:hidden">
+              <h2 className="border-b border-border px-4 py-3 text-sm font-semibold">Arquivos do vault</h2>
+              <div className="min-h-0 flex-1">{sidebar}</div>
+            </Card>
+            <Card className="hidden p-6 lg:block">
+              <EmptyState icon={<ListTree />} title="Vault da AG LABS" description={`${stats.notes} notas · ${stats.links} links entre notas. Escolha uma nota à esquerda, busque com Ctrl+K ou abra o grafo.`} action={<Button size="sm" asChild><Link href={`/vault?p=${encodeURIComponent(mdPaths.find((p) => /in[ií]cio/i.test(p)) ?? mdPaths[0] ?? "")}`}>Abrir nota inicial</Link></Button>} />
+            </Card>
+          </>
         ) : (
           <Card className="min-h-[70vh]">
             <div className="sticky top-14 z-10 flex flex-wrap items-center gap-2 rounded-t-[18px] border-b border-border bg-surface/95 px-4 py-2.5 backdrop-blur">
