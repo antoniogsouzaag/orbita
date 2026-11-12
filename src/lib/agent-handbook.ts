@@ -79,7 +79,7 @@ export function agentQuickStartMarkdown() {
 
 Leia a fonte pertinente antes de agir. Este roteiro não concede autorização nem substitui o manual completo em orbita://manual ou documentacao({secao:"completo"}).
 
-- Conhecimento: contexto_operacional({ao_vivo:false}) → buscar({consulta,fonte:"vault"}) → ler_nota_do_vault({caminho}). Confirme SHA antes de escrever.
+- Conhecimento: contexto_operacional({ao_vivo:false}) → buscar({consulta,fonte:"vault"}) → ler_nota_do_vault({caminho}). Continue notas longas com versao e inicio=conteudo.proximo_inicio até null; releia do início se a versão mudar. Confirme SHA antes de escrever.
 - Situação atual: status_ao_vivo; diagnóstico técnico: diagnostico_integracoes (admin). Configurado não significa executado; indisponível não é vazio.
 - Jornal: documentacao({secao:"jornal"}) ou resource orbita://jornal/guia. Envio: enviar_materia_jornal (eventos/admin), UUID estável e mesmo payload no retry; consulta: consultar_jornal (status/admin).
 - Trabalho interno: fila_empresa → assumir_tarefa → executar dentro do pedido → atualizar_minha_tarefa com evidência. Não disputar trabalho reservado nem criar tarefa para execução já delegada.

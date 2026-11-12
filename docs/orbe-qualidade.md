@@ -56,4 +56,4 @@ As PRs 36/37 corrigiram respostas sem síntese e o timeout HTTP de 60 segundos. 
 
 No commit integrado 4237df6, 313 testes, tipos/build e CI passaram. Uma análise real no espaço Empresa terminou com fontes e horário, distinguiu contas, ativação, assinatura e pagamento e encerrou sem escrita ou despacho. Isso comprova o cenário observado, não toda a matriz. Custo por análise e os demais casos supervisionados continuam pendentes.
 
-O [desenho de memória por escopo](./orbe-memoria-escopo.md) define separação de conversa, fatos aprovados e fontes. Não implementa persistência nem muda o escopo atual. A autenticação é de instalação; o desenho não presume isolamento multiusuário que ainda não existe.
+O [contrato vigente de memória por escopo](./orbe-memoria-escopo.md) descreve a persistência implementada de conversas e memória curta, substituindo o desenho anterior. A autenticação é de instalação; não há isolamento multiusuário presumido. A matriz supervisionada continua necessária para avaliar a qualidade do modelo, além dos testes de contrato.

@@ -24,9 +24,10 @@ import { crmSummaryInput, crmEmailInput, crmProductSchema, crmProductKey } from 
 import { businessUnit, MODEL_INFO } from "@/lib/business-models";
 import { productMetrics } from "./product-metrics";
 import { listTasks, type TaskView } from "./tasks";
-import { getVaultIndexSafe, getVaultProvider } from "./vault";
+import { getVaultProvider } from "./vault";
 import { searchKnowledge } from "./tool-search";
 import { editVault, editVaultSchema, VaultEditError } from "./vault-edit";
+import { readVaultNote, readVaultSchema } from "./vault-read";
 import { VaultProviderError } from "./vault/provider";
 import { journalQueryInput } from "@/lib/journal";
 import { journalSummary } from "./journal";
@@ -319,15 +320,12 @@ export const buscarNotas = {
   },
 };
 
-const lerNotaDoVaultSchema = z.object({ caminho: z.string().trim().min(1).max(400).describe("Caminho ou nome da nota") });
 export const lerNotaDoVault = {
-  schema: lerNotaDoVaultSchema,
-  async run(v: z.infer<typeof lerNotaDoVaultSchema>): Promise<ActionResult> {
-    const idx = await getVaultIndexSafe();
-    if (!idx) return { text: "Vault indisponível ou não configurado nesta consulta." };
-    const p = idx.notes.has(v.caminho) ? v.caminho : idx.resolve(v.caminho.replace(/\.md$/i, ""));
-    const n = p ? idx.notes.get(p) : null;
-    return n ? { text: `# ${n.title} (${n.path})\nVersão: ${n.sha}\n\n${n.body.slice(0, 12_000)}` } : { text: "Nota não encontrada no vault." };
+  schema: readVaultSchema,
+  async run(v: z.infer<typeof readVaultSchema>): Promise<ActionResult> {
+    const result = await readVaultNote(v);
+    if (!result.ok) throw new ToolRefusal(result.text);
+    return { text: result.text };
   },
 };
 
@@ -531,7 +529,7 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "vincular_nota_projeto", description: "Vincula nota ativa a projeto ativo do mesmo espaço, somente a pedido. Use a versão de consultar_nota; projeto_id null remove o vínculo. Não altera conteúdo nem move entre espaços.", ...vincularNota },
   { name: "buscar_notas", readOnly: true, description: "Busca notas no espaço atual da Órbita. No MCP, informe escopo empresa para as notas empresariais; padrão pessoal.", ...buscarNotas },
   { name: "buscar", readOnly: true, description: "Busca geral no manual, vault, tarefas, projetos e notas do espaço atual. Filtre fonte quando souber onde procurar; CRM, conversas e operação têm consultas próprias.", schema: z.object({ consulta: z.string().trim().min(2).max(200), fonte: z.enum(["todos", "documentacao", "vault", "tarefas", "projetos", "notas"]).optional(), escopo: z.enum(["pessoal", "empresa"]).optional() }), run: async (v: { consulta: string; fonte?: "todos" | "documentacao" | "vault" | "tarefas" | "projetos" | "notas"; escopo?: TaskScope }) => ({ text: JSON.stringify(await searchKnowledge(v.consulta, { internal: true, scope: v.escopo, source: v.fonte })) }) },
-  { name: "ler_nota_do_vault", readOnly: true, description: "Lê uma nota inteira do vault pelo caminho ou nome.", ...lerNotaDoVault },
+  { name: "ler_nota_do_vault", readOnly: true, description: "Lê uma nota versionada do vault. Inclui front matter e indica conteúdo parcial; continue com caminho, versao e inicio=proximo_inicio até null.", ...lerNotaDoVault },
   { name: "status_operacao", readOnly: true, description: "Estado ao vivo: sites fora do ar, incidentes, falhas de workflow, monitores e domínios.", ...statusOperacao },
   { name: "crm_resumo", readOnly: true, description: "Agregados do CRM: funil comercial, contas (não equivalem a pagantes), receita e tarefas. produto opcional (ex.: barberias); sem produto, CRM inteiro. Preserva fonte e indisponibilidade.", requires: crmConfigured, ...crmResumo },
   { name: "crm_funil_emails", readOnly: true, description: "Leitura agregada de e-mails registrados no CRM; produto, dias (1–365, padrão 30) e categoria opcionais. Sem contatos ou envios. Aberturas por pixel não comprovam leitura humana; taxas sem base são null.", requires: crmConfigured, ...crmFunilEmails },

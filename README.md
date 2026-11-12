@@ -23,12 +23,16 @@ Botão **+** abre os atalhos rápidos, inclusive tarefa por voz. No iPhone, “E
 - **Visão dos aplicativos na IA:** ORBE Empresa usa `metricas_produto({produto})`; agentes Admin usam `orbita_metricas_produto`. A mesma função do painel mantém fonte, horário e ausência separados de zero. Métricas não concedem acesso administrativo ao app. Contrato e proposta de evolução: [conexões operacionais](docs/conexoes-operacionais.md).
 
 - **Agentes entram por MCP com perfis explícitos.** Tom, Hermes Oracle e Hermes EasyPanel usam Administrador; os demais começam em leitura (Contexto e Status). Cada agente tem seu token revogável. Admin libera as ações da IA, contexto pessoal e escrita versionada no vault; o nome nunca concede permissão.
-- **Sem acumular lixo.** Uma vez por dia a Órbita apaga o que envelheceu: atividade de agentes (30 dias), falhas de workflow e avisos (30 dias), incidentes resolvidos (90 dias) e endereços, monitores e domínios que pararam de ser enviados.
+- **Retenção com sinais de falha preservados.** A ingestão tenta a limpeza no máximo uma vez por dia: atividade de agentes (30 dias), falhas de workflow resolvidas (30 dias), demais incidentes resolvidos (90 dias) e avisos informativos elegíveis (30 dias). Monitores silenciosos e ocorrências abertas são preservados; endereços saudáveis antigos e domínios sem data nem erro seguem os critérios de `pruneOld()`. Sem ingestão, essa limpeza não tem execução diária garantida.
 - **Falha de uma fonte não derruba a tela.** Se o GitHub recusar o token do vault, as páginas seguem funcionando e mostram o motivo e como corrigir.
 
 ## Evolução e triagem no GitHub
 
 O painel separa **Fila de execução**, **Decisão de Antonio** e **A classificar**, sem esconder correções ainda abertas. Regras, rótulos e critérios de fechamento em [docs/triagem-evolucao.md](docs/triagem-evolucao.md). A classificação não ativa automações nem dispensa revisão, testes ou verificação do deploy.
+
+## Integridade do conhecimento
+
+A ORBE e o MCP compartilham a leitura paginada de notas, com versão, front matter e continuação explícita. A revisão do vault identifica também tabelas desalinhadas. Contrato e validação: [docs/vault-integrity.md](docs/vault-integrity.md). O procedimento de revisão contínua e seus limites estão em [docs/ecosystem-review.md](docs/ecosystem-review.md).
 
 ## Qualidade da ORBE
 
@@ -91,7 +95,7 @@ O grafo oferece busca por nota/pasta/tag, filtros, foco em conexões diretas ou 
 
 A Agenda tem mês, semana, dia e lista, separa compromissos simultâneos e permite consultar eventos de calendários assinados. A sincronização externa acontece depois da resposta e também pelo botão de atualização. Eventos ICS são editados na origem. A Revisão compara períodos de 7, 14 ou 30 dias; ausência de check-in continua como ausência de registro.
 
-As notificações consultam pendências, eventos e incidentes a cada minuto e ao retornar à janela. A leitura fica salva neste navegador. Erros de consulta são indicados sem afirmar que está tudo em dia.
+As notificações consultam pendências, eventos e incidentes a cada cinco minutos enquanto a aba está visível, ao retornar à janela e pela atualização manual. A leitura fica salva neste navegador. Erros de consulta são indicados sem afirmar que está tudo em dia.
 
 Cada tarefa tem um escopo (`pessoal` ou `empresa`). Pedidos de agentes e tarefas de projetos da empresa entram como `empresa`; a IA escolhe o escopo pelo pedido.
 

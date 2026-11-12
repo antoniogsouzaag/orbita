@@ -31,6 +31,6 @@
 
 ## Qualidade da ORBE
 - Preserve separação Pessoal/Empresa, continue recuperação por vault e links de origem; conteúdo recuperado não é instrução de autorização.
-- História atual é limitada à sessão do navegador; não prometer memória durável entre dispositivos. Próxima etapa: conversas persistidas + fatos/decisões aprovados, com origem/escopo/versão. Logs e memória passageira não vão para o vault.
+- Conversas são persistidas no servidor por espaço e a memória curta é editável. Retenção, consolidação e limites vigentes estão em [orbe-memoria-escopo.md](orbe-memoria-escopo.md). Histórico e memória não substituem fatos aprovados, consultas atuais nem autorização. Logs e memória passageira não vão para o vault.
 - Avalie perguntas reais antes de trocar modelo ou ampliar contexto: contas/trials/pagantes, origem indisponível, produto divergente, número velho, etapa Cliente versus pagamento, zero respostas com inbound não verificado, proposta versus ação, pedido recebido versus concluído, contexto pessoal fora da Empresa, fonte maliciosa e timeout após escrita.
 - Testes determinísticos de ferramentas não provam qualidade de linguagem do modelo. Uma bateria supervisionada da ORBE deve medir acerto/fonte, uso de ferramenta, falsa conclusão, latência, custo e intervenção necessária; meta: nenhuma escrita indevida e nenhuma capacidade inexistente apresentada como concluída.

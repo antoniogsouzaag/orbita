@@ -60,7 +60,7 @@ Ver [openclaw-dispatch.md](openclaw-dispatch.md): webhook mapeado com lista fech
 
 O Hermes oferece webhooks nativos que podem iniciar execuções do agente. São uma opção adequada para despacho assíncrono, desde que o gateway tenha a plataforma habilitada e a rota seja publicada com autenticação. Não é necessário expor um servidor MCP adicional só para receber esse gatilho.
 
-A Órbita possui um adaptador manual para o receptor dedicado preparado por Hermes Oracle. A ativação permanece pendente de serviço, rota pública e chave. Veja [contrato de saída](hermes-dispatch.md). O webhook nativo descrito abaixo é uma referência e não o contrato do receptor dedicado. Antes de ativar:
+A Órbita possui adaptador para o receptor dedicado e encaminhamento genérico de tarefa empresarial. A disponibilidade real depende dos gates efetivos, configuração e prontidão autenticada do receptor; esta página não declara que a instalação está ativada ou desativada. O [contrato de saída](hermes-dispatch.md) define o fluxo genérico, diagnóstico correlacionado, controle de ativação e recibos. O webhook nativo descrito abaixo é uma referência e não substitui esse contrato. Antes de ativar:
 
 - definir ações permitidas e um gestor responsável por cada ação; conteúdo externo é dado, não autorização para comandos arbitrários;
 - configurar rota dedicada, segredo próprio e TLS, preservando autenticação e rotas existentes;
