@@ -106,6 +106,8 @@ A **Visão geral da Empresa** segue o formato do Início: capa própria do Unspl
 | PRs e propostas | PRs abertos e issues `proposta` da `aglabs-core` (com `GITHUB_INBOX_TOKEN`) |
 | Atividade dos agentes, Incidentes e falhas, Domínios, Agenda | Histórico recente da operação |
 
+Cobertura e limites das consultas de automações: [observabilidade n8n](docs/n8n-observability.md).
+
 ## Central dos agentes e diagnóstico
 
 **Agentes** reúne conexões MCP, escopos, último acesso, chamadas/falhas nas últimas 24 horas, pedidos abertos e o time documentado no Registro de Agentes do vault. O status do vault é documental; último acesso não confirma que o agente continua online. A criação e revogação de acessos ficam no painel recolhido de configuração. O escopo `contexto` permite ler o vault conectado; dados pessoais continuam indisponíveis para perfis de leitura; administradores têm contexto pessoal e as ações da IA.

@@ -103,9 +103,9 @@ export async function checkIntegrationHealth(): Promise<IntegrationHealthRow[]> 
         case "n8n": {
           const overview = await n8nOverview();
           const failed = overview.instances.filter((instance) => !instance.ok);
-          const partial = overview.instances.some((instance) => instance.workflowsPartial);
+          const partial = overview.instances.some((instance) => instance.workflowsPartial || instance.errorsPartial);
           const workflows = overview.instances.flatMap((instance) => instance.workflows);
-          return result(failed.length ? "error" : partial ? "warning" : "verified", failed.length ? `${failed.length} de ${overview.instances.length} instâncias não responderam. Confira URL, acesso e chave da API.` : `${overview.instances.length} instâncias responderam · ${workflows.filter((w) => w.active).length}/${workflows.length} workflows ativos${partial ? " na amostra; inventário incompleto" : ""}.`);
+          return result(failed.length ? "error" : partial ? "warning" : "verified", failed.length ? `${failed.length} de ${overview.instances.length} instâncias com consulta de workflows ou execuções indisponível. Confira URL, acesso e chave da API.` : `${overview.instances.length} instâncias responderam · ${workflows.filter((w) => w.active).length}/${workflows.length} workflows ativos${partial ? " na amostra; inventário incompleto ou consulta de falhas parcial" : ""}.`);
         }
         case "monitors": {
           const live = await liveOps();
