@@ -54,9 +54,21 @@ describe("registro das rotinas diárias", () => {
   it("falha de hoje não impede a nova tentativa do agendador", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-06T06:01:00Z"));
-    const work = vi.fn(async () => ({ status: 502, body: { ok: false } }));
+    const work = vi.fn(async () => ({ status: 502, retryable: true, body: { ok: false } }));
     await runCron(call("?agendado=1"), "orbe", work);
     await runCron(call("?agendado=1"), "orbe", work);
     expect(work).toHaveBeenCalledTimes(2);
+  });
+
+  it("reserva atomicamente e impede repetição quando o efeito ficou incerto", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-08T10:01:00Z"));
+    const work = vi.fn(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      return { status: 502, body: { ok: false } };
+    });
+    await Promise.all([runCron(call("?agendado=1"), "brief", work), runCron(call("?agendado=1"), "brief", work)]);
+    await runCron(call("?agendado=1"), "brief", work);
+    expect(work).toHaveBeenCalledTimes(1);
   });
 });

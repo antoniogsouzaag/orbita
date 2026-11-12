@@ -54,7 +54,7 @@ function SummaryBody({ data }: { data: CrmAggregateSummary }) {
     <Metrics items={[
       { label: "Oportunidades abertas", value: data.oportunidades_abertas },
       { label: "Clientes · etapa Cliente", value: data.clientes },
-      { label: "Receita líquida do mês", value: data.receita_mes == null ? null : brl(data.receita_mes) },
+      { label: "Recebimentos após estornos · mês", value: data.receita_mes == null ? null : brl(data.receita_mes) },
       { label: "Base de prospecção", value: data.base_prospeccao },
       { label: "Pagantes identificados · mês", value: data.pagantes_mes },
       { label: "Pagamentos positivos · mês", value: data.pagamentos_mes },
@@ -62,6 +62,7 @@ function SummaryBody({ data }: { data: CrmAggregateSummary }) {
       { label: "Tarefas CRM vencidas", value: data.tarefas?.vencidas },
     ]} />
     <details className="text-[11px] text-muted"><summary className="cursor-pointer">Critérios dos indicadores</summary><p className="mt-2">Pagantes identificados são contatos distintos com pagamento BRL de saldo positivo no mês; não equivalem a assinaturas vigentes nem a todos os usuários do app. Etapa Cliente é a classificação comercial do CRM; não comprova pagamento ou cobrança atual. Não é inferida de trial ou conta ativa.{data.hoje && <> Data de referência do resumo: {data.hoje}.</>}</p></details>
+    <p className="text-[11px] text-muted">Recebimentos após devoluções e contestações, antes de taxas e tributos. Não comprovam liquidação bancária.</p>
     <div className="grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
       <div className="min-w-0">
         <h3 className="mb-3 text-[13px] font-medium">Etapas comerciais</h3>
