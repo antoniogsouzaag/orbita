@@ -33,7 +33,7 @@ export function auditDeliveries(input: { perPost: PerPostRow[]; byCode: ByCodeRo
     if (row && norm(row.codigo) !== kw) issues.push({ level: "erro", kind: "keyword_errada", message: `"${p.title}": a legenda pede ${kw}, mas a tabela por post espera ${norm(row.codigo)}.`, ref: p.id });
     else if (!row && p.mediaId && codes.has(kw)) issues.push({ level: "aviso", kind: "so_fallback", message: `"${p.title}": sem linha por post (media_id ${p.mediaId}); quem comentar ${kw} recebe a mensagem genérica do código.`, ref: p.id });
     else if (!row && !codes.has(kw)) issues.push({ level: "erro", kind: "keyword_ausente", message: `"${p.title}": ${kw} não está em nenhuma tabela. Quem comentar não recebe nada.`, ref: p.id });
-    else if (!p.mediaId) issues.push({ level: "aviso", kind: "post_sem_media_id", message: `"${p.title}": publicado sem media_id registrado no Órbita; não dá para conferir a entrega específica.`, ref: p.id });
+    else if (!p.mediaId) issues.push({ level: "aviso", kind: "post_sem_media_id", message: `"${p.title}": sem media_id registrado no Órbita; não dá para conferir a entrega específica. Isso não confirma a publicação.`, ref: p.id });
   }
 
   for (const [link, status] of Object.entries(input.linkStatus ?? {})) if (status < 200 || status >= 400) issues.push({ level: "erro", kind: "link_quebrado", message: `${link} respondeu ${status || "sem resposta"}.` });
