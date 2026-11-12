@@ -3,10 +3,10 @@ import { confirmAction } from "@/components/ui/confirm-action";
 
 import { Archive, ArchiveRestore, Eye, NotebookPen, PencilLine, Pin, PinOff, Plus, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import * as React from "react";
 import { toast } from "sonner";
 import { autosaveNote, createNote, deleteNote, saveNote, setNoteArchived } from "@/app/actions/core";
-import { MarkdownEditor } from "@/components/markdown/editor";
 import { MarkdownView } from "@/components/markdown/view";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState } from "@/components/ui/card";
@@ -15,6 +15,10 @@ import { Segmented } from "@/components/ui/misc";
 import type { Note, TaskScope } from "@/db/schema";
 import { ARCHIVED_NOTE_TAG, noteHref } from "@/lib/note-scope";
 import { cn } from "@/lib/utils";
+
+const MarkdownEditor = dynamic(() => import("@/components/markdown/editor").then((module) => module.MarkdownEditor), {
+  loading: () => <p role="status" className="p-4 text-sm text-muted">Preparando editor…</p>,
+});
 
 export function NotesPage({ notes, selected, scope = "pessoal", archived = false, projectId }: { notes: Note[]; selected: Note | null; scope?: TaskScope; archived?: boolean; projectId?: string }) {
   const router = useRouter();
@@ -80,10 +84,10 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
   const byTitle = new Map(notes.map((n) => [n.title.toLowerCase(), n.id]));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
       <Card className={cn("flex flex-col overflow-hidden lg:h-[calc(100dvh-170px)]", selected && "hidden lg:flex")}>
         <div className="flex gap-2 border-b border-border p-3">
-          <div className="relative flex-1">
+          <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar notas" className="h-9 pl-8" />
           </div>
@@ -106,12 +110,12 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
       </Card>
 
       {selected ? (
-        <Card className="flex min-h-[70vh] flex-col overflow-hidden lg:h-[calc(100dvh-170px)]">
-          <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-            <button onClick={() => router.push(href(undefined, archived))} className="text-[13px] text-muted lg:hidden">← Notas</button>
-            <span className="text-[12px] text-faint">{saved ? "Salvo" : "Salvando…"}</span>
-            <div className="ml-auto flex items-center gap-1">
-              <Segmented value={mode} onChange={setMode} options={[{ value: "view", label: <><Eye className="size-3.5" />Visualizar</> }, { value: "edit", label: <><PencilLine className="size-3.5" />Editar</> }]} />
+        <Card className="flex min-h-[70vh] min-w-0 flex-col overflow-hidden lg:h-[calc(100dvh-170px)]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-3 py-2.5 sm:px-4">
+            <button onClick={() => router.push(href(undefined, archived))} className="shrink-0 py-1 text-[13px] text-muted lg:hidden">← Notas</button>
+            <span role="status" className="ml-auto whitespace-nowrap text-[12px] text-faint sm:ml-0">{saved ? "Salvo" : "Salvando…"}</span>
+            <div className="flex w-full items-center justify-between gap-1 sm:ml-auto sm:w-auto">
+              <Segmented value={mode} onChange={setMode} options={[{ value: "view", label: <><Eye className="size-3.5" /><span className="hidden sm:inline">Visualizar</span><span className="sm:hidden">Ler</span></> }, { value: "edit", label: <><PencilLine className="size-3.5" />Editar</> }]} />
               <Button size="icon-sm" variant="ghost" onClick={() => start(() => saveNote(selected.id, { pinned: !selected.pinned }, scope).then(() => router.refresh()))} aria-label="Fixar">{selected.pinned ? <PinOff /> : <Pin />}</Button>
               <Button size="icon-sm" variant="ghost" disabled={busy} onClick={() => start(async () => {
                 flush();
