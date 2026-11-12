@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Disposable, cached image only, no network or production data. Exact-ID cleanup."""
 import os, pathlib, subprocess, tempfile, time, shutil, json
+# Fixture must never inherit a remote daemon or TLS selector. Keep DOCKER_CONFIG intact.
+for selector in ("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
+    os.environ.pop(selector, None)
 root=pathlib.Path(__file__).resolve().parents[1]
 scratch=pathlib.Path(os.environ.get("TMPDIR", tempfile.gettempdir()))
 fixture=pathlib.Path(tempfile.mkdtemp(prefix="orbita-appointments-fixture-",dir=scratch));fixture.chmod(0o755)
