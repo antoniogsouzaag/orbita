@@ -16,7 +16,7 @@ const when = (d: Date | string) => new Date(d).toLocaleString("pt-BR", { timeZon
 export default async function Page() {
   const [n8n, live] = await Promise.all([n8nOverview(), liveOps()]);
   const notePath = (await getVaultIndexSafe())?.resolve("Automações Ativas") ?? null;
-  const sourcesVerified = n8n.configured && n8n.instances.every((instance) => instance.ok && !instance.workflowsPartial);
+  const sourcesVerified = n8n.configured && n8n.instances.every((instance) => instance.executionsAvailable && !instance.errorsPartial);
   const pushed = live.events.filter((e) => e.kind === "workflow_error");
   const pushedUrls = new Set(pushed.map((event) => String(event.detail.executionUrl ?? "")).filter(Boolean));
   const apiErrors = n8n.instances.flatMap((i) => i.errors).filter((error) => !pushedUrls.has(error.url));
@@ -34,6 +34,8 @@ export default async function Page() {
     ],
   }));
   const failTotal = pushed.length + apiErrors.length;
+  const recentFailTotal = failDays.reduce((total, day) => total + day.segments.reduce((sum, segment) => sum + segment.value, 0), 0);
+  const inventoryAvailable = n8n.instances.some(instance => instance.workflowsAvailable || instance.workflows.length > 0);
 
   // Última alteração dos workflows, por mês (6 meses).
   const months = Array.from({ length: 6 }, (_, i) => {
@@ -81,28 +83,28 @@ export default async function Page() {
   const panels: Record<string, React.ReactNode> = {
     overview: (
       <WidgetShell title="Workflows" meta={`${n8n.instances.length} instância${n8n.instances.length === 1 ? "" : "s"}`}>
-        <Big unit="ativos">{n8n.configured ? `${active.length}/${workflows.length}` : "—"}</Big>
+        <Big unit="ativos">{inventoryAvailable ? `${active.length}/${workflows.length}` : "—"}</Big>
         <ShareStrip className="mt-3" label={`${active.length} ativos e ${workflows.length - active.length} inativos`} parts={[{ name: "Ativos", value: active.length, tone: "accent" }, { name: "Inativos", value: workflows.length - active.length, tone: "idle" }]} />
         <Legend className="mt-2" items={[{ name: "ativos", tone: "accent", value: active.length }, { name: "inativos", tone: "idle", value: workflows.length - active.length }]} />
         <BarRows className="mt-auto" label="Workflows ativos por instância" max={Math.max(1, ...n8n.instances.map((i) => i.workflows.length))}
-          rows={n8n.instances.map((i) => ({ key: i.name, label: i.name, value: i.workflows.filter((w) => w.active).length, display: i.ok ? `${i.workflows.filter((w) => w.active).length}/${i.workflows.length}` : "erro", tone: i.ok ? "accent" : "err", hint: i.ok ? undefined : i.error }))} />
+          rows={n8n.instances.map((i) => ({ key: i.name, label: i.name, value: i.workflows.filter((w) => w.active).length, display: i.workflowsAvailable ? `${i.workflows.filter((w) => w.active).length}/${i.workflows.length}` : "erro", tone: i.workflowsAvailable ? "accent" : "err", hint: i.workflowsAvailable ? undefined : i.error }))} />
       </WidgetShell>
     ),
     failures: (
-      <WidgetShell title="Falhas" meta="14 dias">
-        <Big tone={failTotal ? "warn" : undefined} unit={failTotal === 1 ? "falha" : "falhas"}>{failTotal}</Big>
-        <ColumnBars className="mt-auto" axis={[days[0].label, "hoje"]} label={`Falhas de workflow por dia: ${pushed.length} recebidas por ingestão e ${apiErrors.length} encontradas na API.`} columns={failDays} />
+      <WidgetShell title="Falhas" meta="amostra de 14 dias">
+        <Big tone={recentFailTotal ? "warn" : undefined} unit={recentFailTotal === 1 ? "falha" : "falhas"}>{recentFailTotal || sourcesVerified ? recentFailTotal : "—"}</Big>
+        <ColumnBars className="mt-auto" axis={[days[0].label, "hoje"]} label={`Falhas de workflow por dia na amostra dos últimos 14 dias: ${recentFailTotal}.`} columns={failDays} />
       </WidgetShell>
     ),
     list: (
-      <WidgetShell title="Falhas recentes" meta={`${failTotal} registros`}>
+      <WidgetShell title="Falhas recentes" meta={`${failTotal} registros na amostra; inclui antigos`}>
         <Legend className="mb-2" items={[{ name: "recebidas pelo monitor", tone: "warn", value: pushed.length }, { name: "consultadas na API", tone: "err", value: apiErrors.length }]} />
         {failureList}
       </WidgetShell>
     ),
     tags: (
       <WidgetShell title="Etiquetas" meta={`${tags.length ? "mais usadas" : ""}`}>
-        {tags.length === 0 ? <p className="text-[12.5px] text-muted">Nenhuma etiqueta nos workflows.</p> : (
+        {tags.length === 0 ? <p className="text-[12.5px] text-muted">{inventoryAvailable ? "Nenhuma etiqueta nos workflows carregados." : "Etiquetas indisponíveis; inventário não recebido."}</p> : (
           <BarRows className="min-h-0 flex-1 overflow-y-auto pr-1" label="Etiquetas mais usadas nos workflows" rows={tags.map(([t, n]) => ({ key: t, label: t, value: n, display: n }))} />
         )}
       </WidgetShell>
@@ -147,13 +149,16 @@ export default async function Page() {
         </Card>
       )}
 
-      {n8n.instances.some((instance) => instance.workflowsPartial) && <Card className="p-4 text-[13px] text-warning">A consulta de workflows está incompleta em pelo menos uma instância. Os totais representam somente os dados carregados.</Card>}
+      {n8n.instances.some((instance) => !instance.workflowsAvailable || instance.workflowsPartial) && <Card className="p-4 text-[13px] text-warning">A consulta de workflows está incompleta em pelo menos uma instância. Os totais representam somente os dados carregados.</Card>}
+      {n8n.configured && !sourcesVerified && <Card className="p-4 text-[13px] text-warning">A consulta de falhas está indisponível ou tem mais páginas em pelo menos uma instância. Os registros exibidos são uma amostra; ausência de registros não confirma ausência de falhas.</Card>}
       <WidgetBoard storageKey={n8n.configured ? "automacoes" : "automacoes-min"} items={items} panels={panels} />
 
       {n8n.configured && n8n.instances.map((inst) => (
         <section key={inst.name} className="space-y-3">
           <SectionLabel>n8n · {inst.name}</SectionLabel>
-          {!inst.ok ? <Card className="p-4 text-[13px] text-danger">{inst.error}</Card> : (
+          {inst.error && <Card className="p-4 text-[13px] text-danger">Inventário: {inst.error}</Card>}
+          {inst.executionsError && <Card className="p-4 text-[13px] text-danger">Falhas: {inst.executionsError}</Card>}
+          {(inst.workflowsAvailable || inst.workflows.length > 0) && (
             <>
               {inst.workflowsPartial && <Card className="p-4 text-[13px] text-warning">Inventário parcial: a API retornou mais páginas ou um cursor repetido. Os totais abaixo representam apenas os workflows carregados.</Card>}
               <WorkflowTable url={inst.url} rows={inst.workflows.filter((w) => w.active)} documentationAvailable={n8n.documentationAvailable} />
@@ -178,7 +183,7 @@ function WorkflowTable({ url, rows, documentationAvailable, bare = false }: { ur
       <tbody>
         {[...rows].sort((a, b) => a.name.localeCompare(b.name)).map((w) => (
           <tr key={w.id} className="border-b border-border transition last:border-0 hover:bg-surface-2/60">
-            <td className="max-w-0 px-5 py-2.5"><a href={`${url}/workflow/${w.id}`} target="_blank" rel="noreferrer" className="block truncate font-medium hover:underline">{w.name}</a></td>
+            <td className="max-w-0 px-5 py-2.5"><a href={`${url}/workflow/${encodeURIComponent(w.id)}`} target="_blank" rel="noreferrer" className="block truncate font-medium hover:underline">{w.name}</a></td>
             <td className="px-3 py-2.5">{w.active ? <span className="inline-flex items-center gap-1 text-[12px] text-success"><CheckCircle2 className="size-3.5" />ativo</span> : <span className="inline-flex items-center gap-1 text-[12px] text-faint"><CircleDashed className="size-3.5" />inativo</span>}</td>
             <td className="hidden px-3 py-2.5 text-[12px] sm:table-cell">{!documentationAvailable ? <span className="text-faint">indisponível</span> : w.documented ? <span className="text-muted">documentado</span> : w.active ? <span className="text-warning">não documentado</span> : <span className="text-faint">—</span>}</td>
             <td className="px-5 py-2.5 text-right text-[12px] tabular-nums text-faint">{new Date(w.updatedAt).toLocaleDateString("pt-BR")}</td>

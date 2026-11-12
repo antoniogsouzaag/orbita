@@ -1,7 +1,7 @@
 import "server-only";
 import { AGENT_MANUAL_PATH, AGENT_MANUAL_URI, AGENT_MANUAL_VERSION } from "@/lib/agent-handbook";
 import { getVaultIndexSafe, vaultHealth } from "@/server/vault";
-import { agents, appRegistry, documentedAutomations, monitorTargets, n8nOverview, vpsList } from "./ops";
+import { agents, appRegistry, documentedAutomations, monitorTargets, n8nOverview, n8nInstanceSummary, vpsList } from "./ops";
 import { liveOps } from "./ops-live";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
 import { classifyOpsEvents, opsEventSummary } from "@/lib/ops-events";
@@ -55,7 +55,7 @@ export function contextToMarkdown(c: Awaited<ReturnType<typeof buildContext>>): 
   lines.push(``, `## Aplicações (${c.apps.length})`, ``, `| Repositório | Branch | Verificação | Portão |`, `|---|---|---|---|`);
   for (const a of c.apps) lines.push(`| ${a.repo} | ${a.branch} | \`${a.check}\` | ${a.gate} |`);
   lines.push(``, `## Automações documentadas (${c.automations.length})`, ``);
-  for (const a of c.automations) lines.push(`- **${a.name}**${a.id ? ` (\`${a.id}\`)` : ""} — ${a.description}${a.schedule ? ` · ${a.schedule}` : ""} · ${a.where}`);
+  for (const a of c.automations) lines.push(`- **${a.name}**${a.ids.length ? ` (\`${a.ids.join(", ")}\`)` : ""} — ${a.description}${a.schedule ? ` · ${a.schedule}` : ""} · ${a.where}`);
   if (c.monitoring) {
     lines.push(``, `## Monitoramento (${c.monitoring.length} endereços)`, ``);
     for (const m of c.monitoring) {
@@ -73,7 +73,7 @@ export function contextToMarkdown(c: Awaited<ReturnType<typeof buildContext>>): 
   }
   if (c.n8n?.configured) {
     lines.push(``, `## n8n (ao vivo)`, ``);
-    for (const i of c.n8n.instances) lines.push(`- ${i.name}: ${i.ok ? `${i.workflows.filter((w) => w.active).length} workflows ativos de ${i.workflows.length}${i.workflowsPartial ? " na amostra; inventário incompleto" : ""}; ${i.errors.length} falhas recentes retornadas (limite 25)` : `erro: ${i.error}`}`);
+    for (const i of c.n8n.instances) lines.push(`- ${n8nInstanceSummary(i)}`);
   }
   lines.push(``, `## Notas do vault (${c.vault.notes.length})`, ``);
   for (const n of c.vault.notes) lines.push(`- \`${n.path}\`${n.type ? ` — ${n.type}` : ""}${n.status ? ` (${n.status})` : ""}`);

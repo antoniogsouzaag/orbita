@@ -1,4 +1,5 @@
 import "server-only";
+import { z } from "zod";
 import { firstUrl, firstWikiTarget, parseTables, plainText, type MdTable } from "@/lib/md-tables";
 import { normalize } from "@/lib/text";
 import { getVaultIndexSafe, type VaultNote } from "@/server/vault";
@@ -100,7 +101,7 @@ export async function appRegistry(): Promise<AppRepo[]> {
   });
 }
 
-export type DocumentedAutomation = { name: string; id: string | null; description: string; schedule: string; where: string };
+export type DocumentedAutomation = { name: string; id: string | null; ids: string[]; description: string; schedule: string; where: string };
 
 async function readDocumentedAutomations(): Promise<DocumentedAutomation[] | null> {
   const note = await noteByName("Automações Ativas");
@@ -113,14 +114,17 @@ async function readDocumentedAutomations(): Promise<DocumentedAutomation[] | nul
     recognized = true;
     const [i, fn, ex, onde] = [col(t, "id"), col(t, "funcao"), col(t, "execucao"), col(t, "onde")];
     const where = t.headings.find((h) => /n8n|claude|codex|aplica|clientes/i.test(h)) ?? t.headings.at(-1) ?? "";
-    for (const r of t.rows)
+    for (const r of t.rows) {
+      const ids = i >= 0 ? [...new Set((r[i] ?? "").replace(/`/g, "").split(/[,;\n]|<br\s*\/?>/i).map(id => id.trim()).filter(id => /^[a-zA-Z0-9_-]+$/.test(id)))] : [];
       out.push({
         name: plainText(r[n] ?? ""),
-        id: i >= 0 ? plainText(r[i] ?? "").replace(/,.*$/, "").trim() || null : null,
+        id: ids[0] ?? null,
+        ids,
         description: fn >= 0 ? plainText(r[fn] ?? "") : "",
         schedule: ex >= 0 ? plainText(r[ex] ?? "") : "",
-        where: onde >= 0 ? plainText(r[onde] ?? "") : where.replace(/\s*\(.*\)$/, ""),
+        where: onde >= 0 ? plainText(r[onde] ?? "") : plainText(where),
       });
+    }
   }
   return recognized ? out : null;
 }
@@ -188,34 +192,91 @@ class N8nHttpError extends Error {
   constructor(readonly status: number) { super(`HTTP ${status}`); }
 }
 
+const workflowPageSchema = z.object({
+  data: z.array(z.object({
+    id: z.string().min(1), name: z.string(), active: z.boolean(), updatedAt: z.iso.datetime({ offset: true }),
+    tags: z.array(z.object({ name: z.string() })).optional(),
+  })),
+  nextCursor: z.string().min(1).nullish(),
+});
+const executionPageSchema = z.object({
+  data: z.array(z.object({
+    id: z.string().min(1), workflowId: z.string().min(1), status: z.string().optional(),
+    startedAt: z.iso.datetime({ offset: true }), stoppedAt: z.iso.datetime({ offset: true }).nullable(),
+  })),
+  nextCursor: z.string().min(1).nullish(),
+});
+
+function n8nError(error: unknown) {
+  return error instanceof N8nHttpError ? `Não foi possível consultar n8n (HTTP ${error.status}).` : "Não foi possível consultar n8n. Confira a conexão e tente novamente.";
+}
+
+/** IDs só têm significado dentro de um runtime; colisão não comprova documentação. */
+function documentedWorkflow(docs: DocumentedAutomation[], inst: N8nInstance, id: string) {
+  const candidates = docs.filter(doc => doc.ids.includes(id));
+  const hostname = new URL(inst.url).hostname.toLowerCase();
+  const runtime = /vps[\s-]*(\d+)/i.exec(inst.name)?.[1];
+  return candidates.find(doc => {
+    const where = doc.where.toLowerCase();
+    if (!/n8n/i.test(where) && !/^vps[\s-]*\d+$/.test(where.trim())) return false;
+    return where.includes(hostname) || normalize(where) === normalize(inst.name)
+      || Boolean(runtime && /vps[\s-]*(\d+)/i.exec(where)?.[1] === runtime);
+  }) ?? null;
+}
+
 export async function n8nOverview() {
   const instances = n8nInstances();
   const source = await readDocumentedAutomations().catch(() => null);
   const docs = source ?? [];
-  const byId = new Map(docs.filter((d) => d.id).map((d) => [d.id!, d]));
-  const results = await Promise.all(
-    instances.map(async (inst) => {
-      try {
-        const workflows: N8nWorkflow[] = [];
+  const results = await Promise.all(instances.map(async (inst) => {
+    const workflows: N8nWorkflow[] = [];
+    const [inventory, executions] = await Promise.allSettled([
+      (async () => {
         let cursor: string | undefined;
         const cursors = new Set<string>();
-        let workflowsPartial = false;
+        const ids = new Set<string>();
         for (let page = 0; page < 10; page++) {
-          const r = await n8nGet<{ data: { id: string; name: string; active: boolean; updatedAt: string; tags?: { name: string }[] }[]; nextCursor?: string | null }>(inst, `/workflows?limit=250${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
-          for (const w of r.data) workflows.push({ id: w.id, name: w.name, active: w.active, updatedAt: w.updatedAt, tags: (w.tags ?? []).map((t) => t.name), instance: inst.name, documented: byId.get(w.id) ?? null });
-          if (!r.nextCursor) break;
-          if (page === 9 || cursors.has(r.nextCursor)) { workflowsPartial = true; break; }
+          const r = workflowPageSchema.parse(await n8nGet<unknown>(inst, `/workflows?limit=250${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`));
+          for (const w of r.data) {
+            if (ids.has(w.id)) continue;
+            ids.add(w.id);
+            workflows.push({ ...w, tags: (w.tags ?? []).map(t => t.name), instance: inst.name, documented: documentedWorkflow(docs, inst, w.id) });
+          }
+          if (!r.nextCursor) return false;
+          if (page === 9 || cursors.has(r.nextCursor)) return true;
           cursors.add(r.nextCursor);
           cursor = r.nextCursor;
         }
-        const ex = await n8nGet<{ data: { id: string; workflowId: string; status?: string; startedAt: string; stoppedAt: string | null }[] }>(inst, `/executions?status=error&limit=25`);
-        const names = new Map(workflows.map((w) => [w.id, w.name]));
-        const errors: N8nExecution[] = ex.data.map((e) => ({ id: e.id, workflowId: e.workflowId, workflowName: names.get(e.workflowId) ?? e.workflowId, status: e.status ?? "error", startedAt: e.startedAt, stoppedAt: e.stoppedAt, instance: inst.name, url: `${inst.url}/workflow/${e.workflowId}/executions/${e.id}` }));
-        return { name: inst.name, url: inst.url, ok: true as const, workflows, errors, workflowsPartial };
-      } catch (e) {
-        return { name: inst.name, url: inst.url, ok: false as const, error: e instanceof N8nHttpError ? `Não foi possível consultar n8n (HTTP ${e.status}).` : "Não foi possível consultar n8n. Confira a conexão e tente novamente.", workflows: [] as N8nWorkflow[], errors: [] as N8nExecution[], workflowsPartial: false };
-      }
-    }),
-  );
+        return true;
+      })(),
+      (async () => executionPageSchema.parse(await n8nGet<unknown>(inst, "/executions?status=error&limit=25")))(),
+    ]);
+    const names = new Map(workflows.map(w => [w.id, w.name]));
+    const errors: N8nExecution[] = executions.status === "fulfilled" ? [...new Map(executions.value.data.map(e => [e.id, e])).values()].map(e => ({
+      ...e, workflowName: names.get(e.workflowId) ?? e.workflowId, status: e.status ?? "error", instance: inst.name,
+      url: `${inst.url}/workflow/${encodeURIComponent(e.workflowId)}/executions/${encodeURIComponent(e.id)}`,
+    })) : [];
+    const workflowsAvailable = inventory.status === "fulfilled";
+    const executionsAvailable = executions.status === "fulfilled";
+    return {
+      name: inst.name, url: inst.url, ok: workflowsAvailable && executionsAvailable,
+      workflows, errors, workflowsAvailable, executionsAvailable,
+      workflowsPartial: inventory.status === "fulfilled" ? inventory.value : workflows.length > 0,
+      errorsPartial: executions.status === "fulfilled" && Boolean(executions.value.nextCursor),
+      error: inventory.status === "rejected" ? n8nError(inventory.reason) : undefined,
+      executionsError: executions.status === "rejected" ? n8nError(executions.reason) : undefined,
+    };
+  }));
   return { configured: instances.length > 0, instances: results, documented: docs, documentationAvailable: source !== null };
+}
+
+/** Mesma cobertura para contexto e MCP, sem transformar consulta falha em zero. */
+export function n8nInstanceSummary(instance: Awaited<ReturnType<typeof n8nOverview>>["instances"][number]) {
+  const inventory = instance.workflowsAvailable || instance.workflows.length
+    ? `${instance.workflows.filter(w => w.active).length}/${instance.workflows.length} workflows ativos${instance.workflowsPartial ? " na amostra; inventário incompleto" : ""}`
+    : "inventário de workflows indisponível";
+  const executions = instance.executionsAvailable
+    ? `${instance.errors.length} falhas recentes retornadas (limite 25${instance.errorsPartial ? "; consulta parcial, há mais páginas" : ""})`
+    : "consulta de falhas indisponível; ausência de falhas não confirmada";
+  return `${instance.name}: ${inventory}; ${executions}.`;
 }
