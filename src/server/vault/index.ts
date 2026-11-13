@@ -129,10 +129,10 @@ export async function getVaultIndex(force = false): Promise<VaultIndex> {
 let lastError: { message: string; at: number } | null = null;
 
 /** Igual a getVaultIndex, mas não derruba a página: devolve null e guarda o motivo. */
-export async function getVaultIndexSafe(): Promise<VaultIndex | null> {
+export async function getVaultIndexSafe(force = false): Promise<VaultIndex | null> {
   if (!getVaultProvider()) return null;
   try {
-    const idx = await getVaultIndex();
+    const idx = await getVaultIndex(force);
     lastError = null;
     return idx;
   } catch (e) {

@@ -18,7 +18,9 @@ Uso exclusivo do proprietário: sem página pública, sem SEO. Reúne o estado a
 npm run check
 ```
 
-Roda `typecheck → testes → build`, o mesmo que o CI (`.github/workflows/quality.yml`, Node 24). Os testes usam PGlite em memória; nenhum deles precisa de `.env.local`, rede ou credencial.
+Roda `lint → typecheck → testes → build` (`.github/workflows/quality.yml`, Node 24). A suíte padrão usa PGlite em memória; não precisa de `.env.local`, rede ou credencial.
+
+O CI também roda `npm run test:postgres`: transações de agendamento em PostgreSQL real descartável, sem rede e sem dados de produção. Antes do teste, tenha Docker local e baixe a imagem fixada em `.github/workflows/quality.yml`; o runner não baixa imagens sozinho, usa socket local e remove exatamente seu container/volume. O teste PostgreSQL é adicional ao `check`, não uma validação do Neon em produção.
 
 Depois de mudar `src/db/schema.ts`: `npm run db:generate`. As migrações rodam no `npm start` (`scripts/migrate.mjs`), então uma migration mesclada é aplicada quando o servidor sobe com a versão nova. Mesclar na `main` não publica: a produção (VPS-03) é atualizada à parte, e `GET /api/health` informa o `commit` que está no ar.
 

@@ -13,7 +13,6 @@ import { stageLabel } from "@/lib/github-triage";
 import { n8nOverview, n8nInstanceSummary } from "./ops";
 import { availabilitySnapshot } from "@/lib/ops-freshness";
 import { opsEventSummary } from "@/lib/ops-events";
-import { getVaultIndexSafe, vaultHealth } from "./vault";
 import { assistantTools, runAssistantTool } from "./assistant";
 import { TARGET_LABEL, isSilent, listDispatches, reportDispatchResult, resultInput } from "./dispatch";
 import { DISPATCH_TARGETS } from "@/db/schema";
@@ -29,6 +28,7 @@ import { mcpErrorMessage } from "@/lib/mcp-errors";
 import { agentQuickStartMarkdown } from "@/lib/agent-handbook";
 import { cronRuns } from "./cron-runs";
 import { INTERNAL_CRONS, lateCrons } from "@/lib/internal-cron";
+import { readVaultNote, readVaultSchema } from "./vault-read";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -166,14 +166,11 @@ export function buildMcpServer(agent: AgentIdentity) {
     );
     server.registerTool(
       "ler_nota_do_vault",
-      { title: "Ler nota do vault", description: "Lê o conteúdo completo de uma nota do vault pelo caminho (ex.: '02 - Estrutura Interna/Registro de Aplicações.md') ou pelo nome.", inputSchema: { caminho: z.string().min(1).max(400) }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } },
-      async ({ caminho }) =>
-        run("ler_nota_do_vault", `leu ${caminho}`, async () => {
-          const idx = await getVaultIndexSafe();
-          if (!idx) return text((await vaultHealth()).error ?? "Vault não configurado na Órbita.", true);
-          const p = idx.notes.has(caminho) ? caminho : idx.resolve(caminho.replace(/\.md$/i, ""));
-          const note = p ? idx.notes.get(p) : null;
-          return note ? text(`# ${note.title}\n_caminho: ${note.path}_\n_versão: ${note.sha}_\n\n${note.content}`) : text("Nota não encontrada.", true);
+      { title: "Ler nota do vault", description: "Lê nota versionada com front matter. Conteúdo parcial informa proximo_inicio; continue com caminho, versao e inicio até proximo_inicio=null.", inputSchema: readVaultSchema.shape, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } },
+      async (input) =>
+        run("ler_nota_do_vault", `leu ${input.caminho}`, async () => {
+          const result = await readVaultNote(input);
+          return text(result.text, !result.ok);
         }),
     );
   }

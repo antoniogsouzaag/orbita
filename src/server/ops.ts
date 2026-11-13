@@ -72,7 +72,7 @@ export async function vpsList(): Promise<Vps[]> {
     .filter((n) => n.frontmatter.type === "vps")
     .sort((a, b) => a.title.localeCompare(b.title))
     .map((n) => {
-      const cap = parseTables(n.body).find((t) => t.headings.some((h) => /capacidade/i.test(h)));
+      const cap = parseTables(n.body).find((t) => t.headings.some((h) => /capacidade|recursos de hardware/i.test(h)));
       const finalidade = /##\s*Finalidade\s*\n+([^\n#]+)/.exec(n.body)?.[1] ?? /Finalidade:\s*([^\n]+)/.exec(n.body)?.[1] ?? "";
       return {
         name: n.title,

@@ -10,4 +10,10 @@ describe("revisão do vault", () => {
     expect(audit.metadata).not.toContain("Templates/modelo.md");
     expect(audit.duplicates).toEqual([["a.md", "b.md"]]);
   });
+
+  it("detecta colunas deslocadas por alias não escapado e aceita tabelas válidas", () => {
+    const body = "| Produto | Canal |\n|---|---|\n| [[Produto - Barberias|Barberias]] | suporte |\n| [[Produto - Members\\|Members]] | suporte |\n";
+    const audit = auditVault([{ path: "Políticas.md", title: "Políticas", links: [], unresolved: [], frontmatter: { type: "empresa", status: "ativo" }, body }]);
+    expect(audit.tables).toEqual([{ path: "Políticas.md", expected: 2, actual: 3, row: 1, heading: "" }]);
+  });
 });
