@@ -4,7 +4,8 @@ import { qualityScore, SOCIAL_BRANDS, SOCIAL_STAGES, type SocialNetwork, type So
 import { createSocialPost, listSocialPosts, moveSocialPost, socialPostSchema, updateSocialPost } from "./social-posts";
 import { ToolRefusal } from "./orbe-tools";
 import { runDeliveryAudit } from "./social-delivery";
-import { MEDIA_MAX_BYTES, saveSocialMedia } from "./social-media";
+import { MEDIA_MAX_BYTES, mediaIssuesByPost, postMediaPlan, removeSocialMedia, saveSocialMedia } from "./social-media";
+import { postizBudget } from "./postiz-budget";
 
 type ActionResult = { text: string; action?: { label: string; href: string } };
 const href = "/redes?aba=producao";
@@ -15,12 +16,16 @@ async function guard<T>(fn: () => Promise<T>) {
   catch (e) { if (e instanceof Error && !(e instanceof z.ZodError)) throw new ToolRefusal(e.message); throw e; }
 }
 
-const summary = (p: Awaited<ReturnType<typeof listSocialPosts>>[number]) => {
+type MediaInfo = { vao: number; substituidas: number; avisos: string[] };
+const summary = (p: Awaited<ReturnType<typeof listSocialPosts>>[number], media?: MediaInfo) => {
   const q = qualityScore({ ...p, network: p.network as SocialNetwork });
   return {
     id: p.id, marca: p.brand, rede: p.network, formato: p.format, etapa: p.stage, titulo: p.title, gancho: p.hook, cta: p.cta,
     palavra_chave: p.checks?.keyword ?? null, midia: p.mediaUrl, referencia: p.referenceUrl, agendado_para: p.scheduledAt?.toISOString() ?? null,
-    publicado_em: p.publishedUrl, qualidade: q.score, falta_para_aprovar: q.blocking.map(c => c.label), atualizado_em: p.updatedAt.toISOString(),
+    // qualidade = % dos itens operacionais (palavra-chave, página, DM, mídia, capa); só para agentes, a tela não mostra.
+    publicado_em: p.publishedUrl, qualidade: q.score, falta_para_aprovar: [...q.blocking.map(c => c.label), ...(media?.avisos ?? [])], atualizado_em: p.updatedAt.toISOString(),
+    ...(media ? { midias_que_vao: media.vao, versoes_antigas: media.substituidas } : {}),
+    agendamento_pendente: p.checks?.agendamento?.pendente ? p.checks.agendamento.motivo : null,
     // Pedido de ajuste da revisão: o agente refaz e devolve para Revisão.
     ajuste_pedido: p.stage === "rascunho" && p.checks?.ajuste ? p.checks.ajuste : null,
   };
@@ -35,7 +40,9 @@ export const redesListarPosts = {
   schema: listSchema,
   async run(v: z.infer<typeof listSchema>): Promise<ActionResult> {
     const rows = (await listSocialPosts()).filter(p => (!v.marca || p.brand === v.marca) && (!v.etapa || p.stage === v.etapa)).slice(0, v.limite ?? 40);
-    return { text: JSON.stringify({ total: rows.length, posts: rows.map(summary), fonte: "Pipeline de redes da Órbita. Publicados com mais de 30 dias não aparecem." }), action: { label: "Produção de redes", href } };
+    const media = await mediaIssuesByPost(rows);
+    const limite = postizBudget();
+    return { text: JSON.stringify({ total: rows.length, posts: rows.map(p => summary(p, media.get(p.id))), limite_postiz: { criacoes_por_hora: limite.limit, usadas_na_ultima_hora: limite.used, pausa_ate: limite.blockedUntil ? new Date(limite.blockedUntil).toISOString() : null, nota: "Conta só o que este servidor criou; cada rede de um post é uma criação." }, fonte: "Pipeline de redes da Órbita. Publicados com mais de 30 dias não aparecem." }), action: { label: "Produção de redes", href } };
   },
 };
 
@@ -103,5 +110,36 @@ export const redesAnexarMidia = {
     const bytes = new Uint8Array(await res.arrayBuffer());
     const saved = await guard(() => saveSocialMedia({ bytes, contentType, filename: new URL(v.url).pathname.split("/").pop() || "midia", postId: v.id, setCover: v.capa ?? false, origin }));
     return { text: JSON.stringify({ anexada: { id: saved.id, url: saved.url, tamanho: saved.size, tipo: saved.contentType } }), action: { label: "Produção de redes", href } };
+  },
+};
+
+const origin = () => process.env.ORBITA_PUBLIC_URL ?? "https://orb.aglabs.api.br";
+
+const listMediaSchema = z.object({ id: z.uuid().describe("Post") });
+export const redesListarMidias = {
+  schema: listMediaSchema,
+  async run(v: z.infer<typeof listMediaSchema>): Promise<ActionResult> {
+    const plan = await guard(() => postMediaPlan(v.id, origin()));
+    return {
+      text: JSON.stringify({
+        vao_para_a_rede: plan.vao, versoes_antigas: plan.substituidas, avisos: plan.avisos,
+        midias: plan.midias.map(m => ({ id: m.id, arquivo: m.filename, tipo: m.contentType, tamanho: m.size, uso: m.uso, ordem: m.ordem, capa: m.capa, enviada_em: m.createdAt.toISOString() })),
+        regra: "uso=vai entra no post nesta ordem (número no fim do nome); substituida = versão antiga do mesmo slide (mesmo nome ou com v2), não vai; fora = não serve a este formato (layout HTML, capa JPG de reel).",
+      }),
+      action: { label: "Produção de redes", href },
+    };
+  },
+};
+
+const removeSchema = z.object({
+  id: z.uuid().describe("Post"),
+  midia_ids: z.array(z.uuid()).max(50).optional().describe("Mídias a remover (ids de redes_listar_midias)"),
+  versoes_antigas: z.boolean().optional().describe("true remove todas as versões substituídas do post"),
+}).refine(v => v.midia_ids?.length || v.versoes_antigas, "Informe midia_ids ou versoes_antigas=true.");
+export const redesRemoverMidia = {
+  schema: removeSchema,
+  async run(v: z.infer<typeof removeSchema>): Promise<ActionResult> {
+    const r = await guard(() => removeSocialMedia({ postId: v.id, ids: v.midia_ids, substituidas: v.versoes_antigas, origin: origin() }));
+    return { text: JSON.stringify({ removidas: r.removidas, capa: r.capa, vao_para_a_rede: r.vao, avisos: r.avisos }), action: { label: "Produção de redes", href } };
   },
 };

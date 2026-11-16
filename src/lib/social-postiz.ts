@@ -54,6 +54,19 @@ export function reconcileExternal(remote: RemoteListedPost[], channels: PostizCh
   return out;
 }
 
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: " " };
+/** Texto comparável de uma legenda (HTML do Postiz ou texto da Órbita): sem tags, negrito, espaços e o ⠀ das linhas vazias. */
+export function captionFingerprint(text: string) {
+  return text.replace(/<\/p>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (_, e: string) => ENTITIES[e])
+    .replace(/[⠀*_]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+/** Mesmo texto no começo da legenda (até 80 caracteres, mínimo 30): é o post da Órbita que saiu direto pelo Postiz. */
+export function sameCaption(remote: string | null | undefined, caption: string | null | undefined) {
+  const a = captionFingerprint(remote ?? ""), b = captionFingerprint(caption ?? "");
+  const n = Math.min(80, b.length);
+  return n >= 30 && a.slice(0, n) === b.slice(0, n);
+}
+
 /** Canal ativo da marca na rede pedida. Nunca devolve canal de outra marca. */
 export function pickChannel(channels: PostizChannel[], brand: SocialBrand, network: SocialNetwork, extraGroups: string[] = []): PostizChannel | null {
   const rule = BRAND_GROUPS[brand];
@@ -63,7 +76,8 @@ export function pickChannel(channels: PostizChannel[], brand: SocialBrand, netwo
   return ofBrand.length === 1 ? ofBrand[0] : ofBrand.find(c => c.identifier === "instagram-standalone") ?? ofBrand[0] ?? null;
 }
 
-export function buildSchedulePayload(input: { channel: PostizChannel; caption: string; media: PostizMedia[]; date: Date; title: string; comment?: string; isVideo?: boolean }) {
+/** `now` = o Postiz publica assim que recebe (botão "Publicar agora"); `schedule` = na data. */
+export function buildSchedulePayload(input: { channel: PostizChannel; caption: string; media: PostizMedia[]; date: Date; title: string; comment?: string; isVideo?: boolean; now?: boolean }) {
   const { channel } = input;
   const settings: Record<string, unknown> = { __type: channel.identifier };
   if (/^(instagram|facebook)/.test(channel.identifier)) settings.post_type = "post";
@@ -72,15 +86,63 @@ export function buildSchedulePayload(input: { channel: PostizChannel; caption: s
   const value = [{ content: captionToHtml(input.caption), image: input.media }];
   if (input.comment) value.push({ content: captionToHtml(input.comment), image: [] });
   return {
-    type: "schedule", date: input.date.toISOString(), shortLink: false, tags: [],
+    type: input.now ? "now" : "schedule", date: input.date.toISOString(), shortLink: false, tags: [],
     posts: [{ integration: { id: channel.id }, value, settings }],
   };
 }
 
-/** Ordem das mídias no carrossel: número no fim do nome (…-01.jpg, …-02.jpg); sem número, a ordem de envio. */
+/**
+ * Nome do arquivo sem extensão e sem marca de versão: "v2-capa-01.jpg", "capa-01-v2.jpg" e "capa-01.jpg"
+ * são o mesmo slide. Reenvio com outro nome substitui o anterior em vez de virar mídia extra.
+ */
+export function versionlessName(filename: string) {
+  return filename.toLowerCase().replace(/\.[a-z0-9]+$/, "")
+    .replace(/^v\d{1,2}[-_ ]+/, "")
+    .replace(/[-_ ]v\d{1,2}(?=$|[-_ ])/g, "")
+    .replace(/[-_ ]+$/, "");
+}
+/** Chave lógica da mídia: nome sem versão + tipo (imagem e vídeo com o mesmo nome são peças diferentes). */
+export function mediaKey(filename: string, contentType: string) {
+  const kind = contentType.startsWith("video/") ? "video" : contentType.startsWith("image/") ? "image" : contentType;
+  return `${kind}:${versionlessName(filename)}`;
+}
+
+/** Ordem das mídias no carrossel: número no fim do nome (…-01.jpg, …-02.jpg); sem número, a ordem de envio. O "v2" não conta como número. */
 export function orderMedia<T extends { filename: string; createdAt: Date | string }>(items: T[]) {
-  const n = (f: string) => Number(/(\d+)\.[a-z0-9]+$/i.exec(f)?.[1] ?? Number.POSITIVE_INFINITY);
+  const n = (f: string) => Number(/(\d+)$/.exec(versionlessName(f))?.[1] ?? Number.POSITIVE_INFINITY);
   return [...items].sort((a, b) => n(a.filename) - n(b.filename) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+/** O Instagram aceita até 10 mídias por carrossel. */
+export const MAX_POST_MEDIA = 10;
+export const isVideoFormat = (format: string) => format === "reels" || format === "video";
+
+type PlanRow = { id: string; filename: string; contentType: string; createdAt: Date | string };
+/**
+ * O que vai para a rede, na ordem: a versão mais recente de cada slide (mesmo nome ou o nome com v2), filtrada
+ * pelo formato. `superseded` são as versões antigas (nunca vão); `issues` são os bloqueios objetivos de aprovação.
+ * É a mesma regra do agendamento, da tela e do MCP.
+ */
+export function planMedia<T extends PlanRow>(format: string, rows: T[]) {
+  const eligible = mediaForFormat(format, rows);
+  const time = (r: T) => new Date(r.createdAt).getTime();
+  const latest = new Map<string, T>();
+  for (const r of eligible) {
+    const k = mediaKey(r.filename, r.contentType), cur = latest.get(k);
+    if (!cur || time(cur) < time(r)) latest.set(k, r);
+  }
+  const active = orderMedia([...latest.values()]);
+  const ids = new Set(active.map(r => r.id));
+  const superseded = eligible.filter(r => !ids.has(r.id));
+  const issues: string[] = [];
+  if (isVideoFormat(format)) {
+    if (!active.length) issues.push("Envie o MP4 do reel antes de aprovar.");
+    else if (active.length > 1) issues.push(`Reel precisa de um único vídeo: há ${active.length}. Remova os que não vão.`);
+  } else {
+    if (!active.length) issues.push("Envie a capa e as mídias do post antes de aprovar.");
+    if (active.length > MAX_POST_MEDIA) issues.push(`${active.length} mídias; o Instagram aceita até ${MAX_POST_MEDIA}. Remova ${active.length - MAX_POST_MEDIA}.`);
+  }
+  return { active, superseded, issues };
 }
 
 /* ───────────── Mídias por formato e por rede ───────────── */
