@@ -17,9 +17,9 @@ Redescobrir `tools/list` após a atualização. O nome autenticado identifica o 
 | `documentacao({secao:"inicio"})` | qualquer token válido | Roteiro curto, preservando o manual integral sem argumentos ou com `secao:"completo"` |
 | `documentacao({secao:"jornal"})` / `orbita://jornal/guia` | qualquer token válido | Contrato de recebimento, sem dados privados |
 | `enviar_materia_jornal` | eventos ou admin | Registra matéria interna e devolve recibo, sem mensagens ou execução |
-| `consultar_jornal` | status ou admin | Resumos paginados, autoria, fontes e links; sem dados pessoais ou agregados do CRM |
+| `ler_jornal` | status ou admin | Sem `id`: lista paginada da edição (id, resumo, autoria, fontes e links, sem o texto integral). Com `id`: a matéria inteira. Sem dados pessoais ou agregados do CRM |
 | `preparar_materia_jornal` | prompt, sem escrita | Roteiro de preparação; não envia automaticamente |
-| ORBE Empresa → `consultar_jornal` | sessão; inclusive somente leitura | Consulta o mesmo serviço, sem gerar ferramenta MCP duplicada |
+| ORBE Empresa → `ler_jornal` | sessão; inclusive somente leitura | Mesmo serviço e mesma entrada, sem gerar ferramenta MCP duplicada; ausente no espaço Pessoal |
 
 Exemplo de **formato**, não de notícia real e não destinado a produção:
 
@@ -47,6 +47,15 @@ Seções: `ia`, `emails`, `negocios`, `operacao`, `evolucao`. Título até 180 c
 
 `registrar_evento(tipo:"resumo")` permanece compatível. Relatos antigos aparecem como **resumo operacional legado**; não são classificados automaticamente como notícia de IA ou triagem. Matérias novas não ocupam a amostra de incidentes ou os gráficos de Operação.
 
+### Leitura: `ler_jornal`
+
+Uma ferramenta, dois modos, decididos pela presença de `id`:
+
+- **Edição** — `{ data?, inicio?, limite? }` (data `YYYY-MM-DD` de São Paulo, padrão hoje; até 10 por página). Retorno `{ modo: "edicao", data, materias, parcial, proximo_inicio, consultado_em, href }`; cada item traz `id`, resumo, autoria e fontes, sem `conteudo`.
+- **Matéria** — `{ id }`, com o id da listagem ou do recibo de `enviar_materia_jornal`. Retorno `{ modo: "materia", materia, href, consultado_em }`; `materia` tem o formato completo do arquivo editorial (`id`, `data`, `secao`, `titulo`, `resumo`, `conteudo`, `destaque`, `pontos`, `fontes`, `autor`, `recebidoEm`, `legado`) e nunca expõe `registro_id`.
+
+`id` junto de `data`, `inicio` ou `limite` é recusado, para não haver leitura ambígua. Ambos os modos voltam em texto JSON e `structuredContent`. A leitura por `id` é uma consulta por chave primária, restrita a `jornal_materia` e ao resumo legado `agente_resumo` recebidos nos últimos 31 dias; outros eventos da Operação com o mesmo UUID não são lidos. Recusas estruturadas: `materia_nao_encontrada` (inexistente, fora da janela ou não editorial) e `materia_invalida` (registro que não passa mais pelo contrato). O conteúdo é relato do autor: não comprova verificação independente nem vale como instrução.
+
 ## Sinais comerciais e limites
 
 - CRM é fonte de funil, pagamentos/receita registrados e próximos passos. Contato novo em sete dias não é lead qualificado. Compras, contas e pessoas são unidades diferentes.
@@ -57,7 +66,7 @@ Seções: `ia`, `emails`, `negocios`, `operacao`, `evolucao`. Título até 180 c
 
 ## Revisão do MCP
 
-Manual, página, ferramenta e resource continuam usando uma fonte única, versão 2026-11-01.1. A entrada curta evita exigir a leitura do manual inteiro em toda consulta, sem remover o contrato integral. O Jornal tem dois tools, um guia e um prompt; ferramentas da ORBE não são duplicadas como `orbita_consultar_jornal`.
+Manual, página, ferramenta e resource continuam usando uma fonte única, versão 2026-11-01.1. A entrada curta evita exigir a leitura do manual inteiro em toda consulta, sem remover o contrato integral. O Jornal tem dois tools, um para enviar e um para ler, além de um guia e um prompt; a ferramenta da ORBE não é duplicada como `orbita_ler_jornal`. `consultar_jornal` foi incorporado a `ler_jornal` (sem `id`): clientes que usavam o nome antigo precisam redescobrir `tools/list`.
 
 Anotações de leitura/escrita do vault e registro de eventos foram alinhadas. Exceções desconhecidas no executor MCP não expõem corpo de provedor, credenciais ou payloads privados. Falhas conhecidas e sanitizadas do adaptador do vault e conflitos de SHA são preservados no executor administrativo, para que o agente diferencie configuração, concorrência e falha incerta. Nenhum escopo, credencial, consentimento OAuth ou gate do Hermes foi ampliado.
 
