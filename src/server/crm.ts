@@ -65,7 +65,11 @@ export async function crmCall<T = unknown>(name: string, args: Record<string, un
   if (!crmConfigured()) throw new Error("CRM não conectado (CRM_MCP_URL e CRM_MCP_TOKEN)");
   if (cachedTools.has(name)) {
     const identity = createHash("sha256").update(`${process.env.CRM_MCP_URL}\n${process.env.CRM_MCP_TOKEN}`).digest("hex");
-    return aggregateCache.read(`${identity}:${name}:${JSON.stringify(args)}`, () => requestCrm<T>(name, args));
+    return aggregateCache.read(`${identity}:${name}:${JSON.stringify(args)}`, () => requestCrm<T>(name, args), value => {
+      if (name !== "crm_metricas_produto") return true;
+      const status = (value as { status?: string } | null)?.status;
+      return status === "ok" || status === "stale";
+    });
   }
   return requestCrm<T>(name, args);
 }

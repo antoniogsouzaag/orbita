@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { productMetrics } from "@/server/product-metrics";
+import { clearCrmCache } from "@/server/crm";
 import { assistantTools, runAssistantTool } from "@/server/assistant";
 import { ORBE_STRATEGY_RULES } from "@/lib/orbe-context";
 const url = "https://barberias.com.br/api/integrations/orbita/metrics";
 const raw = () => ({ version: 1, product: "barberias", generatedAt: new Date().toISOString(), window: { from: "2026-10-01T00:00:00Z", to: new Date().toISOString() }, metrics: { users: 8, accounts: 4, activeAccounts: 3, trialAccounts: 1, payingAccounts: 1, complimentaryAccounts: 1, canceledAccounts: 0, activatedAccounts: 2 }, secret: "never-return" });
 const configure = (target = url) => vi.stubEnv("APP_METRICS_SOURCES", JSON.stringify([{ product: "barberias", url: target, token: "fixture-only-".repeat(4) }]));
-beforeEach(() => { configure(); vi.stubGlobal("fetch", vi.fn(async () => Response.json(raw()))); });
+beforeEach(() => { clearCrmCache(); configure(); vi.stubGlobal("fetch", vi.fn(async () => Response.json(raw()))); });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("origem administrativa e ORBE", () => {
   it.each(["mecard", "viajeki", "produto-desconhecido"])("não atribui equipe ou Stripe ao produto %s", async produto => {
