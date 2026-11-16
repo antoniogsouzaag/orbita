@@ -20,7 +20,7 @@ export function TaskPreview({ tasks, initial, projects, assignees, scope }: {
   useEffect(() => {
     if (!id || initial?.id === id) return;
     let active = true;
-    loadTaskDetail(id, scope).then(data => { if (active) setResult({ id, data }); }, () => { if (active) setResult({ id, data: null, error: true }); });
+    loadTaskDetail(id, scope).then(data => { if (active) setResult({ id, data, error: !data }); }, () => { if (active) setResult({ id, data: null, error: true }); });
     return () => { active = false; };
   }, [id, scope, initial, tasks]);
   if (!id) return null;
