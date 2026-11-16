@@ -42,6 +42,8 @@ export function MarkdownEditor({
   linkTargets = [],
   placeholder,
   minHeight = "60vh",
+  prose = false,
+  autoFocus = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -49,6 +51,8 @@ export function MarkdownEditor({
   linkTargets?: string[];
   placeholder?: string;
   minHeight?: string;
+  prose?: boolean;
+  autoFocus?: boolean;
 }) {
   const targets = React.useRef(linkTargets);
   const save = React.useRef(onSave);
@@ -87,6 +91,8 @@ export function MarkdownEditor({
       onChange={onChange}
       extensions={extensions}
       theme="none"
+      autoFocus={autoFocus}
+      className={prose ? "[&_.cm-content]:!font-sans [&_.cm-content]:!text-[14.5px] [&_.cm-content]:!leading-[1.8] [&_.cm-scroller]:!font-sans [&_.cm-gutters]:hidden" : undefined}
       placeholder={placeholder}
       basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false, highlightActiveLineGutter: false, autocompletion: false }}
       style={{ minHeight }}

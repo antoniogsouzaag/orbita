@@ -52,7 +52,7 @@ export async function ProductPortfolio() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">Ecossistema · apps + CRM</p>
           <h2 className="mt-1 text-[17px] font-semibold tracking-tight">Visão do negócio</h2>
         </div>
-        <p className="text-[11.5px] text-faint">Consultado agora · {checked}</p>
+        <p className="text-[11.5px] text-faint">Consulta · {checked} · cache de até 1 min</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">

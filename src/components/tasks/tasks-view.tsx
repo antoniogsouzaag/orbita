@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils";
 import type { TaskRow, TaskView } from "@/server/tasks";
 import type { TaskScope } from "@/db/schema";
 import { ParsePreview } from "./parse-preview";
-import { TaskDetail, type TaskDetailData } from "./task-detail";
+import { type TaskDetailData } from "./task-detail";
+import { selectTask, TaskPreview } from "./task-preview";
 import { TaskItem } from "./task-item";
 
 const VIEWS: { id: TaskView; label: string }[] = [
@@ -180,7 +181,7 @@ export function TasksView({
                   task={t}
                   showDate={g.key === "all" || g.key === "0-atrasadas" || g.key.startsWith("a:")}
                   showScope={false}
-                  onOpen={() => router.push(href({ task: t.parentId ?? t.id }), { scroll: false })}
+                  onOpen={() => t.parentId ? router.push(href({ task: t.parentId }), { scroll: false }) : selectTask(href({ task: t.id }))}
                   onToggle={() =>
                     start(async () => {
                       toggle(t.id);
@@ -195,7 +196,7 @@ export function TasksView({
         )}
       </div>
 
-      {detail && <TaskDetail key={detail.id} task={detail} projects={projects} assignees={assignees} onClose={() => router.push(href({ task: null }), { scroll: false })} />}
+      <TaskPreview tasks={tasks} initial={detail} projects={projects} assignees={assignees} scope={scope ?? "pessoal"} />
     </div>
   );
 }

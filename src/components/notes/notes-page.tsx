@@ -132,10 +132,17 @@ export function NotesPage({ notes, selected, scope = "pessoal", archived = false
               <Button size="icon-sm" variant="ghost" onClick={() => start(async () => { if (!await confirmAction("Excluir nota?")) return; await deleteNote(selected.id, scope); toast.success("Nota excluída"); router.push(href(undefined, archived)); })} aria-label="Excluir"><Trash2 /></Button>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-8">
+          <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-8" data-shell-layer={mode === "edit" ? "open" : undefined}
+            onKeyDownCapture={(event) => {
+              if (event.key !== "Escape" || mode !== "edit" || event.nativeEvent.isComposing) return;
+              event.preventDefault(); event.stopPropagation(); flush(); setMode("view");
+            }}
+            onDoubleClick={(event) => {
+              if (mode === "view" && !(event.target as HTMLElement).closest("a, button")) setMode("edit");
+            }}>
             <input aria-label="Título da nota" readOnly={mode === "view"} value={title} onChange={(e) => { setTitle(e.target.value); persist({ title: e.target.value, content }); }} placeholder="Título" className="mb-3 w-full bg-transparent text-2xl font-bold tracking-tight outline-none" />
             {mode === "edit" ? (
-              <MarkdownEditor value={content} onChange={(v) => { setContent(v); persist({ title, content: v }); }} linkTargets={titles} placeholder="Escreva em markdown. Use [[ para linkar outra nota." minHeight="50vh" />
+              <MarkdownEditor prose autoFocus value={content} onChange={(v) => { setContent(v); persist({ title, content: v }); }} linkTargets={titles} placeholder="Escreva em markdown. Use [[ para linkar outra nota." minHeight="50vh" />
             ) : (
               <MarkdownView content={content || "_Nota vazia_"} resolve={(t) => { const id = byTitle.get(t.toLowerCase()); return id ? href(id) : null; }} />
             )}

@@ -1,7 +1,6 @@
 "use client";
 
 import { CalendarDays, ListChecks } from "lucide-react";
-import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import { quickAddTask, updateTask } from "@/app/actions/core";
@@ -13,6 +12,7 @@ import { taskHref } from "@/lib/task-scope";
 import type { TaskRow } from "@/server/tasks";
 import { AssigneeBadge } from "./assignee-badge";
 import { PriorityIcon } from "./priority-icon";
+import { selectTask } from "./task-preview";
 
 const COLUMNS: { id: TaskStatus; label: string; dot: string }[] = [
   { id: "todo", label: "A fazer", dot: "var(--faint)" },
@@ -21,7 +21,6 @@ const COLUMNS: { id: TaskStatus; label: string; dot: string }[] = [
 ];
 
 export function Kanban({ tasks, projectId, scope }: { tasks: TaskRow[]; projectId?: string; scope: TaskScope }) {
-  const router = useRouter();
   const [items, moveOptimistically] = React.useOptimistic(tasks, (state, change: { id: string; status: TaskStatus }) => state.map((task) => task.id === change.id ? { ...task, status: change.status } : task));
   const [over, setOver] = React.useState<TaskStatus | null>(null);
   const [adding, setAdding] = React.useState<Record<string, string>>({});
@@ -66,7 +65,7 @@ export function Kanban({ tasks, projectId, scope }: { tasks: TaskRow[]; projectI
                   key={task.id}
                   draggable
                   onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
-                  onClick={() => router.push(taskHref(scope, task.id))}
+                  onClick={() => selectTask(taskHref(scope, task.id))}
                   className="cursor-grab rounded-xl border border-border bg-surface p-3 shadow-sm transition hover:border-border-strong active:cursor-grabbing"
                 >
                   <div className={cn("text-[13.5px]", task.status === "done" && "text-faint line-through")}>{task.title}</div>

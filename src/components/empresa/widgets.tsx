@@ -2,7 +2,7 @@ import { BUSINESS_REGISTERED_DOMAINS } from "@/lib/business-models";
 import { stageLabel } from "@/lib/github-triage";
 import { awaitsOwner, type ReplyTask } from "@/lib/proposals";
 import { agentSlug } from "@/lib/team";
-import { AlertTriangle, ArrowUpRight, Bot, Briefcase, CheckCircle2, CheckSquare, FolderKanban, GitPullRequest, Globe, HeartPulse, Inbox, Lightbulb, Server, Users, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Bot, Briefcase, CheckCircle2, CheckSquare, FolderKanban, GitPullRequest, Globe, HeartPulse, Inbox, Server, Users, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Card, CardHeader, EmptyState } from "@/components/ui/card";
 import { Progress } from "@/components/ui/misc";
@@ -190,7 +190,10 @@ export function GithubWidget({ gh }: { gh: EmpresaData["gh"] }) {
           </p>
         ) : (
           gh.items.slice(0, 7).map((i) => (
-            <Row key={i.url} href={i.url} external title={i.title} meta={`${i.repo} #${i.number} · ${ago(i.updatedAt)}`} badge={stageLabel(i)} badgeIcon={i.kind === "proposta" ? <Lightbulb className="size-3" /> : <GitPullRequest className="size-3" />} />
+            <a key={i.url} href={i.url} target="_blank" rel="noreferrer" className="block min-w-0 rounded-lg px-2 py-2.5 transition hover:bg-surface-2">
+              <span className="block break-words text-[13.5px] font-medium leading-snug">{i.title}</span>
+              <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-faint"><span>{i.repo} #{i.number}</span><span>{ago(i.updatedAt)}</span><span className="rounded bg-surface-2 px-1.5 py-0.5 text-muted">{stageLabel(i)}</span></span>
+            </a>
           ))
         )}
         {gh.configured && !gh.error && <p className="px-2 pt-2 text-[11px] leading-relaxed text-faint">{gh.credential === "VAULT_GITHUB_TOKEN" ? "Usando o token do Knowledge · cobertura limitada aos repositórios permitidos." : "Repositórios visíveis ao token configurado."}{gh.truncated ? " Consulta parcial." : ""}</p>}

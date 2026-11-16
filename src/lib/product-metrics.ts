@@ -1,5 +1,6 @@
 import { projectFreemium, type FreemiumMetrics } from "./freemium-metrics";
 import { z } from "zod";
+import { projectProductFunnel, type ProductFunnel } from "./product-funnel";
 import { localDate, zonedToUtc } from "./dates";
 import { marketplaceMetricsSchema, validateMarketplaceMetrics } from "./marketplace-metrics";
 import { creditsMetricsSchema, validateCreditsMetrics } from "./credits-metrics";
@@ -45,12 +46,14 @@ export const productMetricsSchema = z.object({
   credits: creditsMetricsSchema.optional(),
   audience: audienceMetricsSchema.optional(),
   freemium: z.custom<FreemiumMetrics>().optional(),
+  productFunnel: z.custom<ProductFunnel>().nullable().optional(),
 });
 export type ProductMetrics = z.infer<typeof productMetricsSchema>;
 
 export function validateProductMetrics(raw: unknown, product: string, now = Date.now()): ProductMetrics {
   const data = productMetricsSchema.parse(raw);
   if (data.product !== product) throw new Error("Produto divergente");
+  if (data.productFunnel != null) data.productFunnel = projectProductFunnel(data.productFunnel, product, data.generatedAt);
   if (data.daily) {
     const daily = data.daily;
     const date = localDate(new Date(data.generatedAt), "America/Sao_Paulo");

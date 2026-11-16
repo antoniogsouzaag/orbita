@@ -21,7 +21,7 @@ import type { TaskRow } from "@/server/tasks";
 
 export type TaskDetailData = TaskRow & { children: Task[] };
 
-export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose }: { task: TaskDetailData; projects: { id: string; name: string; color: string }[]; assignees?: string[]; onClose: () => void }) {
+export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose, loading, loadError }: { task: TaskDetailData; projects: { id: string; name: string; color: string }[]; assignees?: string[]; onClose: () => void; loading?: boolean; loadError?: boolean }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState(false);
   const [title, setTitle] = React.useState(task.title);
@@ -48,9 +48,11 @@ export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose }
         </div>
         {task.tags.length > 0 && <div className="mb-4 flex max-h-24 flex-wrap gap-1 overflow-y-auto text-xs text-accent">{task.tags.map(tag => <span key={tag} className="max-w-full break-all rounded bg-surface-2 px-2 py-1">#{tag}</span>)}</div>}
         <div className="break-words">{task.notes ? <MarkdownView content={task.notes} /> : <p className="text-sm text-muted">Sem notas nesta tarefa.</p>}</div>
+        {loading && <p role="status" className="mt-3 text-xs text-muted">Consultando subtarefas…</p>}
+        {loadError && <p role="alert" className="mt-3 text-xs text-warning">Não foi possível consultar os detalhes. Reabra a tarefa para tentar novamente.</p>}
         {task.children.length > 0 && <div className="mt-5 space-y-2"><h3 className="text-sm font-medium">Subtarefas</h3>{task.children.map(child => <div key={child.id} className="flex items-center gap-2"><CheckButton checked={child.status === "done"} label="Concluir subtarefa" onToggle={() => start(() => toggleTask(child.id))} /><span className={cn("text-sm", child.status === "done" && "line-through text-muted")}>{child.title}</span></div>)}</div>}
         <div className="mt-5 flex gap-2 border-t border-border pt-4">
-          <Button size="sm" onClick={() => setEditing(true)}><PencilLine />Editar tarefa</Button>
+          <Button size="sm" disabled={loading || loadError} onClick={() => setEditing(true)}><PencilLine />Editar tarefa</Button>
           <Button size="sm" variant="ghost" onClick={() => start(() => toggleTask(task.id))}>{task.status === "done" ? "Reabrir" : "Concluir"}</Button>
         </div>
       </DialogContent>
@@ -61,10 +63,10 @@ export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose }
     <D.Root open onOpenChange={(o) => !o && onClose()}>
       <D.Portal>
         <D.Overlay className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-[2px] animate-in" />
-        <D.Content className="fixed inset-y-0 right-0 z-[61] flex w-full max-w-lg flex-col border-l border-border-strong bg-surface shadow-soft animate-in focus:outline-none">
+        <D.Content onEscapeKeyDown={(event) => { event.preventDefault(); (document.activeElement as HTMLElement | null)?.blur(); setEditing(false); }} className="fixed inset-y-0 right-0 z-[61] flex w-full max-w-xl flex-col border-l border-border-strong bg-surface shadow-soft animate-in focus:outline-none">
           <div className="flex items-center gap-3 border-b border-border px-5 py-3">
             <CheckButton checked={task.status === "done"} label="Concluir" onToggle={() => start(() => toggleTask(task.id))} />
-            <D.Title className="truncate text-[13px] text-muted">{assigneeLabel(task) ?? (task.status === "done" ? "Concluída" : task.status === "doing" ? "Em andamento" : "A fazer")}</D.Title>
+            <D.Title className="truncate text-[13px] text-muted">Editar tarefa · {assigneeLabel(task) ?? (task.status === "done" ? "Concluída" : task.status === "doing" ? "Em andamento" : "A fazer")}</D.Title>
             <D.Description className="sr-only">Detalhes da tarefa</D.Description>
             <button
               onClick={() =>
@@ -85,11 +87,15 @@ export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose }
           <div className="flex-1 space-y-5 overflow-y-auto p-5">
             <input
               value={title}
+              aria-label="Título da tarefa"
               onChange={(e) => setTitle(e.target.value)}
               onBlur={() => title.trim() && title !== task.title && patch({ title })}
               className="w-full bg-transparent text-xl font-semibold tracking-tight outline-none"
             />
-            <div className="grid grid-cols-2 gap-3">
+            <Field label="Notas">
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== (task.notes ?? "") && patch({ notes })} placeholder="Detalhes, links, contexto…" className="min-h-40" />
+            </Field>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Projeto">
                 <Select value={task.projectId ?? ""} onChange={(e) => patch({ projectId: e.target.value || null })}>
                   <option value="">Sem projeto</option>
@@ -152,9 +158,6 @@ export function TaskDetail({ task, projects, assignees = [OWNER_NAME], onClose }
             </Field>
             <Field label="Tags (separadas por vírgula)">
               <Input value={tags} onChange={(e) => setTags(e.target.value)} onBlur={() => patch({ tags: tags.split(",").map((t) => t.trim().replace(/^#/, "").toLowerCase()).filter(Boolean) })} placeholder="empresa, financeiro" />
-            </Field>
-            <Field label="Notas">
-              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== (task.notes ?? "") && patch({ notes })} placeholder="Detalhes, links, contexto…" className="min-h-32" />
             </Field>
             <div>
               <div className="mb-2 text-xs font-medium text-muted">Subtarefas {task.children.length > 0 && `· ${task.children.filter((c) => c.status === "done").length}/${task.children.length}`}</div>
