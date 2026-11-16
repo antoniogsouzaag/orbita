@@ -19,6 +19,8 @@ const nextConfig: NextConfig = {
   // App totalmente dinâmico (dados pessoais por requisição): usamos o modelo
   // clássico de cache em vez de Cache Components.
   cacheComponents: false,
+  // Reutiliza a navegação recente; as ações invalidam o layout após uma escrita.
+  experimental: { staleTimes: { dynamic: 60 } },
   serverExternalPackages: ["@electric-sql/pglite", "node-ical"],
   images: {
     remotePatterns: [

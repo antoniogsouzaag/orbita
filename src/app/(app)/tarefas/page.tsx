@@ -5,6 +5,7 @@ import { CommercialTaskList } from "@/components/tasks/commercial-task-list";
 import { Briefcase, User } from "lucide-react";
 import { NewTaskButton } from "@/components/tasks/task-detail";
 import { TasksView } from "@/components/tasks/tasks-view";
+import { TaskPreview } from "@/components/tasks/task-preview";
 import { PageHeader } from "@/components/ui/card";
 import { taskScope } from "@/lib/task-scope";
 import { listProjects } from "@/server/projects";
@@ -54,6 +55,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         projectId={projectId}
         detail={detail}
       />}
+      {kanban && <TaskPreview tasks={[...tasks, ...done]} initial={detail} projects={projects} assignees={assignees} scope={scope} />}
       {scope === "empresa" && !sp.project && <Suspense fallback={<p className="mt-4 text-xs text-muted">Consultando tarefas comerciais…</p>}><CommercialTaskList view={view} product={sp.tag} /></Suspense>}
     </div>
   );

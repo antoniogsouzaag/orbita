@@ -1,3 +1,4 @@
+import { RefreshBusiness } from "@/components/empresa/refresh-business";
 import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Building2, BookOpen, MessageSquareHeart } from "lucide-react";
@@ -12,7 +13,7 @@ export const metadata = { title: "Negócios" };
 export default function Page() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 sm:px-6">
-      <PageHeader icon={<Building2 />} title="Negócios" description="Aplicativos, indicadores e próximas decisões." actions={<Button asChild size="sm"><Link href="/empresa/feedback"><MessageSquareHeart />Feedback</Link></Button>} />
+      <PageHeader icon={<Building2 />} title="Negócios" description="Aplicativos, indicadores e próximas decisões." actions={<><RefreshBusiness /><Button asChild size="sm"><Link href="/empresa/feedback"><MessageSquareHeart />Feedback</Link></Button></>} />
       <Suspense fallback={<PortfolioLoading />}><ProductPortfolio /></Suspense>
       <Suspense fallback={null}><DocumentedApps /></Suspense>
     </div>

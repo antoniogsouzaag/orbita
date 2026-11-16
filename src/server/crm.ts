@@ -1,4 +1,6 @@
 import "server-only";
+import { createHash } from "node:crypto";
+import { createReadCache } from "@/lib/read-cache";
 import type { CrmAccounts, CrmAggregateSummary } from "@/lib/crm-aggregates";
 
 /**
@@ -55,10 +57,20 @@ export function crmUrl(path = "") {
 }
 
 let seq = 0;
+const aggregateCache = createReadCache(60_000);
+const cachedTools = new Set(["crm_resumo", "crm_funil_emails", "crm_metricas_produto", "crm_prioridades"]);
 
 /** Chama uma ferramenta do CRM. Erro de validação do CRM vira Error com a mensagem dele. */
 export async function crmCall<T = unknown>(name: string, args: Record<string, unknown> = {}): Promise<T> {
   if (!crmConfigured()) throw new Error("CRM não conectado (CRM_MCP_URL e CRM_MCP_TOKEN)");
+  if (cachedTools.has(name)) {
+    const identity = createHash("sha256").update(`${process.env.CRM_MCP_URL}\n${process.env.CRM_MCP_TOKEN}`).digest("hex");
+    return aggregateCache.read(`${identity}:${name}:${JSON.stringify(args)}`, () => requestCrm<T>(name, args));
+  }
+  return requestCrm<T>(name, args);
+}
+
+async function requestCrm<T>(name: string, args: Record<string, unknown>): Promise<T> {
   const res = await fetch(process.env.CRM_MCP_URL!, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json, text/event-stream", authorization: `Bearer ${process.env.CRM_MCP_TOKEN}` },
@@ -105,4 +117,5 @@ export async function crmOverview(maxAgeMs = 60_000): Promise<CrmOverview> {
 
 export function clearCrmCache() {
   cache = null;
+  aggregateCache.clear();
 }

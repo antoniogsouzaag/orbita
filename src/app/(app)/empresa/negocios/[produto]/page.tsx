@@ -1,3 +1,4 @@
+import { RefreshBusiness } from "@/components/empresa/refresh-business";
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -26,7 +27,7 @@ export default async function Page({ params }: { params: Promise<{ produto: stri
   const tasks = await listTasks({ scope: "empresa", tag: unit.tag, limit: 20, includeParts: true }).catch(() => null);
   return <div className="mx-auto max-w-6xl space-y-3 px-4 sm:px-6">
     <Link href="/empresa/negocios" className="inline-flex text-xs text-muted hover:text-fg">← Todos os negócios</Link>
-    <PageHeader icon={<Building2 />} title={unit.name} description={unit.summary} actions={<a href={`https://${unit.domain}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-accent">{unit.domain}<ArrowUpRight className="size-3.5" /></a>} />
+    <PageHeader icon={<Building2 />} title={unit.name} description={unit.summary} actions={<><RefreshBusiness /><a href={`https://${unit.domain}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-accent">{unit.domain}<ArrowUpRight className="size-3.5" /></a></>} />
     <div className="grid gap-3 sm:grid-cols-3">
       {[["Modelo", model.label], ["Unidade de negócio", model.unit], ["Receita", model.revenue]].map(([label, value]) => <Card key={label} className="p-3"><p className="text-[11px] text-muted">{label}</p><p className="mt-1 text-[13.5px] font-medium">{value}</p></Card>)}
     </div>
