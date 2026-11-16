@@ -73,10 +73,10 @@ http_headers = { Authorization = "Bearer orb_..." }
 | --- | --- |
 | todos | `documentacao` (manual) |
 | `contexto` | `contexto_operacional`, `buscar`, `ler_nota_do_vault` |
-| `status` | `status_ao_vivo`, `pendencias_github`, `automacoes_operacionais` |
-| `tarefas` | Criar, consultar, assumir, dividir, atualizar e liberar tarefas empresariais |
-| `eventos` | `registrar_evento`, `pedidos_recebidos`, `registrar_resultado` |
-| `admin` | Todos os escopos anteriores, `contexto_pessoal` e o catálogo da IA com prefixo `orbita_`, inclusive escrita versionada no vault |
+| `status` | `status_ao_vivo`, `pendencias_github`, `automacoes_operacionais`, `eventos_recentes`, `ocorrencias_abertas`, `ler_jornal` |
+| `tarefas` | Criar, consultar, assumir, dividir, atualizar e liberar tarefas empresariais; `encaminhar_trabalho_hermes` |
+| `eventos` | `enviar_materia_jornal`, `registrar_evento`, `pedidos_recebidos`, `registrar_resultado` |
+| `admin` | Todos os escopos anteriores, `resolver_ocorrencia`, `diagnostico_integracoes`, `configurar_encaminhamento_hermes`, `contexto_pessoal` e o catálogo da IA com prefixo `orbita_` (sem duplicar `buscar` e `ler_nota_do_vault`), inclusive escrita versionada no vault |
 
 Para Hermes, validação de conexão e o caminho inverso (Órbita → agente), veja [Integração dos gestores](docs/integracao-gestores.md). Criar o token não configura o runtime nem comprova uma conexão ativa.
 

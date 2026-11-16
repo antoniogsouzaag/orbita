@@ -24,6 +24,7 @@ const LABELS: Record<string, [string, string]> = {
   buscar_notas: ["Buscando notas", "Buscou notas"],
   consultar_nota: ["Lendo nota da Órbita", "Leu nota da Órbita"],
   vincular_nota_projeto: ["Vinculando nota ao projeto", "Organizou projeto da nota"],
+  ler_jornal: ["Lendo o Jornal", "Leu o Jornal"],
   buscar: ["Buscando nas fontes", "Consultou as fontes"],
   ler_nota_do_vault: ["Lendo nota do vault", "Leu nota do vault"],
   salvar_nota_vault: ["Salvando nota no vault", "Salvou nota no vault"],

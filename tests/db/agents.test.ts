@@ -52,7 +52,7 @@ describe("central dos agentes (MCP)", () => {
   it("expõe só as ferramentas dos escopos do agente", async () => {
     const t = await createAgentToken("Só leitura", ["status"]);
     expect((await init(t)).body.result).toMatchObject({ serverInfo: { name: "orbita" } });
-    expect(await toolNames(t)).toEqual(["automacoes_operacionais", "consultar_jornal", "documentacao", "eventos_recentes", "ocorrencias_abertas", "pendencias_github", "status_ao_vivo"]);
+    expect(await toolNames(t)).toEqual(["automacoes_operacionais", "documentacao", "eventos_recentes", "ler_jornal", "ocorrencias_abertas", "pendencias_github", "status_ao_vivo"]);
     const call = await rpc(t, "tools/call", { name: "criar_tarefa_para_antonio", arguments: { titulo: "não deveria" } });
     expect(JSON.stringify(call.body)).toMatch(/not found|não|error/i);
   });
@@ -126,6 +126,11 @@ describe("central dos agentes (MCP)", () => {
     const adminNames = await toolNames(admin);
     expect(adminNames).toContain("buscar");
     expect(adminNames).not.toContain("orbita_buscar");
+    expect(adminNames).toContain("ler_nota_do_vault");
+    expect(adminNames).not.toContain("orbita_ler_nota_do_vault");
+    expect(adminNames).toContain("ler_jornal");
+    // Uma ferramenta por nome: nenhuma ação da IA reaparece com prefixo ao lado da ferramenta própria.
+    expect(adminNames.filter((name) => adminNames.includes(`orbita_${name}`))).toEqual([]);
     expect(adminNames).toContain("orbita_listar_metas");
     expect(adminNames).toContain("orbita_consultar_tarefa");
     expect(adminNames).toContain("orbita_consultar_nota");
