@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { AwsClient } from "aws4fetch";
 import { z } from "zod";
 import { getDb } from "@/db";
@@ -240,6 +240,10 @@ export async function removeSocialMedia(input: { postId: string; ids?: string[];
   const old = input.substituidas ? supersededIds(post.format, rows) : new Set<string>();
   const targets = rows.filter(r => ids.includes(r.id) || old.has(r.id));
   if (!targets.length) throw new Error(input.substituidas ? "Não há versões antigas neste post." : "Escolha a mídia a remover.");
+  // Adaptação para outra rede usa a mídia deste post como capa: tirar daqui quebraria a de lá.
+  const others = await db.select({ id: socialPosts.id, title: socialPosts.title, mediaUrl: socialPosts.mediaUrl }).from(socialPosts).where(ne(socialPosts.id, postId));
+  const shared = targets.flatMap(t => others.filter(o => refersTo(o.mediaUrl, t)).map(o => `${t.filename} é a capa de "${o.title}"`));
+  if (shared.length) throw new Error(`${shared.join("; ")}. Troque a capa de lá antes de remover.`);
   const b = mediaBucket();
   const removed: { id: string; filename: string }[] = [];
   for (const t of targets) {
@@ -262,8 +266,10 @@ export async function removeSocialMedia(input: { postId: string; ids?: string[];
 /** Post apagado: os objetos dele no bucket saem junto (as linhas já saem em cascata). Falha aqui fica para a limpeza diária. */
 export async function removePostObjects(rows: StoredRow[]) {
   const b = mediaBucket();
-  if (!b) return;
-  for (const r of rows) if (r.storage !== "db" && r.path) await bucketRemove(b, r.path).catch((e: unknown) => console.error(`[redes/midia] objeto ${r.path} fica para a limpeza: ${e instanceof Error ? e.message : e}`));
+  if (!b || !rows.length) return;
+  // Objeto que ainda é capa de outro post (adaptação) fica; a limpeza também o preserva enquanto for capa.
+  const covers = (await (await getDb()).select({ mediaUrl: socialPosts.mediaUrl }).from(socialPosts)).map(p => p.mediaUrl);
+  for (const r of rows) if (r.storage !== "db" && r.path && !covers.some(u => refersTo(u, r))) await bucketRemove(b, r.path).catch((e: unknown) => console.error(`[redes/midia] objeto ${r.path} fica para a limpeza: ${e instanceof Error ? e.message : e}`));
 }
 export async function postStoredMedia(postId: string): Promise<StoredRow[]> {
   const db = await getDb();
@@ -296,6 +302,8 @@ export async function cleanupSocialMedia(now = new Date(), opts: { simular?: boo
   const picked: (MediaRow & { motivo: Motivo })[] = [];
   for (const m of media) {
     if (picked.length >= CLEANUP_MAX) break;
+    // Capa de outro post (adaptação para outra rede, ou envio avulso feito antes de o post existir) nunca sai.
+    if (posts.some(p => p.id !== m.postId && refersTo(p.mediaUrl, m))) continue;
     if (!m.postId) { if (m.createdAt.getTime() < cut.orphan) picked.push({ ...m, motivo: "avulsa" }); continue; }
     const post = byPost.get(m.postId);
     if (!post || untouchable.has(post.stage)) continue;

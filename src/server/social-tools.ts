@@ -5,7 +5,7 @@ import { createSocialPost, listSocialPosts, moveSocialPost, socialPostSchema, up
 import { ToolRefusal } from "./orbe-tools";
 import { runDeliveryAudit } from "./social-delivery";
 import { MEDIA_MAX_BYTES, mediaIssuesByPost, postMediaPlan, removeSocialMedia, saveSocialMedia } from "./social-media";
-import { postizBudget } from "./postiz-budget";
+import { loadPostizBudget, postizBudget } from "./postiz-budget";
 
 type ActionResult = { text: string; action?: { label: string; href: string } };
 const href = "/redes?aba=producao";
@@ -40,7 +40,7 @@ export const redesListarPosts = {
   schema: listSchema,
   async run(v: z.infer<typeof listSchema>): Promise<ActionResult> {
     const rows = (await listSocialPosts()).filter(p => (!v.marca || p.brand === v.marca) && (!v.etapa || p.stage === v.etapa)).slice(0, v.limite ?? 40);
-    const media = await mediaIssuesByPost(rows);
+    const [media] = await Promise.all([mediaIssuesByPost(rows), loadPostizBudget()]);
     const limite = postizBudget();
     return { text: JSON.stringify({ total: rows.length, posts: rows.map(p => summary(p, media.get(p.id))), limite_postiz: { criacoes_por_hora: limite.limit, usadas_na_ultima_hora: limite.used, pausa_ate: limite.blockedUntil ? new Date(limite.blockedUntil).toISOString() : null, nota: "Conta só o que este servidor criou; cada rede de um post é uma criação." }, fonte: "Pipeline de redes da Órbita. Publicados com mais de 30 dias não aparecem." }), action: { label: "Produção de redes", href } };
   },

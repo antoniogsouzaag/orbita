@@ -4,7 +4,7 @@ import { revalidateTag, unstable_cache } from "next/cache";
 import { getDb } from "@/db";
 import { socialMedia, socialPosts, type SocialPost } from "@/db/schema";
 import { retryAfterMs } from "@/lib/rate-window";
-import { createBudget, POSTIZ_POST_LIMIT, postizBudget } from "./postiz-budget";
+import { clearPostizBudget, createBudget, loadPostizBudget, POSTIZ_POST_LIMIT, postizBudget, savePostizBudget } from "./postiz-budget";
 import { buildSchedulePayload, captionFor, channelIdentity, fanoutNetworks, isVideoFormat, mediaForNetwork, pickChannel, planMedia, reconcileExternal, sameCaption, type PostizChannel, type PostizMedia, type RemoteListedPost } from "@/lib/social-postiz";
 import { NETWORK_LABELS, nextFreeSlot, stageError, type SocialBrand, type SocialChecks, type SocialNetwork } from "@/lib/social-pipeline";
 import { getSocialMedia } from "./social-media";
@@ -15,7 +15,7 @@ import { invalidateDeliveries } from "./social-deliveries";
 // Janela de criações de post (limite do Postiz): regra e motivo em ./postiz-budget.
 export { postizBudget };
 /** Só para os testes. */
-export function resetPostizBudget() { createBudget.reset(); channelCache = null; occupiedCache.clear(); }
+export async function resetPostizBudget() { await clearPostizBudget(); channelCache = null; occupiedCache.clear(); }
 
 const hhmm = (t: number) => new Date(t).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
 /** O Postiz pediu pausa (429) ou a conta de criações da hora já fechou. `until` = quando dá para tentar de novo. */
@@ -149,6 +149,8 @@ export async function scheduleSocialPost(id: string, opts: ScheduleOptions = {})
   const db = await getDb();
   const [post] = await db.select().from(socialPosts).where(eq(socialPosts.id, id));
   if (!post) throw new Error("Post não encontrado.");
+  // A conta de criações vem do banco (sobrevive a deploy) e volta para lá no fim, deu certo ou não.
+  await loadPostizBudget();
   try { return await schedule(post, opts); }
   catch (e) {
     // Limite do Postiz antes de o canal principal sair: aprovado, com o pedido guardado para a próxima tentativa.
@@ -158,6 +160,7 @@ export async function scheduleSocialPost(id: string, opts: ScheduleOptions = {})
     }
     throw e;
   }
+  finally { await savePostizBudget(); }
 }
 
 async function schedule(post: SocialPost, opts: ScheduleOptions) {
@@ -220,7 +223,9 @@ async function schedule(post: SocialPost, opts: ScheduleOptions) {
   const finalScreen = needsFinal ? await uploadFinalScreen(post.brand as SocialBrand).catch(() => null) : null;
 
   const erros: Record<string, string> = {};
-  const now2 = modo === "agora" && !existing;
+  // "Publicar agora" pedido agora, ou rede extra retomada depois do horário do post (data passada no Postiz não vale).
+  const late = Boolean(existing) && post.scheduledAt!.getTime() < Date.now() + 60_000;
+  const now2 = (modo === "agora" && !existing) || late;
   // O principal primeiro: se o limite apertar, é ele que sai.
   for (const network of [post.network as SocialNetwork, ...networks.filter(n => n !== post.network)]) {
     if (!networks.includes(network) || done[network]) continue;
@@ -236,7 +241,7 @@ async function schedule(post: SocialPost, opts: ScheduleOptions) {
     if (room < 1 && network !== post.network) { erros[network] = `${LIMITE}: tente depois de ${hhmm(createBudget.availableAt(1) ?? Date.now() + 3_600_000)}`; continue; }
     const files = network !== "instagram" && finalScreen && networkMedia.length > 1 ? [...networkMedia.slice(0, -1), finalScreen] : networkMedia;
     try {
-      const payload = buildSchedulePayload({ channel: ch, caption: content, comment, media: files, date: post.scheduledAt!, title: post.title, isVideo: wantsVideo, now: now2 });
+      const payload = buildSchedulePayload({ channel: ch, caption: content, comment, media: files, date: now2 ? new Date() : post.scheduledAt!, title: post.title, isVideo: wantsVideo, now: now2 });
       room--;
       const result = await postiz<Array<{ postId?: string; id?: string }>>("/posts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       const postId = result?.[0]?.postId ?? result?.[0]?.id;
@@ -252,7 +257,7 @@ async function schedule(post: SocialPost, opts: ScheduleOptions) {
   const main = done[post.network];
   const state: PostizState = {
     postId: main.postId, integrationId: main.integrationId, scheduledFor: post.scheduledAt!.toISOString(), at: existing?.at ?? new Date().toISOString(), canais: done,
-    midias: Object.fromEntries(ordered.map(m => [m.id, uploaded.get(m.id)!])), ...(now2 || existing?.agora ? { agora: true } : {}), ...(Object.keys(erros).length ? { erros } : {}),
+    midias: Object.fromEntries(ordered.map(m => [m.id, uploaded.get(m.id)!])), ...((modo === "agora" && !existing) || existing?.agora ? { agora: true } : {}), ...(Object.keys(erros).length ? { erros } : {}),
   };
   const falhas = Object.entries(erros).filter(([, m]) => !SKIPPED(m)).map(([n]) => NETWORK_LABELS[n as SocialNetwork] ?? n);
   invalidateDeliveries();

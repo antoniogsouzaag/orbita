@@ -15,10 +15,10 @@ const origin = "https://orb.example";
 
 type Fake = { created: { body: { type: string; date: string; posts: { integration: { id: string } }[] } }[]; uploads: number; createStatus: () => { status: number; headers?: Record<string, string> } | null; remote: unknown[] };
 let fake: Fake;
-beforeEach(() => {
+beforeEach(async () => {
   vi.stubEnv("POSTIZ_API_URL", BASE);
   vi.stubEnv("POSTIZ_API_KEY", "chave-teste");
-  resetPostizBudget();
+  await resetPostizBudget();
   fake = { created: [], uploads: 0, createStatus: () => null, remote: [] };
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
@@ -93,7 +93,7 @@ describe("agendamento no Postiz", () => {
     expect(r.falhas).toHaveLength(2); // LinkedIn e Threads (YouTube não recebe imagem)
     // Durante a pausa, nem tenta: nada novo é criado.
     await expect(scheduleSocialPost(p.id)).rejects.toBeInstanceOf(PostizLimitError);
-    resetPostizBudget();
+    await resetPostizBudget();
     fake.createStatus = () => null;
     const again = await scheduleSocialPost(p.id);
     expect(Object.keys(again.postiz.canais ?? {}).sort()).toEqual(["facebook", "instagram", "linkedin", "threads"]);
@@ -123,5 +123,42 @@ describe("fechamento", () => {
     const [row] = await (await getDb()).select().from(socialPosts).where(eq(socialPosts.id, p.id));
     expect(row).toMatchObject({ stage: "publicado", publishedUrl: "https://instagram.com/p/xyz" });
     expect(row.checks).toMatchObject({ mediaId: "1789", vinculadoPeloFechamento: true, postiz: { postId: "mundos-ig" } });
+  });
+});
+
+describe("conta de criações e data no Postiz", () => {
+  it("a conta sobrevive a reinício do servidor (fica no banco)", async () => {
+    const { createBudget, loadPostizBudget } = await import("@/server/postiz-budget");
+    const p = await post("imagem", [["capa.jpg", "image/jpeg"]]);
+    await scheduleSocialPost(p.id); // Instagram, Facebook, LinkedIn e Threads
+    createBudget.reset(); // reinício: a memória volta vazia
+    await loadPostizBudget();
+    expect(createBudget.state().used).toBe(4);
+  });
+  it("data de post já agendado no Postiz não muda só pela Órbita", async () => {
+    const { updateSocialPost } = await import("@/server/social-posts");
+    const p = await post("imagem", [["capa.jpg", "image/jpeg"]]);
+    const r = await scheduleSocialPost(p.id);
+    await expect(updateSocialPost(p.id, { ...ready, format: "imagem", title: r.post.title, mediaUrl: r.post.mediaUrl, scheduledAt: new Date(Date.now() + 9 * 86_400_000).toISOString() })).rejects.toThrow(/só muda lá/);
+    // Mesma data (como a tela manda ao salvar a legenda) continua valendo.
+    await expect(updateSocialPost(p.id, { ...ready, format: "imagem", title: "Novo título", mediaUrl: r.post.mediaUrl, scheduledAt: r.post.scheduledAt!.toISOString() })).resolves.toMatchObject({ title: "Novo título" });
+  });
+});
+
+describe("retomada depois do horário", () => {
+  it("rede extra retomada depois que o post já saiu vai como publicar agora, não com data passada", async () => {
+    const p = await post("imagem", [["capa.jpg", "image/jpeg"]]);
+    let calls = 0;
+    fake.createStatus = () => (++calls > 1 ? { status: 429, headers: { "retry-after": "1800" } } : null);
+    const first = await scheduleSocialPost(p.id);
+    const db = await getDb();
+    const past = new Date(Date.now() - 3_600_000).toISOString();
+    await db.update(socialPosts).set({ checks: { ...first.post.checks, postiz: { ...first.postiz, scheduledFor: past } } }).where(eq(socialPosts.id, p.id));
+    await resetPostizBudget();
+    fake.createStatus = () => null;
+    fake.created = [];
+    await scheduleSocialPost(p.id);
+    expect(fake.created.length).toBe(3); // Facebook, LinkedIn e Threads
+    expect(fake.created.every(c => c.body.type === "now")).toBe(true);
   });
 });

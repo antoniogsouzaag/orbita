@@ -73,3 +73,14 @@ describe("limite do Postiz", () => {
     expect(retryAfterMs(new Headers())).toBeNull();
   });
 });
+
+describe("conta guardada do limite", () => {
+  it("junta sem contar em dobro e sem perder pedidos do mesmo milissegundo", () => {
+    const w = new RateWindow(30, 3_600_000);
+    w.record(1_000); w.record(1_000); w.record(2_000);
+    w.merge(w.snapshot(3_000), 3_000); // o mesmo processo relendo o que gravou
+    expect(w.state(3_000).used).toBe(3);
+    w.merge({ calls: [1_000, 2_500, "lixo"], blockedUntil: 9_000 }, 3_000); // outro processo
+    expect(w.state(3_000)).toMatchObject({ used: 4, blockedUntil: 9_000 });
+  });
+});

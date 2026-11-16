@@ -122,3 +122,23 @@ describe("remoção de mídia", () => {
     await expect(removeSocialMedia({ postId: post.id, ids: [a.id], origin })).rejects.toThrow(/Postiz/);
   });
 });
+
+describe("capa compartilhada", () => {
+  it("adaptação e envio avulso que virou capa ficam protegidos", async () => {
+    const { getDb } = await import("@/db");
+    const { socialMedia } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { cleanupSocialMedia, removeSocialMedia } = await import("@/server/social-media");
+    const { duplicateSocialPost } = await import("@/server/social-posts");
+    const src = await createSocialPost({ brand: "aglabs", network: "instagram", format: "carrossel", title: "Original" });
+    const cover = await saveSocialMedia({ bytes: jpeg, filename: "orig-01.jpg", contentType: "image/jpeg", postId: src.id, origin });
+    await duplicateSocialPost(src.id, "tiktok");
+    await expect(removeSocialMedia({ postId: src.id, ids: [cover.id], origin })).rejects.toThrow(/capa de "Original"/);
+    // Envio feito na tela antes de o post existir: avulso, mas é a capa de um post.
+    const loose = await saveSocialMedia({ bytes: jpeg, filename: "nova-capa.jpg", contentType: "image/jpeg", origin });
+    await createSocialPost({ brand: "aglabs", network: "instagram", format: "imagem", title: "Com capa avulsa", mediaUrl: loose.url });
+    await (await getDb()).update(socialMedia).set({ createdAt: new Date(Date.now() - 10 * 86_400_000) }).where(eq(socialMedia.id, loose.id));
+    await cleanupSocialMedia();
+    expect(await getSocialMedia(loose.id)).not.toBeNull();
+  });
+});

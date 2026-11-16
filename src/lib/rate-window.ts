@@ -25,6 +25,20 @@ export class RateWindow {
     return Math.max(blocked, free);
   }
   reset() { this.calls = []; this.blockedUntil = 0; }
+  /** Estado para guardar (sobrevive a reinício do servidor). */
+  snapshot(now = Date.now()) { this.prune(now); return { calls: [...this.calls], blockedUntil: this.blockedUntil > now ? this.blockedUntil : 0 }; }
+  /** Junta um estado guardado (deste ou de outro processo) com o da memória, sem contar o mesmo pedido duas vezes. */
+  merge(saved: { calls?: unknown; blockedUntil?: unknown } | null | undefined, now = Date.now()) {
+    if (!saved) return;
+    const calls = Array.isArray(saved.calls) ? saved.calls.filter((t): t is number => typeof t === "number" && Number.isFinite(t)) : [];
+    // Multiconjunto: cada instante vale o maior número de vezes que aparece em um dos lados (dois pedidos no mesmo
+    // milissegundo contam dois; o estado que este processo gravou e lê de volta não conta em dobro).
+    const count = (list: number[]) => list.reduce((m, t) => m.set(t, (m.get(t) ?? 0) + 1), new Map<number, number>());
+    const mine = count(this.calls), theirs = count(calls);
+    this.calls = [...new Set([...mine.keys(), ...theirs.keys()])].flatMap(t => Array<number>(Math.max(mine.get(t) ?? 0, theirs.get(t) ?? 0)).fill(t)).sort((a, b) => a - b);
+    if (typeof saved.blockedUntil === "number") this.blockedUntil = Math.max(this.blockedUntil, saved.blockedUntil);
+    this.prune(now);
+  }
 }
 
 /** Espera pedida numa resposta 429: Retry-After (segundos ou data) ou X-RateLimit-Reset (segundos). */

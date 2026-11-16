@@ -65,6 +65,9 @@ export async function updateSocialPost(id: string, raw: unknown) {
   // Campos gravados pelo sistema (Postiz, n8n) nunca são apagados por uma edição do post.
   const sys = Object.fromEntries((["postiz", "n8nCodeDone", "n8nPostDone", "arquivo", "agendamento", "vinculadoPeloFechamento"] as const).filter(k => before.checks?.[k] !== undefined).map(k => [k, before.checks![k]]));
   const next = { ...data, scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : before.scheduledAt, checks: { ...(data.checks ?? {}), ...sys } };
+  // Post já criado no Postiz sai na data de lá: trocar só aqui deixaria a Órbita mostrando um horário que não vale.
+  const moved = next.scheduledAt && before.scheduledAt && Math.abs(next.scheduledAt.getTime() - before.scheduledAt.getTime()) >= 60_000;
+  if (moved && before.checks?.postiz && ["agendado", "publicado"].includes(before.stage)) throw new Error("Este post já está no Postiz: a data só muda lá. A Órbita acompanha o horário do Postiz.");
   // Editar um post já aprovado não pode deixá-lo sem os requisitos de qualidade.
   const error = stageError(asQuality({ ...before, ...next }), before.stage as SocialStage);
   if (error && ["aprovado", "agendado", "publicado"].includes(before.stage)) throw new Error(error);

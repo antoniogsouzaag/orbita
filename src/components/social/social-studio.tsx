@@ -53,7 +53,7 @@ export function SocialStudio({ posts, metrics, initialTab = "hoje", dbError }: {
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <nav role="tablist" aria-label="Seções de redes" className="flex gap-1 rounded-xl border border-border p-1">
+      <nav role="tablist" aria-label="Seções de redes" className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-border p-1">
         {TABS.map(t => <button key={t.key} role="tab" type="button" aria-selected={tab === t.key} onClick={() => select(t.key)} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs ${tab === t.key ? "bg-accent/15 text-accent" : "text-muted hover:text-fg"}`}>{t.icon}{t.label}</button>)}
       </nav>
       {tab !== "metricas" && <div className="flex gap-2">
