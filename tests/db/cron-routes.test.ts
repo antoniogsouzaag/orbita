@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/social-media", () => ({ cleanupSocialMedia: vi.fn(async () => ({ removed: 0 })) }));
-vi.mock("@/server/social-publish", () => ({ syncScheduledPosts: vi.fn(async () => ({ synced: 0 })) }));
+vi.mock("@/server/social-publish", () => ({ syncScheduledPosts: vi.fn(async () => ({ synced: 0 })), retryPendingSchedules: vi.fn(async () => ({ tentados: 0 })) }));
 
 import { GET as midia } from "@/app/api/cron/midia/route";
 import { GET as redes } from "@/app/api/cron/redes/route";

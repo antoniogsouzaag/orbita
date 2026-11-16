@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { verifyAgentToken } from "@/server/agents";
-import { listPostMedia, saveSocialMedia } from "@/server/social-media";
+import { postMediaPlan, removeSocialMedia, saveSocialMedia } from "@/server/social-media";
 
 export const maxDuration = 30;
 
@@ -29,11 +29,19 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** Lista as mídias de um post: ?postId= */
+/** Lista as mídias de um post (?postId=) com o uso de cada uma (vai, substituida, fora) e os bloqueios de aprovação. */
 export async function GET(req: NextRequest) {
   if (!(await allowed(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const postId = req.nextUrl.searchParams.get("postId");
   if (!postId) return NextResponse.json({ error: "Informe postId." }, { status: 400 });
-  try { return NextResponse.json({ midias: await listPostMedia(postId, req.nextUrl.origin) }); }
-  catch { return NextResponse.json({ error: "postId inválido." }, { status: 400 }); }
+  try { return NextResponse.json(await postMediaPlan(postId, req.nextUrl.origin)); }
+  catch (e) { return NextResponse.json({ error: e instanceof Error && e.name !== "ZodError" ? e.message : "postId inválido." }, { status: e instanceof Error && /não encontrado/.test(e.message) ? 404 : 400 }); }
+}
+
+/** Remove mídias de um post: ?postId=&id=…&id=… ou ?postId=&substituidas=1 (versões antigas). */
+export async function DELETE(req: NextRequest) {
+  if (!(await allowed(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const q = req.nextUrl.searchParams;
+  try { return NextResponse.json(await removeSocialMedia({ postId: q.get("postId") ?? "", ids: q.getAll("id"), substituidas: q.get("substituidas") === "1", origin: req.nextUrl.origin })); }
+  catch (e) { return NextResponse.json({ error: e instanceof Error && e.name !== "ZodError" ? e.message : "Parâmetros inválidos." }, { status: 400 }); }
 }

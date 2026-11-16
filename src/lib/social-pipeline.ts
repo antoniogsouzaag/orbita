@@ -32,6 +32,12 @@ export type SocialChecks = {
   postiz?: { postId: string; integrationId: string; scheduledFor: string; at: string };
   /** Pedido de ajuste feito na revisão: o post volta para Rascunho e o agente (ou a equipe) refaz. */
   ajuste?: { nota: string; at: string } | null;
+  /** Gravado pela limpeza de mídias: o que saiu do armazenamento depois da retenção (a capa fica). */
+  arquivo?: { at: string; removidas: number; arquivos: string[] };
+  /** Aprovação que não chegou ao Postiz por limite de pedidos: o fechamento tenta de novo. */
+  agendamento?: { pendente: boolean; motivo: string; at: string; modo?: "auto" | "agora" | "data" } | null;
+  /** Post que saiu direto pelo Postiz e foi achado pelo fechamento (mesma legenda no canal da marca). */
+  vinculadoPeloFechamento?: boolean;
   brandReviewed?: boolean; ctaDeliverable?: boolean; libraryNeeded?: boolean; n8nDone?: boolean; pageDone?: boolean; libraryDone?: boolean;
 };
 

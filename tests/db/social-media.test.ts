@@ -41,24 +41,104 @@ describe("mídia dos posts", () => {
 });
 
 describe("limpeza de mídia", () => {
-  it("apaga mídia de post publicado há mais de 7 dias e avulsa antiga; mantém o resto", async () => {
+  it("segue a retenção por etapa, guarda a capa do publicado, registra e é idempotente", async () => {
     const { getDb } = await import("@/db");
-    const { socialMedia, socialPosts } = await import("@/db/schema");
+    const { opsEvents, socialMedia, socialPosts } = await import("@/db/schema");
     const { eq } = await import("drizzle-orm");
     const { cleanupSocialMedia } = await import("@/server/social-media");
     const db = await getDb();
-    const done = await createSocialPost({ brand: "aglabs", network: "instagram", format: "carrossel", title: "Publicado antigo" });
-    const live = await createSocialPost({ brand: "aglabs", network: "instagram", format: "carrossel", title: "Em produção" });
-    const old = new Date(Date.now() - 10 * 86_400_000);
-    const a = await saveSocialMedia({ bytes: jpeg, filename: "a.jpg", contentType: "image/jpeg", postId: done.id, origin });
-    await db.update(socialPosts).set({ stage: "publicado", updatedAt: old }).where(eq(socialPosts.id, done.id));
-    const b = await saveSocialMedia({ bytes: jpeg, filename: "b.jpg", contentType: "image/jpeg", postId: live.id, origin });
-    const c = await saveSocialMedia({ bytes: jpeg, filename: "c.jpg", contentType: "image/jpeg", origin });
-    await db.update(socialMedia).set({ createdAt: old }).where(eq(socialMedia.id, c.id));
+    const old = new Date(Date.now() - 20 * 86_400_000);
+    const mk = async (title: string, stage: string, files: string[], format = "carrossel") => {
+      const post = await createSocialPost({ brand: "aglabs", network: "instagram", format, title });
+      const media = [];
+      for (const f of files) media.push(await saveSocialMedia({ bytes: jpeg, filename: f, contentType: "image/jpeg", postId: post.id, origin }));
+      await db.update(socialPosts).set({ stage, updatedAt: old }).where(eq(socialPosts.id, post.id));
+      for (const m of media) await db.update(socialMedia).set({ createdAt: old }).where(eq(socialMedia.id, m.id));
+      return { post, media };
+    };
+    const done = await mk("Publicado antigo", "publicado", ["pub-01.jpg", "pub-02.jpg"]);
+    const failed = await mk("Falhou antigo", "falhou", ["f-01.jpg"]);
+    const draft = await mk("Rascunho com versões", "rascunho", ["r-01.jpg", "r-02.jpg"]);
+    const draftV2 = await saveSocialMedia({ bytes: jpeg, filename: "v2-r-02.jpg", contentType: "image/jpeg", postId: draft.post.id, origin });
+    // Revisão, aprovado e agendado nunca: nem a versão antiga sai.
+    const review = await mk("Em revisão", "revisao", ["rv-01.jpg", "rv-01.jpg"]);
+    const scheduled = await mk("Agendado antigo", "agendado", ["ag-01.jpg"]);
+    const loose = await saveSocialMedia({ bytes: jpeg, filename: "solta.jpg", contentType: "image/jpeg", origin });
+    await db.update(socialMedia).set({ createdAt: old }).where(eq(socialMedia.id, loose.id));
+
+    const dry = await cleanupSocialMedia(new Date(), { simular: true });
+    expect(dry.simulado).toBe(true);
+    expect(await getSocialMedia(done.media[1].id)).not.toBeNull();
+
     const r = await cleanupSocialMedia();
-    expect(r.removed).toBeGreaterThanOrEqual(2);
-    expect(await getSocialMedia(a.id)).toBeNull();
-    expect(await getSocialMedia(c.id)).toBeNull();
-    expect(await getSocialMedia(b.id)).not.toBeNull();
+    expect(r.motivos).toMatchObject({ publicado: 1, falhou: 1, substituida: 1, avulsa: 1 });
+    expect(r.removed).toBe(dry.removed);
+    expect(await getSocialMedia(done.media[0].id)).not.toBeNull(); // capa fica de registro
+    expect(await getSocialMedia(done.media[1].id)).toBeNull();
+    expect(await getSocialMedia(failed.media[0].id)).toBeNull();
+    expect(await getSocialMedia(draft.media[1].id)).toBeNull(); // r-02 substituído pelo v2
+    expect(await getSocialMedia(draftV2.id)).not.toBeNull();
+    expect(await getSocialMedia(draft.media[0].id)).not.toBeNull();
+    for (const m of [...review.media, ...scheduled.media]) expect(await getSocialMedia(m.id)).not.toBeNull();
+    expect(await getSocialMedia(loose.id)).toBeNull();
+    const [archived] = await db.select({ checks: socialPosts.checks }).from(socialPosts).where(eq(socialPosts.id, done.post.id));
+    expect(archived.checks.arquivo).toMatchObject({ removidas: 1, arquivos: ["pub-02.jpg"] });
+    const events = await db.select().from(opsEvents).where(eq(opsEvents.kind, "midia_limpeza"));
+    expect(events.at(-1)?.subject).toMatch(/4 arquivo/);
+
+    const again = await cleanupSocialMedia();
+    expect(again.removed).toBe(0);
+  });
+});
+
+describe("remoção de mídia", () => {
+  it("tira a escolhida, as versões antigas e troca a capa quando ela sai", async () => {
+    const { removeSocialMedia, postMediaPlan } = await import("@/server/social-media");
+    const post = await createSocialPost({ brand: "aglabs", network: "instagram", format: "carrossel", title: "Remover teste" });
+    const a = await saveSocialMedia({ bytes: jpeg, filename: "x-01.jpg", contentType: "image/jpeg", postId: post.id, origin });
+    const b = await saveSocialMedia({ bytes: jpeg, filename: "x-02.jpg", contentType: "image/jpeg", postId: post.id, origin });
+    await saveSocialMedia({ bytes: jpeg, filename: "x-02-v2.jpg", contentType: "image/jpeg", postId: post.id, origin });
+    const before = await postMediaPlan(post.id, origin);
+    expect(before).toMatchObject({ vao: 2, substituidas: 1 });
+    expect(before.midias.find(m => m.id === a.id)).toMatchObject({ uso: "vai", ordem: 1, capa: true });
+    expect(before.midias.find(m => m.id === b.id)?.uso).toBe("substituida");
+
+    const old = await removeSocialMedia({ postId: post.id, substituidas: true, origin });
+    expect(old.removidas.map(r => r.id)).toEqual([b.id]);
+    const cover = await removeSocialMedia({ postId: post.id, ids: [a.id], origin });
+    expect(cover.capa).toMatch(/\/api\/redes\/midia\//);
+    expect(cover.capa).not.toContain(a.id);
+    expect(cover.vao).toBe(1);
+    await expect(removeSocialMedia({ postId: post.id, ids: ["00000000-0000-4000-8000-000000000000"], origin })).rejects.toThrow(/não encontrada/);
+  });
+  it("recusa post que já está no Postiz", async () => {
+    const { getDb } = await import("@/db");
+    const { socialPosts } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { removeSocialMedia } = await import("@/server/social-media");
+    const post = await createSocialPost({ brand: "aglabs", network: "instagram", format: "carrossel", title: "Já agendado" });
+    const a = await saveSocialMedia({ bytes: jpeg, filename: "y-01.jpg", contentType: "image/jpeg", postId: post.id, origin });
+    await (await getDb()).update(socialPosts).set({ stage: "agendado" }).where(eq(socialPosts.id, post.id));
+    await expect(removeSocialMedia({ postId: post.id, ids: [a.id], origin })).rejects.toThrow(/Postiz/);
+  });
+});
+
+describe("capa compartilhada", () => {
+  it("adaptação e envio avulso que virou capa ficam protegidos", async () => {
+    const { getDb } = await import("@/db");
+    const { socialMedia } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { cleanupSocialMedia, removeSocialMedia } = await import("@/server/social-media");
+    const { duplicateSocialPost } = await import("@/server/social-posts");
+    const src = await createSocialPost({ brand: "aglabs", network: "instagram", format: "carrossel", title: "Original" });
+    const cover = await saveSocialMedia({ bytes: jpeg, filename: "orig-01.jpg", contentType: "image/jpeg", postId: src.id, origin });
+    await duplicateSocialPost(src.id, "tiktok");
+    await expect(removeSocialMedia({ postId: src.id, ids: [cover.id], origin })).rejects.toThrow(/capa de "Original"/);
+    // Envio feito na tela antes de o post existir: avulso, mas é a capa de um post.
+    const loose = await saveSocialMedia({ bytes: jpeg, filename: "nova-capa.jpg", contentType: "image/jpeg", origin });
+    await createSocialPost({ brand: "aglabs", network: "instagram", format: "imagem", title: "Com capa avulsa", mediaUrl: loose.url });
+    await (await getDb()).update(socialMedia).set({ createdAt: new Date(Date.now() - 10 * 86_400_000) }).where(eq(socialMedia.id, loose.id));
+    await cleanupSocialMedia();
+    expect(await getSocialMedia(loose.id)).not.toBeNull();
   });
 });

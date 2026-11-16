@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { socialPosts, type SocialPost } from "@/db/schema";
 import { invalidateDeliveries } from "./social-deliveries";
+import { postStoredMedia, removePostObjects } from "./social-media";
 import { nextFreeSlot, SOCIAL_BRANDS, SOCIAL_FORMATS, SOCIAL_NETWORKS, SOCIAL_STAGES, stageError, type SocialNetwork, type SocialStage } from "@/lib/social-pipeline";
 
 const optionalText = (max: number) => z.string().trim().max(max).transform(v => v || null).nullable().optional();
@@ -62,8 +63,11 @@ export async function updateSocialPost(id: string, raw: unknown) {
   const before = await current(id);
   const data = socialPostSchema.parse(raw);
   // Campos gravados pelo sistema (Postiz, n8n) nunca são apagados por uma edição do post.
-  const sys = Object.fromEntries((["postiz", "n8nCodeDone", "n8nPostDone"] as const).filter(k => before.checks?.[k] !== undefined).map(k => [k, before.checks![k]]));
+  const sys = Object.fromEntries((["postiz", "n8nCodeDone", "n8nPostDone", "arquivo", "agendamento", "vinculadoPeloFechamento"] as const).filter(k => before.checks?.[k] !== undefined).map(k => [k, before.checks![k]]));
   const next = { ...data, scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : before.scheduledAt, checks: { ...(data.checks ?? {}), ...sys } };
+  // Post já criado no Postiz sai na data de lá: trocar só aqui deixaria a Órbita mostrando um horário que não vale.
+  const moved = next.scheduledAt && before.scheduledAt && Math.abs(next.scheduledAt.getTime() - before.scheduledAt.getTime()) >= 60_000;
+  if (moved && before.checks?.postiz && ["agendado", "publicado"].includes(before.stage)) throw new Error("Este post já está no Postiz: a data só muda lá. A Órbita acompanha o horário do Postiz.");
   // Editar um post já aprovado não pode deixá-lo sem os requisitos de qualidade.
   const error = stageError(asQuality({ ...before, ...next }), before.stage as SocialStage);
   if (error && ["aprovado", "agendado", "publicado"].includes(before.stage)) throw new Error(error);
@@ -102,10 +106,14 @@ export async function requestSocialAdjustment(id: string, nota: string) {
   return row;
 }
 
+/** Apaga o post; as linhas de mídia saem em cascata e os objetos do bucket logo depois (o que falhar, a limpeza diária pega). */
 export async function deleteSocialPost(id: string) {
+  const postId = z.string().uuid().parse(id);
   const db = await getDb();
   invalidateDeliveries();
-  await db.delete(socialPosts).where(eq(socialPosts.id, z.string().uuid().parse(id)));
+  const stored = await postStoredMedia(postId);
+  await db.delete(socialPosts).where(eq(socialPosts.id, postId));
+  await removePostObjects(stored);
 }
 
 /** Cria adaptação do post para outra rede, voltando para rascunho e exigindo nova revisão. */

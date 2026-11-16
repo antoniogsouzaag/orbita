@@ -31,7 +31,7 @@ import { readVaultNote, readVaultSchema } from "./vault-read";
 import { VaultProviderError } from "./vault/provider";
 import { journalQueryInput } from "@/lib/journal";
 import { journalSummary } from "./journal";
-import { redesAnexarMidia, redesAtualizarPost, redesAuditarEntregas, redesCriarPost, redesListarPosts } from "./social-tools";
+import { redesAnexarMidia, redesAtualizarPost, redesAuditarEntregas, redesCriarPost, redesListarMidias, redesListarPosts, redesRemoverMidia } from "./social-tools";
 import { buscarConversas, memoria, pedirAgente, statusAgentes, ToolRefusal } from "./orbe-tools";
 
 /**
@@ -546,6 +546,8 @@ export const ASSISTANT_TOOLS: Tool[] = [
   { name: "redes_criar_post", description: "Cria post no pipeline de redes (etapa ideia a revisao). Informe marca, rede, formato, título, gancho, legenda e CTA. A data é automática (próximo dia livre da marca às 20h). Com palavra-chave no CTA, preencha checks.keyword, checks.pageUrl (página do conteúdo gratuito) e checks.deliveryMessage (texto da DM com o link). Não aprova: aprovação é do Antonio.", ...redesCriarPost },
   { name: "redes_atualizar_post", description: "Atualiza campos de um post (mídia, legenda, entregas em checks, link publicado) e/ou move a etapa. Aprovar é bloqueado para agentes; agendar/publicar exige checklist e entregas (n8n, página, biblioteca) concluídas.", ...redesAtualizarPost },
   { name: "redes_anexar_midia", description: "Anexa uma mídia (capa, slide ou vídeo curto) a um post do pipeline de redes a partir de um link https: a Órbita baixa e guarda o arquivo e devolve um link próprio. Use capa=true para trocar a mídia principal.", ...redesAnexarMidia },
+  { name: "redes_listar_midias", readOnly: true, description: "Lista as mídias de um post com id, arquivo, ordem e uso: vai (entra no post), substituida (versão antiga do mesmo slide, mesmo nome ou com v2) ou fora (layout, capa de reel). Traz os avisos que bloqueiam aprovar (mais de 10 mídias, reel com mais de um vídeo). Use antes de remover.", ...redesListarMidias },
+  { name: "redes_remover_midia", description: "Remove mídias de um post que ainda não foi para o Postiz (ideia a revisão, aprovado sem agendamento ou falhou): informe midia_ids (de redes_listar_midias) ou versoes_antigas=true para tirar todas as substituídas. Apaga do armazenamento; se a capa sair, a primeira mídia que vai vira a capa. Use quando o post passar de 10 mídias ou o reel tiver mais de um vídeo.", ...redesRemoverMidia },
   { name: "redes_auditar_entregas", readOnly: true, description: "Confere as entregas por palavra-chave da AG LABS nas tabelas do n8n (MSG POR POST e MSG INSTAGRAM): linha sem media_id, media_id duplicado, palavra-chave errada ou ausente, página repetida e link de conteúdo fora do ar. Só leitura; corrija na tabela e rode de novo.", ...redesAuditarEntregas },
   { name: "crm_registrar_atividade", description: "Registra na ficha do contato uma interação que já aconteceu. Não muda a etapa do funil.", requires: crmConfigured, ...crmRegistrarAtividade },
 ] as Tool[];
