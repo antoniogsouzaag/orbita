@@ -23,6 +23,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Auditar dependências de produção
+        run: npm audit --omit=dev --audit-level=moderate
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test -- --maxWorkers=2
