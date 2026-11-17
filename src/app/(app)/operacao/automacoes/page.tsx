@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, CircleDashed, Workflow, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleDashed, Workflow } from "lucide-react";
 import Link from "next/link";
 import { Card, PageHeader, SectionLabel } from "@/components/ui/card";
 import { BarRows, Big, ColumnBars, Legend, ShareStrip, WidgetShell, dayKey, lastDays } from "@/components/ui/mini-charts";
@@ -8,6 +8,9 @@ import { n8nOverview } from "@/server/ops";
 import { liveOps } from "@/server/ops-live";
 import { VaultBanner } from "@/components/vault/vault-banner";
 import { getVaultIndexSafe } from "@/server/vault";
+import { workflowFailures } from "@/server/workflow-failures";
+import type { WorkflowFailure } from "@/lib/workflow-failures";
+import { IncidentResolution } from "@/components/ops/incident-resolution";
 
 export const metadata = { title: "Automações" };
 
@@ -17,9 +20,7 @@ export default async function Page() {
   const [n8n, live] = await Promise.all([n8nOverview(), liveOps()]);
   const notePath = (await getVaultIndexSafe())?.resolve("Automações Ativas") ?? null;
   const sourcesVerified = n8n.configured && n8n.instances.every((instance) => instance.executionsAvailable && !instance.errorsPartial);
-  const pushed = live.events.filter((e) => e.kind === "workflow_error");
-  const pushedUrls = new Set(pushed.map((event) => String(event.detail.executionUrl ?? "")).filter(Boolean));
-  const apiErrors = n8n.instances.flatMap((i) => i.errors).filter((error) => !pushedUrls.has(error.url));
+  const failures = await workflowFailures(live.events, n8n.instances.flatMap(i => i.errors));
 
   const workflows = n8n.instances.flatMap((i) => i.workflows);
   const active = workflows.filter((w) => w.active);
@@ -29,11 +30,11 @@ export default async function Page() {
   const failDays = days.map((d) => ({
     label: d.label,
     segments: [
-      { name: "recebidas", tone: "warn" as const, value: pushed.filter((e) => dayKey(e.createdAt) === d.key).length },
-      { name: "na API", tone: "err" as const, value: apiErrors.filter((e) => dayKey(e.startedAt) === d.key).length },
+      { name: "pendentes", tone: "warn" as const, value: failures.pending.filter(e => dayKey(e.createdAt) === d.key).length },
+      { name: "resolvidas", tone: "ok" as const, value: failures.resolved.filter(e => dayKey(e.createdAt) === d.key).length },
     ],
   }));
-  const failTotal = pushed.length + apiErrors.length;
+  const failTotal = failures.pending.length;
   const recentFailTotal = failDays.reduce((total, day) => total + day.segments.reduce((sum, segment) => sum + segment.value, 0), 0);
   const inventoryAvailable = n8n.instances.some(instance => instance.workflowsAvailable || instance.workflows.length > 0);
 
@@ -55,28 +56,19 @@ export default async function Page() {
 
   const tags = [...workflows.flatMap((w) => w.tags).reduce((m, t) => m.set(t, (m.get(t) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]).slice(0, 6);
 
-  const failureList = (
+  const renderFailures = (rows: WorkflowFailure[]) => (
     <ul className="-mx-2 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
-      {failTotal === 0 && <li className="px-2 text-[12.5px] text-muted">{sourcesVerified ? "Nenhuma falha retornada pelas consultas atuais." : "Nenhuma falha recebida por ingestão. A consulta às APIs n8n está incompleta; isso não confirma ausência de falhas."}</li>}
-      {pushed.map((e) => {
-        const d = e.detail as { node?: string; message?: string; executionUrl?: string };
+      {rows.map((e) => {
         return (
-          <li key={e.id} className="flex gap-2.5 rounded-lg px-2 py-1.5 hover:bg-surface-2">
-            <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" />
-            <span className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-medium">{e.subject}</span><span className="block truncate text-[11.5px] text-faint">{d.node ? `nó ${d.node} · ` : ""}{d.message}</span></span>
-            <span className="shrink-0 text-right text-[11px] tabular-nums text-faint">{when(e.createdAt)}{d.executionUrl && <a href={d.executionUrl} target="_blank" rel="noreferrer" className="block text-accent hover:underline">abrir ↗</a>}</span>
+          <li key={e.key} className="flex gap-2.5 rounded-lg px-2 py-1.5 hover:bg-surface-2">
+            {e.resolvedAt ? <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-success" /> : <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" />}
+            <div className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-medium">{e.name}</span><span className="block truncate text-[11.5px] text-faint">{e.node ? `nó ${e.node} · ` : ""}{e.instance}</span>
+              {e.resolvedAt ? <p className="mt-1 text-[11.5px] text-muted">Resolvida em {when(e.resolvedAt)} · {e.resolution}</p> : <IncidentResolution id={e.id} executionUrl={e.url} />}
+            </div>
+            <span className="shrink-0 text-right text-[11px] tabular-nums text-faint">{when(e.createdAt)}{e.url && <a href={e.url} target="_blank" rel="noreferrer" className="block text-accent hover:underline">abrir ↗</a>}</span>
           </li>
         );
       })}
-      {apiErrors.map((e) => (
-        <li key={`${e.instance}-${e.id}`}>
-          <a href={e.url} target="_blank" rel="noreferrer" className="flex gap-2.5 rounded-lg px-2 py-1.5 hover:bg-surface-2">
-            <XCircle className="mt-0.5 size-3.5 shrink-0 text-danger" />
-            <span className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-medium">{e.workflowName}</span><span className="block truncate text-[11.5px] text-faint">{e.instance}</span></span>
-            <span className="shrink-0 text-[11px] tabular-nums text-faint">{when(e.startedAt)}</span>
-          </a>
-        </li>
-      ))}
     </ul>
   );
 
@@ -91,15 +83,17 @@ export default async function Page() {
       </WidgetShell>
     ),
     failures: (
-      <WidgetShell title="Falhas" meta="amostra de 14 dias">
-        <Big tone={recentFailTotal ? "warn" : undefined} unit={recentFailTotal === 1 ? "falha" : "falhas"}>{recentFailTotal || sourcesVerified ? recentFailTotal : "—"}</Big>
+      <WidgetShell title="Falhas pendentes" meta="amostra; inclui antigas">
+        <Big tone={failTotal ? "warn" : undefined} unit={failTotal === 1 ? "pendente" : "pendentes"}>{failTotal || sourcesVerified ? failTotal : "—"}</Big>
+        <Legend className="mt-2" items={[{ name: "pendentes", tone: "warn" }, { name: "resolvidas", tone: "ok" }]} />
         <ColumnBars className="mt-auto" axis={[days[0].label, "hoje"]} label={`Falhas de workflow por dia na amostra dos últimos 14 dias: ${recentFailTotal}.`} columns={failDays} />
       </WidgetShell>
     ),
     list: (
-      <WidgetShell title="Falhas recentes" meta={`${failTotal} registros na amostra; inclui antigos`}>
-        <Legend className="mb-2" items={[{ name: "recebidas pelo monitor", tone: "warn", value: pushed.length }, { name: "consultadas na API", tone: "err", value: apiErrors.length }]} />
-        {failureList}
+      <WidgetShell title="Falhas pendentes" meta={`${failTotal} sem resolução registrada na amostra`}>
+        <p className="mb-2 text-[11.5px] text-muted">Após conferir a correção, registre a resolução. O histórico fica preservado.</p>
+        {failTotal ? renderFailures(failures.pending) : <p className="text-[12.5px] text-muted">{sourcesVerified ? "Nenhuma falha pendente nas consultas atuais." : "Nenhuma pendência carregada. A consulta às APIs n8n está incompleta; ausência de falhas não confirmada."}</p>}
+        {failures.resolved.length > 0 && <details className="mt-3 border-t border-border pt-2"><summary className="cursor-pointer text-[12px] text-muted">Resolvidas · {failures.resolved.length}</summary>{renderFailures(failures.resolved)}</details>}
       </WidgetShell>
     ),
     tags: (
