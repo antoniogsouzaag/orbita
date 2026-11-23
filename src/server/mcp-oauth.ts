@@ -11,6 +11,8 @@ const opaque = (prefix: string) => `${prefix}${randomBytes(32).toString("base64u
 const expires = (seconds: number) => new Date(Date.now() + seconds * 1000);
 const ACCESS_SECONDS = 3600;
 const REFRESH_SECONDS = 30 * 86400;
+export const DEFAULT_MCP_SCOPES = ["contexto", "status"] as const;
+const LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "[::1]"];
 
 export class OAuthError extends Error {
   constructor(public code: string, message: string, public status = 400) { super(message); }
@@ -45,7 +47,7 @@ export function protectedMetadata() {
   return { resource: oauthResource(), authorization_servers: [oauthOrigin()], scopes_supported: [...AGENT_SCOPES], bearer_methods_supported: ["header"] };
 }
 export function oauthChallenge() {
-  return `Bearer resource_metadata="${oauthOrigin()}/.well-known/oauth-protected-resource/api/mcp"`;
+  return `Bearer resource_metadata="${oauthOrigin()}/.well-known/oauth-protected-resource/api/mcp", scope="${DEFAULT_MCP_SCOPES.join(" ")}"`;
 }
 
 /** DCR restrito aos callbacks OpenAI e ao callback local do Codex. Sem fetch/SSRF. */
@@ -54,8 +56,21 @@ export function allowedRedirect(value: string) {
     const u = new URL(value);
     if (u.username || u.password || u.hash || u.search) return false;
     if (u.origin === "https://chatgpt.com") return u.pathname === "/connector_platform_oauth_redirect" || /^\/connector\/oauth\/[A-Za-z0-9_-]+$/.test(u.pathname);
-    return u.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(u.hostname) && /^\/callback(?:\/[A-Za-z0-9_-]+)?$/.test(u.pathname);
+    return u.protocol === "http:" && LOOPBACK_HOSTS.includes(u.hostname) && /^\/callback(?:\/[A-Za-z0-9_-]+)?$/.test(u.pathname);
   } catch { return false; }
+}
+/** RFC 8252 §7.3: o cliente nativo escolhe uma porta livre em cada login. */
+function registeredRedirectMatches(redirect: string, registered: string[]) {
+  if (registered.includes(redirect)) return true;
+  const requested = new URL(redirect);
+  if (requested.protocol !== "http:" || !LOOPBACK_HOSTS.includes(requested.hostname)) return false;
+  requested.port = "";
+  return registered.some(value => {
+    if (!allowedRedirect(value)) return false;
+    const callback = new URL(value);
+    callback.port = "";
+    return callback.href === requested.href;
+  });
 }
 const ClientSchema = z.object({
   client_name: z.string().trim().min(1).max(80).default("Cliente MCP"),
@@ -93,10 +108,10 @@ export async function parseAuthorization(params: URLSearchParams): Promise<Autho
   const db = await getDb();
   const [client] = await db.select().from(clients).where(eq(clients.id, clientId));
   const redirectUri = params.get("redirect_uri") ?? "";
-  if (!client || !allowedRedirect(redirectUri) || !client.redirectUris.includes(redirectUri)) throw new OAuthError("invalid_request", "Cliente ou callback não cadastrado.");
+  if (!client || !allowedRedirect(redirectUri) || !registeredRedirectMatches(redirectUri, client.redirectUris)) throw new OAuthError("invalid_request", "Cliente ou callback não cadastrado. Inicie a conexão novamente no aplicativo.");
   if (params.get("response_type") !== "code" || params.get("code_challenge_method") !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(params.get("code_challenge") ?? "")) throw new OAuthError("invalid_request", "Esta conexão exige authorization code com PKCE S256.");
   if (params.get("resource") !== oauthResource()) throw new OAuthError("invalid_target", "Recurso MCP inválido.");
-  const rawScopes = params.get("scope") || "contexto status";
+  const rawScopes = params.get("scope") || DEFAULT_MCP_SCOPES.join(" ");
   const scopes = [...new Set(rawScopes.split(/\s+/))];
   if (!scopes.length || scopes.some(s => !AGENT_SCOPES.includes(s as AgentScope))) throw new OAuthError("invalid_scope", "Permissão desconhecida.");
   const state = params.get("state") ?? "";
