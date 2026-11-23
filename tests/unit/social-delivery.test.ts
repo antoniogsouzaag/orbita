@@ -11,6 +11,18 @@ describe("auditoria de entregas", () => {
   it("post sem linha por post cai no genérico", () => expect(kinds(auditDeliveries({ perPost, byCode, posts: [{ id: "p", title: "Potes", keyword: "PROMPT", mediaId: "222" }] }))).toEqual(["so_fallback"]));
   it("palavra-chave errada", () => expect(kinds(auditDeliveries({ perPost, byCode, posts: [{ id: "p", title: "Bolsa", keyword: "LUXO", mediaId: "111" }] }))).toEqual(["keyword_errada"]));
   it("palavra-chave ausente", () => expect(kinds(auditDeliveries({ perPost, byCode, posts: [{ id: "p", title: "Muse", keyword: "MUSE", mediaId: "9" }] }))).toEqual(["keyword_ausente"]));
+  it("post agendado com código pronto aguarda publicação sem aviso de media_id", () => {
+    expect(auditDeliveries({ perPost, byCode, posts: [{ id: "p", title: "Amanhã", keyword: "PROMPT", stage: "agendado" }] })).toEqual([]);
+  });
+  it("post agendado continua exigindo a palavra-chave cadastrada", () => {
+    expect(kinds(auditDeliveries({ perPost, byCode, posts: [{ id: "p", title: "Amanhã", keyword: "INEXISTENTE", stage: "agendado" }] }))).toEqual(["keyword_ausente"]);
+  });
+  it("post publicado sem identificador continua sinalizado", () => {
+    expect(kinds(auditDeliveries({ perPost, byCode, posts: [{ id: "p", title: "Já publicado", keyword: "PROMPT", stage: "publicado" }] }))).toEqual(["post_sem_media_id"]);
+  });
+  it("identificador em post agendado ainda confere divergências de código", () => {
+    expect(kinds(auditDeliveries({ perPost, byCode, posts: [{ id: "p", title: "Amanhã", keyword: "LUXO", mediaId: "111", stage: "agendado" }] }))).toEqual(["keyword_errada"]);
+  });
   it("linha sem media_id, duplicada e página repetida", () => {
     const rows = [...perPost, { codigo: "PROMPT", media_id: "111", mensagem: "https://conteudo.aglabs.ia.br/conteudos/x" }, { codigo: "X", media_id: "333", mensagem: "https://conteudo.aglabs.ia.br/conteudos/bolsa" }, { codigo: "Y", media_id: "", mensagem: "oi" }];
     expect(kinds(auditDeliveries({ perPost: rows, byCode, posts: [] })).sort()).toEqual(["media_duplicado", "pagina_repetida", "sem_media_id"]);

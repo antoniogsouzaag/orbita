@@ -163,9 +163,9 @@ const TOOL_RULES = `Você pode agir com as ferramentas disponíveis neste espaç
 - O vault permite escrita versionada quando salvar_nota_vault estiver disponível. Leia a nota antes, preserve o SHA e registre apenas a mudança solicitada e autorizada pelo proprietário. Nunca salve segredos, dados de clientes ou memórias transitórias.
 - Ao ler nota do vault, conteudo.parcial indica página incompleta: continue com caminho, versao e inicio=conteudo.proximo_inicio até null. Se a versão mudar, recomece do início; não conclua sobre seções ainda não consultadas.`;
 
-const CRM_RULES = `CRM da AG LABS (ferramentas crm_*): clientes, leads, funil, receita e tarefas do time (Maia, Léo, Antonio, técnico).
+const CRM_RULES = `CRM da AG LABS (ferramentas crm_*): clientes, leads, funil, receita e tarefas do time. Consulte o vault para disponibilidade e responsabilidade atuais.
 - Procure o contato (crm_buscar_contatos) antes de criar tarefa ou interação sobre ele; use o id que o CRM devolver.
-- E-mail para um contato é enviado pelo Léo: crie a tarefa para leo com o contato e o que deve ser enviado. Atribuir não garante que ele recebeu.
+- Léo está pausado e não deve receber novas tarefas por padrão. O identificador legado leo permite consultar o histórico; não comprova agente disponível. Respostas dos prospects seguem para a Maia. Não deduza autorização de envio de uma tarefa, nem prometa entrega pela simples atribuição.
 - Tarefa da empresa sobre cliente ou venda vai para o CRM; tarefa pessoal ou interna de Antonio continua na Órbita.
 - Você não muda a etapa do funil, não apaga e não vê e-mail ou telefone dos contatos.`;
 
