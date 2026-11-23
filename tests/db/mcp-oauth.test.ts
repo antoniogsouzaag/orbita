@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -34,6 +36,7 @@ describe("OAuth MCP persistente", () => {
     const res = await mcp(new Request(oauthResource(), { method: "POST" }));
     expect(res.status).toBe(401);
     expect(res.headers.get("www-authenticate")).toContain("/.well-known/oauth-protected-resource/api/mcp");
+    expect(res.headers.get("www-authenticate")).toContain('scope="contexto status"');
     expect(res.headers.get("cache-control")).toBe("no-store");
   });
   it("restringe callbacks, método e metadados do cliente", async () => {
@@ -54,6 +57,55 @@ describe("OAuth MCP persistente", () => {
     const { auth } = await request();
     await expect(authorizeOAuth(auth, ["admin"])).rejects.toMatchObject({ code: "invalid_scope" });
     await expect(authorizeOAuth(auth, [])).rejects.toMatchObject({ code: "invalid_scope" });
+  });
+  it("aceita a porta dinâmica do Codex sem trocar host ou caminho do callback cadastrado", async () => {
+    for (const registered of ["http://127.0.0.1/callback", "http://127.0.0.1:4123/callback/codex_123", "http://[::1]/callback", "http://localhost:4123/callback"]) {
+      const client = await registerOAuthClient({ client_name: "Codex loopback", redirect_uris: [registered] });
+      const dynamic = new URL(registered); dynamic.port = "54321";
+      const { params } = await request();
+      params.set("client_id", client.client_id);
+      params.set("redirect_uri", dynamic.href);
+      const auth = await parseAuthorization(params);
+      expect(auth.redirectUri).toBe(dynamic.href);
+      const url = new URL(await authorizeOAuth(auth, ["status"]));
+      expect(url.origin).toBe(dynamic.origin);
+      const form = new URLSearchParams({ grant_type: "authorization_code", code: url.searchParams.get("code")!, code_verifier: verifier, client_id: client.client_id, redirect_uri: registered, resource: oauthResource() });
+      // A exceção da porta só vale no pedido de autorização. O código fica preso ao callback usado.
+      await expect(exchangeOAuthToken(form)).rejects.toMatchObject({ code: "invalid_grant" });
+      form.set("redirect_uri", dynamic.href);
+      expect((await exchangeOAuthToken(form)).scope).toBe("status");
+      for (const bad of ["http://localhost:54321/callback/outro", "http://127.0.0.2:54321/callback", "http://127.0.0.1:54321/callback/outro", "https://127.0.0.1:54321/callback", `${dynamic.href}?next=evil`]) {
+        params.set("redirect_uri", bad);
+        await expect(parseAuthorization(params)).rejects.toMatchObject({ code: "invalid_request" });
+      }
+    }
+  });
+  it("exige o esquema Bearer para autenticar o endpoint MCP", async () => {
+    const c = await connection();
+    for (const authorization of [c.tokens.access_token, `Basic ${c.tokens.access_token}`]) {
+      const res = await mcp(new Request(oauthResource(), { method: "POST", headers: { authorization } }));
+      expect(res.status).toBe(401);
+    }
+  });
+  it("completa o handshake HTTP do SDK, descobre ferramentas e executa leitura com OAuth", async () => {
+    const c = await connection();
+    const client = new Client({ name: "Codex compatibility", version: "1.0.0" });
+    const transport = new StreamableHTTPClientTransport(new URL(oauthResource()), {
+      requestInit: { headers: { Authorization: `Bearer ${c.tokens.access_token}` } },
+      fetch: async (input, init) => mcp(new Request(input, init)),
+    });
+    try {
+      await client.connect(transport);
+      expect(client.getServerVersion()?.name).toBe("orbita");
+      expect(client.getInstructions()).toContain("Pessoal e Empresa");
+      await expect(client.ping()).resolves.toEqual({});
+      const tools = (await client.listTools()).tools.map(t => t.name);
+      expect(tools).toContain("documentacao");
+      expect(tools).not.toContain("contexto_pessoal");
+      const result = await client.callTool({ name: "documentacao", arguments: { secao: "inicio" } });
+      expect(result.isError).not.toBe(true);
+      expect(result.content).toEqual(expect.arrayContaining([expect.objectContaining({ type: "text", text: expect.stringContaining("entrada rápida") })]));
+    } finally { await client.close(); }
   });
   it("emite código de uso único e tokens com hash, state e issuer corretos", async () => {
     const c = await connection();

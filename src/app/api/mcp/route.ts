@@ -9,7 +9,7 @@ export const maxDuration = 60;
  * Agentes conectam em https://orb.aglabs.api.br/api/mcp com  Authorization: Bearer orb_...
  */
 async function handle(req: Request) {
-  const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const bearer = req.headers.get("authorization")?.trim().match(/^Bearer\s+(\S+)$/i)?.[1];
   const agent = await verifyAgentToken(bearer);
   if (!agent) return Response.json({ jsonrpc: "2.0", error: { code: -32001, message: "Conecte sua conta Órbita ou use um token de agente válido." }, id: null }, { status: 401, headers: { ...oauthHeaders, "WWW-Authenticate": oauthChallenge() } });
   const server = buildMcpServer(agent);

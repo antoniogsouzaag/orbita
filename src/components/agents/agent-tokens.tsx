@@ -110,7 +110,7 @@ export function AgentTokens({ tokens, mcpUrl }: { tokens: TokenRow[]; mcpUrl: st
         )}
 
         {active.length === 0 ? (
-          <p className="text-muted">Nenhum agente conectado ainda.</p>
+          <p className="text-muted">Nenhum acesso ativo. Conecte pelo OAuth acima ou crie um token individual.</p>
         ) : (
           <ul className="divide-y divide-border">
             {active.map((t) => (
