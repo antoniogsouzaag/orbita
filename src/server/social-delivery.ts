@@ -60,6 +60,6 @@ export async function runDeliveryAudit() {
   const live = posts.filter(p => p.brand === "aglabs" && p.network === "instagram" && ["agendado", "publicado"].includes(p.stage) && p.checks?.keyword);
   const links = [...new Set([...perPost, ...byCode].flatMap(r => linksIn(r.mensagem)).filter(l => /conteudo\.aglabs\.ia\.br/.test(l)))];
   const linkStatus = Object.fromEntries(await Promise.all(links.map(async l => [l, await status(l)] as const)));
-  const issues = auditDeliveries({ perPost, byCode, linkStatus, posts: live.map(p => ({ id: p.id, title: p.title, keyword: p.checks!.keyword!, mediaId: p.checks?.mediaId })) });
-  return { configurado: true as const, conferido_em: new Date().toISOString(), linhas_por_post: perPost.length, codigos: byCode.length, posts_conferidos: live.length, links_testados: links.length, erros: issues.filter(i => i.level === "erro").length, problemas: issues };
+  const issues = auditDeliveries({ perPost, byCode, linkStatus, posts: live.map(p => ({ id: p.id, title: p.title, keyword: p.checks!.keyword!, mediaId: p.checks?.mediaId, stage: p.stage })) });
+  return { configurado: true as const, conferido_em: new Date().toISOString(), linhas_por_post: perPost.length, codigos: byCode.length, posts_conferidos: live.length, agendados_aguardando_media_id: live.filter(p => p.stage === "agendado" && !p.checks?.mediaId).length, links_testados: links.length, erros: issues.filter(i => i.level === "erro").length, problemas: issues };
 }

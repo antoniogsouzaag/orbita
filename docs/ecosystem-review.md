@@ -29,6 +29,10 @@ Leitura, reprodução, correções reversíveis e manutenção dentro do escopo 
 
 Uma revisão pode abrir PR ou registrar um bloqueio, mas não concluir uma tarefa sem satisfazer o aceite. Problemas de credencial, cota ou infraestrutura permanecem identificados com condição de retomada; não justificam desligar gates ou testar em clientes reais.
 
+## Auditoria de entregas das redes
+
+A auditoria confere códigos, vínculos por publicação e links de material sem enviar mensagens ou publicar posts. Posts agendados ainda sem identificador do Instagram aparecem na contagem `agendados_aguardando_media_id`; isso é uma etapa aguardando publicação, não falha de entrega. O código de resposta deve existir mesmo antes de publicar. Um post marcado como publicado sem identificador continua gerando aviso, e um identificador já registrado é conferido em qualquer uma das duas etapas. A contagem não comprova publicação nem recebimento pelo destinatário.
+
 ## Próximas homologações nas origens
 
 Pagamentos, classificação de leads, backup/restauração, canais de despacho e deploy exigem verificação pelos gestores nos sistemas correspondentes. Uma execução deve preservar identidade autenticada, idempotência, evidência sanitizada e releitura. Não automatizar retry de cobrança, envio ou publicação a partir de ausência de resposta.
