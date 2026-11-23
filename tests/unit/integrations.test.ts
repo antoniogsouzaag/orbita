@@ -96,6 +96,52 @@ describe("diagnóstico das integrações", () => {
     expect(JSON.stringify(rows)).not.toContain("private-token");
   });
 
+  it("identifica a etapa e o status de recusa sem copiar a descrição privada", async () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "private-token");
+    vi.stubEnv("TELEGRAM_CHAT_ID", "private-chat");
+    const request = vi.fn<typeof fetch>(async (url) => String(url).endsWith("/getMe")
+      ? Response.json({ ok: true })
+      : Response.json({ description: "private-token private-chat" }, { status: 429 }));
+    vi.stubGlobal("fetch", request);
+    const rows = await checkIntegrationHealth();
+    expect(rows.find(row => row.id === "telegram")).toMatchObject({ state: "error", detail: "Telegram · consulta do destino: API respondeu HTTP 429. Nenhuma mensagem foi enviada." });
+    expect(JSON.stringify(rows)).not.toMatch(/private-token|private-chat/);
+    expect(request).toHaveBeenCalledTimes(2);
+    for (const [, init] of request.mock.calls) expect(init).toMatchObject({ redirect: "error" });
+  });
+
+  it.each([
+    [new DOMException("private-token", "TimeoutError"), "tempo limite de consulta atingido"],
+    [new TypeError("private-token", { cause: { code: "ENOTFOUND", hostname: "private-chat" } }), "falha de resolução de endereço"],
+    [new TypeError("private-token", { cause: { code: "UND_ERR_CONNECT_TIMEOUT" } }), "tempo limite de conexão atingido"],
+    [new TypeError("private-token", { cause: { code: "ECONNRESET" } }), "conexão interrompida"],
+    [new Error("private-token", { cause: { code: "unknown-private-chat" } }), "falha de transporte"],
+  ])("classifica falhas de transporte por categoria segura (%s)", async (error, category) => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "private-token");
+    vi.stubEnv("TELEGRAM_CHAT_ID", "private-chat");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.endsWith("/getMe")) throw error;
+      return Response.json({ ok: true });
+    }));
+    const rows = await checkIntegrationHealth();
+    expect(rows.find(row => row.id === "telegram")).toMatchObject({ state: "error", detail: `Telegram · consulta do bot: ${category}. Nenhuma mensagem foi enviada.` });
+    expect(JSON.stringify(rows)).not.toMatch(/private-token|private-chat/);
+  });
+
+  it.each([
+    [() => new Response("private-token private-chat"), "resposta inválida da API"],
+    [() => Response.json(null), "API não confirmou a consulta"],
+    [() => Response.json({ ok: false, description: "private-token private-chat" }), "API não confirmou a consulta"],
+    [() => Response.json({ ok: "true" }), "API não confirmou a consulta"],
+  ])("não confirma resposta inválida nem inclui o corpo da API", async (response, category) => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "private-token");
+    vi.stubEnv("TELEGRAM_CHAT_ID", "private-chat");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url.endsWith("/getMe") ? response() : Response.json({ ok: true })));
+    const rows = await checkIntegrationHealth();
+    expect(rows.find(row => row.id === "telegram")).toMatchObject({ state: "error", detail: `Telegram · consulta do bot: ${category}. Nenhuma mensagem foi enviada.` });
+    expect(JSON.stringify(rows)).not.toMatch(/private-token|private-chat/);
+  });
+
   it("não chama monitor sem batida de conectado e higieniza falhas de transporte", async () => {
     vi.stubEnv("OPS_TOKEN", "a-valid-long-token-for-ingest");
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "private-token");

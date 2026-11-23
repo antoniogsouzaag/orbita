@@ -57,15 +57,43 @@ export function integrationConfiguration(): IntegrationHealthRow[] {
   ];
 }
 
-async function telegramProbe() {
+type TelegramProbeTarget = "bot" | "destino";
+
+/** Só retorna categorias fixas: exceções e descrições da API podem conter segredos. */
+function telegramTransportFailure(error: unknown): string {
+  if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) return "tempo limite de consulta atingido";
+  const cause = error instanceof Error ? error.cause : undefined;
+  const code = cause && typeof cause === "object" && "code" in cause ? cause.code : undefined;
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return "falha de resolução de endereço";
+  if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT") return "tempo limite de conexão atingido";
+  if (code === "ECONNRESET" || code === "UND_ERR_SOCKET") return "conexão interrompida";
+  return "falha de transporte";
+}
+
+async function telegramProbe(): Promise<string | null> {
   const base = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
-  const responses = await Promise.all([
-    fetch(`${base}/getMe`, { cache: "no-store", signal: AbortSignal.timeout(8000) }),
-    fetch(`${base}/getChat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID }), cache: "no-store", signal: AbortSignal.timeout(8000) }),
-  ]);
-  for (const response of responses) {
-    if (!response.ok || !(await response.json() as { ok?: boolean }).ok) throw new Error("Telegram recusou o bot ou o destino configurado.");
-  }
+  const probe = async (target: TelegramProbeTarget): Promise<string | null> => {
+    const label = `Telegram · consulta do ${target}`;
+    let response: Response;
+    try {
+      response = await fetch(`${base}/${target === "bot" ? "getMe" : "getChat"}`, {
+        ...(target === "destino" ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID }) } : {}),
+        cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8000),
+      });
+    } catch (error) {
+      return `${label}: ${telegramTransportFailure(error)}. Nenhuma mensagem foi enviada.`;
+    }
+    if (!response.ok) return `${label}: API respondeu HTTP ${response.status}. Nenhuma mensagem foi enviada.`;
+    try {
+      const body = await response.json() as { ok?: boolean } | null;
+      if (body?.ok === true) return null;
+      return `${label}: API não confirmou a consulta. Nenhuma mensagem foi enviada.`;
+    } catch {
+      return `${label}: resposta inválida da API. Nenhuma mensagem foi enviada.`;
+    }
+  };
+  const failures = (await Promise.all([probe("bot"), probe("destino")])).filter((failure): failure is string => failure !== null);
+  return failures.length ? failures.join(" ") : null;
 }
 
 /** Todas as sondagens são de leitura. Não envia mensagens, não executa workflows e não altera credenciais. */
@@ -113,8 +141,8 @@ export async function checkIntegrationHealth(): Promise<IntegrationHealthRow[]> 
           return result(live.monitors.length && !silent.length ? "verified" : "warning", !live.monitors.length ? "Token configurado, mas nenhuma batida de monitor foi recebida. Confira os envios dos monitores no n8n." : `${live.monitors.length - silent.length}/${live.monitors.length} monitores com batida recente${silent.length ? ` · ${silent.length} em silêncio` : ""}.`);
         }
         case "telegram": {
-          await telegramProbe();
-          return result("verified", "Bot e destino responderam. Nenhuma mensagem foi enviada; entrega não testada.");
+          const failure = await telegramProbe();
+          return failure ? result("error", failure) : result("verified", "Bot e destino responderam. Nenhuma mensagem foi enviada; entrega não testada.");
         }
         case "release": {
           const commit = buildCommit();
