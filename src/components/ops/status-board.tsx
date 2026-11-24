@@ -2,13 +2,32 @@
 
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, RefreshCw, XCircle } from "lucide-react";
 import * as React from "react";
-import { toast } from "sonner";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tooltip } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
 
 export type BoardItem = { url: string; name: string; group: string; ok: boolean; stale?: boolean; unstable?: boolean; status: number | null; error: string | null; ms: number | null; checkedAt: string; since?: string; source: string };
+
+const probeSchema = z.object({
+  configured: z.boolean(),
+  total: z.number().int().nonnegative(),
+  results: z.array(z.object({
+    url: z.string(), name: z.string(), ok: z.boolean(), status: z.number().int().nonnegative(),
+    error: z.string().optional(), ms: z.number().nonnegative(), checkedAt: z.iso.datetime(),
+  })),
+});
+type ProbeState =
+  | { status: "idle" | "loading" | "unavailable" | "empty" | "error" }
+  | { status: "results"; total: number; rows: z.infer<typeof probeSchema>["results"] };
+
+const probeMessage: Record<Exclude<ProbeState["status"], "idle" | "results">, string> = {
+  loading: "Verificação pontual em andamento…",
+  unavailable: "Verificação pontual indisponível. Não foi possível carregar a lista de endereços do vault.",
+  empty: "Nenhum endereço configurado para verificação pontual.",
+  error: "Não foi possível concluir a verificação pontual. Tente novamente.",
+};
 
 function ago(iso: string) {
   const m = Math.round((Date.now() - Date.parse(iso)) / 60_000);
@@ -18,28 +37,21 @@ function ago(iso: string) {
   return h < 48 ? `há ${h}h` : `há ${Math.round(h / 24)}d`;
 }
 
-export function StatusBoard({ initial, groupOrder }: { initial: BoardItem[]; groupOrder: string[] }) {
-  const [items, setItems] = React.useState(initial);
-  const [loading, setLoading] = React.useState(false);
-  // Novos dados do servidor substituem a verificação local.
-  const [prevInitial, setPrevInitial] = React.useState(initial);
-  if (prevInitial !== initial) {
-    setPrevInitial(initial);
-    setItems(initial);
-  }
+export function StatusBoard({ initial: items, groupOrder }: { initial: BoardItem[]; groupOrder: string[] }) {
+  const [probe, setProbe] = React.useState<ProbeState>({ status: "idle" });
+  const loading = probe.status === "loading";
 
   const checkNow = async () => {
-    setLoading(true);
+    setProbe({ status: "loading" });
     try {
       const r = await fetch("/api/ops/status?force=1");
-      if (!r.ok) return void toast.error("Não foi possível verificar agora");
-      const json = (await r.json()) as { results: { url: string; name: string; group: string; ok: boolean; status: number; error?: string; ms: number; checkedAt: string }[] };
-      const byUrl = new Map(items.map((i) => [i.url, i]));
-      for (const r of json.results) byUrl.set(r.url, { ...(byUrl.get(r.url) ?? {}), url: r.url, name: r.name, group: byUrl.get(r.url)?.group ?? r.group, ok: r.ok, stale: false, unstable: false, status: r.status || null, error: r.error ?? null, ms: r.ms, checkedAt: r.checkedAt, source: "Órbita (agora)" });
-      setItems([...byUrl.values()]);
-      toast.success("Verificação feita pela Órbita");
-    } finally {
-      setLoading(false);
+      if (!r.ok) throw new Error("Verificação indisponível");
+      const data = probeSchema.parse(await r.json());
+      if (!data.configured) setProbe({ status: "unavailable" });
+      else if (data.total === 0 && data.results.length === 0) setProbe({ status: "empty" });
+      else setProbe({ status: "results", total: data.total, rows: data.results });
+    } catch {
+      setProbe({ status: "error" });
     }
   };
 
@@ -74,8 +86,30 @@ export function StatusBoard({ initial, groupOrder }: { initial: BoardItem[]; gro
           {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />} Verificar agora
         </Button>
       </div>
+      {probe.status !== "idle" && (
+        <section aria-label="Verificação pontual da Órbita" className="mb-4 rounded-lg border border-border bg-surface-2/50 p-3">
+          <h3 className="text-[13px] font-semibold">Verificação pontual · Órbita</h3>
+          <p className="mt-1 text-xs text-muted">Este teste não confirma queda ou recuperação e não altera o histórico do n8n.</p>
+          {probe.status === "results" ? (
+            <>
+              <p role="status" className="mt-2 text-xs text-muted">{probe.rows.length < probe.total ? `Resultado parcial: ${probe.rows.length} de ${probe.total} endereços retornaram.` : `${probe.rows.length} endereço(s) verificado(s).`}</p>
+              {probe.rows.length > 0 && <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                {probe.rows.map((row, index) => (
+                  <li key={`${row.url}:${index}`} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs">
+                    <span className="min-w-0 break-all font-medium" title={row.url}>{row.name || row.url}</span>
+                    <span className="text-muted">
+                      <span className={row.ok ? "text-success" : "text-warning"}>{row.ok ? "Respondeu ao teste" : "Falhou no teste"}</span>
+                      {row.status ? ` · HTTP ${row.status}` : ""}{row.error ? ` · ${row.error}` : ""} · {row.ms} ms · <time dateTime={row.checkedAt}>{new Date(row.checkedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "medium" })}</time>
+                    </span>
+                  </li>
+                ))}
+              </ul>}
+            </>
+          ) : <p role="status" className="mt-2 text-xs text-muted">{probeMessage[probe.status]}</p>}
+        </section>
+      )}
       {items.length === 0 && (
-        <p className="py-6 text-center text-[13px] text-muted">Nenhum resultado recebido ainda. Ligue o envio no n8n (veja “Integração com o n8n”) ou clique em “Verificar agora”.</p>
+        <p className="py-6 text-center text-[13px] text-muted">Nenhum resultado recebido do n8n ainda. “Verificar agora” faz um teste separado, sem substituir os dados dos monitores.</p>
       )}
       <div className="space-y-4">
         {groups.map(([group, list]) => (
