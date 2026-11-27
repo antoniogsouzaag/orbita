@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ArrowRight, BookOpen, CalendarDays, CheckSquare, ChevronLeft, ChevronRight, Dumbbell, Flame, Goal, Loader2, Repeat, Server, Sparkles, Timer, Trophy, Wallet, X,
+  ArrowRight, BookOpen, CalendarDays, CheckSquare, ChevronLeft, ChevronRight, Dumbbell, Flame, Goal, Loader2, Repeat, Server, Sparkles, Timer, Trophy, TriangleAlert, Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -301,7 +301,7 @@ function HourSelect({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
-/* ───────── Operação (status ao vivo) ───────── */
+/* ───────── Operação (verificação pontual) ───────── */
 type OpsSummary = { configured: boolean; total: number; up: number; down: { name: string; url: string; group: string }[]; checkedAt: string };
 export function OpsWidget() {
   const [data, setData] = React.useState<OpsSummary | null>(null);
@@ -313,21 +313,22 @@ export function OpsWidget() {
     <Card className="h-full">
       <CardHeader icon={<Server />} title="Operação" href="/operacao" hrefLabel="Visão geral" />
       <div className="px-5 pb-5">
-        {!data && !err && <div className="flex items-center gap-2 py-6 text-[13px] text-muted"><Loader2 className="size-4 animate-spin" /> Verificando endereços…</div>}
-        {err && <p className="py-4 text-[13px] text-muted">Não foi possível checar agora.</p>}
+        {!data && !err && <div className="flex items-center gap-2 py-6 text-[13px] text-muted"><Loader2 className="size-4 animate-spin" /> Verificação pontual em andamento…</div>}
+        {err && <p className="py-4 text-[13px] text-muted">Não foi possível concluir a verificação pontual.</p>}
         {data && !data.configured && <p className="py-4 text-[13px] text-muted">Conecte o vault para ler a lista de monitoramento.</p>}
-        {data && data.configured && (
+        {data?.configured && data.total === 0 && <p className="py-4 text-[13px] text-muted">Nenhum endereço configurado para verificação pontual.</p>}
+        {data?.configured && data.total > 0 && (
           <>
             <div className="flex items-end gap-2">
-              <span className={cn("text-3xl font-bold tabular-nums", data.down.length ? "text-danger" : "text-success")}>{data.up}/{data.total}</span>
-              <span className="pb-1 text-[13px] text-muted">no ar</span>
+              <span className={cn("text-3xl font-bold tabular-nums", data.down.length ? "text-warning" : "text-success")}>{data.up}/{data.total}</span>
+              <span className="pb-1 text-[13px] text-muted">responderam ao teste</span>
             </div>
-            {data.down.length === 0 ? (
-              <p className="mt-2 text-[13px] text-muted">Todos os endereços responderam. ✅</p>
-            ) : (
+            <p className="mt-2 text-[13px] text-muted">Verificação pontual. Consulte Operação para ver o estado dos monitores.</p>
+            {data.down.length > 0 && (
               <div className="mt-3 space-y-1.5">
+                <p className="text-[12px] text-muted">Falharam no teste:</p>
                 {data.down.slice(0, 5).map((d) => (
-                  <div key={d.url} className="flex items-center gap-2 text-[13px]"><X className="size-3.5 text-danger" /><span className="truncate">{d.name}</span><span className="ml-auto shrink-0 text-[11px] text-faint">{d.group}</span></div>
+                  <div key={d.url} className="flex items-center gap-2 text-[13px]"><TriangleAlert aria-hidden="true" className="size-3.5 shrink-0 text-warning" /><span className="truncate">{d.name}</span><span className="ml-auto shrink-0 text-[11px] text-faint">{d.group}</span></div>
                 ))}
               </div>
             )}
