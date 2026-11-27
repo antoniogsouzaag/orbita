@@ -43,6 +43,8 @@ Executar `codex mcp login orbita`, concluir o consentimento na Órbita e abrir u
 
 ## Recuperar uma conexão
 
+O log interno do servidor registra `[mcp-http]` com método, status HTTP, autenticação reconhecida e presença dos formatos Accept/versão do protocolo. `[mcp-oauth-token]` registra somente status e código de resultado da troca ou renovação. Esses registros não incluem tokens, códigos de autorização, headers completos, nomes de agentes, corpos ou argumentos das ferramentas. Não gravam eventos no banco nem alteram a política de retenção dos logs da plataforma. Um HTTP 200 isolado não comprova descoberta nem execução bem-sucedida; confirmar a resposta MCP e o catálogo efetivo no cliente.
+
 - **401 ou credencial expirada/revogada:** executar `codex mcp login orbita`. O prazo absoluto do refresh é de 30 dias.
 - **Cliente ou callback não cadastrado:** iniciar um novo login no aplicativo; não reutilizar uma URL antiga de autorização. O Codex pode escolher outra porta local em cada tentativa.
 - **Permissão insuficiente:** conferir o consentimento e o catálogo efetivo. Para solicitar mais permissões, executar novo login com `--scopes` e consentir explicitamente. Configurar escopos no cliente não concede acesso por si só.
