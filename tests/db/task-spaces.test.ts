@@ -105,15 +105,22 @@ describe("tarefas isoladas por espaço", () => {
   });
 
   it("Foco separa tarefas, sessões e valida o vínculo empresarial", async () => {
-    await logFocus(5, "Sessão pessoal", personal);
-    await logFocus(8, "Sessão empresa", company, undefined, undefined, "empresa");
-    await logFocus(3, "Foco livre");
-    await expect(logFocus(2, "Cruzada", personal, undefined, undefined, "empresa")).rejects.toThrow("deste espaço");
-    await expect(logFocus(2, null, null, undefined, undefined, "empresa")).rejects.toThrow("Vincule");
-    expect((await focusStats("pessoal")).today).toBe(8);
-    expect((await focusStats("empresa")).today).toBe(8);
-    expect((await focusStats("empresa")).recent.map((session) => session.label)).toEqual(["Sessão empresa"]);
-    expect(await (await getDb()).select().from(focusSessions)).toHaveLength(3);
+    // Fixar só Date mantém os timers reais necessários ao banco.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-27T15:00:00Z"));
+      await logFocus(5, "Sessão pessoal", personal);
+      await logFocus(8, "Sessão empresa", company, undefined, undefined, "empresa");
+      await logFocus(3, "Foco livre");
+      await expect(logFocus(2, "Cruzada", personal, undefined, undefined, "empresa")).rejects.toThrow("deste espaço");
+      await expect(logFocus(2, null, null, undefined, undefined, "empresa")).rejects.toThrow("Vincule");
+      expect((await focusStats("pessoal")).today).toBe(8);
+      expect((await focusStats("empresa")).today).toBe(8);
+      expect((await focusStats("empresa")).recent.map((session) => session.label)).toEqual(["Sessão empresa"]);
+      expect(await (await getDb()).select().from(focusSessions)).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("subtarefa legada com default pessoal permanece na origem explícita do pai sem regravar a base", async () => {

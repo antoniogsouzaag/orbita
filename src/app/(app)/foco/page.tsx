@@ -1,5 +1,6 @@
 import { Timer } from "lucide-react";
 import Link from "next/link";
+import { TIMEZONE } from "@/lib/dates";
 import { taskScope } from "@/lib/task-scope";
 import { FocusTimer } from "@/components/life/focus-timer";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
@@ -33,7 +34,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
             <div className="space-y-1 px-5 pb-5">
               {stats.recent.length === 0 && <p className="text-[13px] text-muted">Nenhuma sessão ainda.</p>}
               {stats.recent.map((s) => (
-                <div key={s.id} className="flex justify-between gap-2 text-[12.5px]"><span className="truncate text-muted">{s.label ?? "Foco livre"}</span><span className="shrink-0 tabular-nums">{s.minutes} min · {s.startedAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}</span></div>
+                <div key={s.id} className="flex justify-between gap-2 text-[12.5px]"><span className="truncate text-muted">{s.label ?? "Foco livre"}</span><span className="shrink-0 tabular-nums">{s.minutes} min · {s.startedAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: TIMEZONE })}</span></div>
               ))}
             </div>
           </Card>
